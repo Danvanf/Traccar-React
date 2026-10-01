@@ -39,3 +39,6 @@ backend/**/bin_check*/
 
 # Script artifacts
 scripts/artifacts/
+
+# Internal/private documentation (kept local, not published)
+docs/internal/

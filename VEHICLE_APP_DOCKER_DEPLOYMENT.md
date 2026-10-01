@@ -136,7 +136,7 @@ The first successful startup should show the API listening and completing its sc
 
 ## 6. Apply additive database scripts
 
-Back up `vehicle_app` before applying a new schema script. The existing backup procedure is documented in `docs/internal/runbooks/vehicle_app_backup_restore.md`.
+Back up `vehicle_app` before applying a new schema script. Keep the backup/restore procedure in your private internal runbook.
 
 Run scripts from the Linux host by streaming them into the existing database container:
 

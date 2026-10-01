@@ -3,7 +3,7 @@
 This document is the public-facing architecture and status summary.
 
 The internal implementation handoff/history has been moved to:
-- `docs/internal/AI_HANDOFF_PRIVATE.md`
+- private internal notes (excluded from the public repository)
 
 ## Scope
 
@@ -31,12 +31,12 @@ Traccar React is a React + Vite frontend with a .NET API and PostgreSQL-backed e
 
 - Health and diagnostics scripts in `scripts/`.
 - Retention and growth runbooks:
-  - `docs/internal/runbooks/phase6_retention_runbook.md`
+  - private internal retention runbook
   - `scripts/phase6_daily_health.sql`
   - `scripts/phase6_growth_health.sql`
   - `scripts/phase6_maintenance_health.sql`
 - Backup/restore runbook:
-  - `docs/internal/runbooks/vehicle_app_backup_restore.md`
+  - private internal backup/restore runbook
 - Docker deployment guidance:
   - `VEHICLE_APP_DOCKER_DEPLOYMENT.md`
 
@@ -47,8 +47,7 @@ Traccar React is a React + Vite frontend with a .NET API and PostgreSQL-backed e
   - `Traccar_PostgreSQL_Backend_Architecture_Update.md`
   - `docs/TELTONIKA_FMB003_DATA_CATALOG.md`
 - Internal/handoff docs:
-  - `docs/internal/AI_HANDOFF_PRIVATE.md`
-  - working notes such as `docs/internal/NEXT_TODO_INTERNAL.md`
+  - local internal handoff notes (excluded from this public tree)
 
 ## Public Readiness Review
 

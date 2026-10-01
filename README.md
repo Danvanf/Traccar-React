@@ -85,6 +85,10 @@ Capture conventions and recommended views are documented in:
 
 - `docs/screenshots/README.md`
 
+Settings walkthrough and configuration notes are documented in:
+
+- `docs/SETTINGS_CONFIGURATION_GUIDE.md`
+
 ## Phase 5 Validation Scripts
 
 Run these from PowerShell to validate backend import, binding integrity, and frontend/backend build health.
@@ -313,9 +317,8 @@ disabled for local compatibility.
 Deployment hostnames and ports are environment-specific. Keep them in local
 environment variables and deployment files, not in committed docs or scripts.
 The Vite development proxy exposes the backend under `/vehicle-api/`. See
-`docs/internal/runbooks/vehicle_app_backup_restore.md` and
-`VEHICLE_APP_DOCKER_DEPLOYMENT.md` for Linux/Docker deployment and backup
-guidance.
+`VEHICLE_APP_DOCKER_DEPLOYMENT.md` for Linux/Docker deployment guidance. Keep
+backup/restore runbooks in private internal documentation.
 
 The Import / Export panel also accepts Bouncie CSV trip history. Apply
 `scripts/phase8_bouncie_import_schema.sql` to `vehicle_app` first. Rows match

@@ -4,4 +4,4 @@ This root file is intentionally minimal for public readability.
 
 Current internal roadmap and checklist:
 
-- `docs/internal/NEXT_TODO_INTERNAL.md`
+- maintained in local internal notes (excluded from this public repository)

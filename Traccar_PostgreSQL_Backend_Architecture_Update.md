@@ -117,7 +117,7 @@ Performance note:
 Use psql-first runbook for host execution:
 
 - `scripts/phase2_positions_audit.sql`
-- `docs/internal/runbooks/phase2_runbook.md`
+- private internal phase 2 runbook
 
 ### Phase 3 - Data Boundary Planning
 
@@ -268,7 +268,7 @@ Implemented (2026-09-26):
 - Request timing middleware logs method/path/status/duration for each request (5xx logged as warning).
 - Frontend vehicle API client now parses ProblemDetails (`title`, `detail`, validation errors) into cleaner operator-facing messages.
 - Retention runbook + SQL helper added for `vehicle_app` trip archival policy:
-  - `docs/internal/runbooks/phase6_retention_runbook.md`
+  - private internal retention runbook
   - `scripts/phase6_vehicle_app_retention.sql`
   - initial policy: keep 24 months hot in `vehicle_app.trips`, archive older rows to `vehicle_app.trips_archive`.
 
@@ -340,7 +340,7 @@ Resume checklist for next session:
 - 2026-09-26: Added one-command regression script `scripts/phase5_regression.ps1` (health + smoke + binding-integrity + frontend/backend builds).
 - 2026-09-26: Added Phase 5 validation script documentation in `README.md` and `AI_OVERVIEW.md`.
 - 2026-09-26: Added request observability baseline (request ID response header, ProblemDetails correlation fields, request timing logs).
-- 2026-09-26: Added Phase 6 retention strategy artifacts (`docs/internal/runbooks/phase6_retention_runbook.md`, `scripts/phase6_vehicle_app_retention.sql`) with 24-month hot retention and archive-first workflow.
+- 2026-09-26: Added Phase 6 retention strategy artifacts (private internal retention runbook, `scripts/phase6_vehicle_app_retention.sql`) with 24-month hot retention and archive-first workflow.
 - 2026-09-26: Added Phase 5 DTC enrichment foundation schema + API endpoints (`/api/dtc/catalog`, `/api/dtc/events`, import/upsert routes) and sample requests.
 - 2026-09-26: Added DTC smoke validation script (`scripts/phase5_dtc_smoke_test.ps1`) and integrated it into `phase5_regression.ps1`.
 - 2026-09-26: Fixed `/api/dtc/events` query binding so `limit` is optional (no BadHttpRequestException when omitted).

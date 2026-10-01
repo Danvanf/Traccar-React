@@ -24,6 +24,22 @@ Use this folder for publishable product screenshots.
 - `03-settings-named-places.png`
 - `04-vehicle-status-cards.png`
 - `05-login-screen.png`
+- `06-telemetry.png`
+- `07-Settings1.png`
+- `08-Settings2.png`
+- `09-Settings3.png`
+
+## Settings walkthrough screenshots
+
+Use this sequence for configuration walkthroughs:
+
+1. `07-Settings1.png`
+2. `08-Settings2.png`
+3. `09-Settings3.png`
+
+Detailed section-by-section guide:
+
+- `docs/SETTINGS_CONFIGURATION_GUIDE.md`
 
 ## Referencing in README
 

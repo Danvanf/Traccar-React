@@ -43,7 +43,7 @@ This review focuses on GitHub/public-release readiness with an emphasis on docum
 
 3. Public/private documentation split
    - `AI_OVERVIEW.md` is now a public-safe architecture/status summary.
-   - Full historical handoff content is preserved in `docs/internal/AI_HANDOFF_PRIVATE.md`.
+   - Historical handoff content is preserved in local internal docs excluded from public publication.
 
 4. Governance docs
    - Added `SECURITY.md` with private vulnerability reporting guidance.
@@ -52,7 +52,7 @@ This review focuses on GitHub/public-release readiness with an emphasis on docum
 
 5. Internal notes relocation
    - Root `NEXT_TODO.md` now points to internal planning content.
-   - Full working checklist moved to `docs/internal/NEXT_TODO_INTERNAL.md`.
+   - Full working checklist moved to local internal docs excluded from public publication.
 
 ## Recommended Public/Private Split
 
@@ -61,8 +61,7 @@ This review focuses on GitHub/public-release readiness with an emphasis on docum
 - `README.md` (general setup and high-level workflows)
 - `AI_OVERVIEW.md` (public architecture/status summary)
 - `docs/TELTONIKA_FMB003_DATA_CATALOG.md`
-- `docs/internal/runbooks/vehicle_app_backup_restore.md`
-- `docs/internal/runbooks/phase6_retention_runbook.md`
+- private internal runbooks (not published)
 - `VEHICLE_APP_DOCKER_DEPLOYMENT.md`
 - `SECURITY.md`
 - `CONTRIBUTING.md`
@@ -71,8 +70,7 @@ This review focuses on GitHub/public-release readiness with an emphasis on docum
 
 ### Keep Private (or move to an internal docs channel)
 
-- `docs/internal/AI_HANDOFF_PRIVATE.md` (session/handoff and implementation chronology)
-- `docs/internal/NEXT_TODO_INTERNAL.md` (internal roadmap/checklist)
+- local internal handoff and roadmap docs (excluded from public publication)
 
 ## Next Recommended Actions
 
