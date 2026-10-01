@@ -1,0 +1,184 @@
+@VehicleApp.Api_HostAddress = http://localhost:5124
+
+GET {{VehicleApp.Api_HostAddress}}/health
+Accept: application/json
+
+###
+
+GET {{VehicleApp.Api_HostAddress}}/api/vehicles
+Accept: application/json
+
+###
+
+GET {{VehicleApp.Api_HostAddress}}/api/device-bindings
+Accept: application/json
+
+###
+
+POST {{VehicleApp.Api_HostAddress}}/api/device-bindings/upsert
+Content-Type: application/json
+
+{
+	"vehicleId": "00000000-0000-0000-0000-000000000000",
+	"traccarDeviceId": 1,
+	"isPrimary": true
+}
+
+###
+
+GET {{VehicleApp.Api_HostAddress}}/api/trips?vehicleId=00000000-0000-0000-0000-000000000000&limit=100
+Accept: application/json
+
+###
+
+GET {{VehicleApp.Api_HostAddress}}/api/trips/day-summaries?vehicleId=00000000-0000-0000-0000-000000000000
+Accept: application/json
+
+###
+
+POST {{VehicleApp.Api_HostAddress}}/api/trips/import-by-device
+Content-Type: application/json
+
+{
+	"traccarDeviceId": 1,
+	"trips": [
+		{
+			"startedAt": "2026-09-25T12:00:00Z",
+			"endedAt": "2026-09-25T12:35:00Z",
+			"durationSeconds": 2100,
+			"distanceMeters": 15234.2,
+			"avgSpeedMph": 27.1,
+			"maxSpeedMph": 61.4
+		}
+	]
+}
+
+###
+
+POST {{VehicleApp.Api_HostAddress}}/api/trips/00000000-0000-0000-0000-000000000000/notes
+Content-Type: application/json
+
+{
+	"notes": "Customer commute route; mild idle at pickup"
+}
+
+###
+
+GET {{VehicleApp.Api_HostAddress}}/api/named-places
+Accept: application/json
+
+###
+
+POST {{VehicleApp.Api_HostAddress}}/api/named-places/upsert
+Content-Type: application/json
+
+{
+	"vehicleId": "00000000-0000-0000-0000-000000000000",
+	"name": "Warehouse",
+	"latitude": 35.12345,
+	"longitude": -80.54321,
+	"radiusMeters": 100,
+	"notes": "Primary loading zone"
+}
+
+###
+
+GET {{VehicleApp.Api_HostAddress}}/api/trip-tags
+Accept: application/json
+
+###
+
+POST {{VehicleApp.Api_HostAddress}}/api/trip-tags/upsert
+Content-Type: application/json
+
+{
+	"vehicleId": "00000000-0000-0000-0000-000000000000",
+	"name": "Delivery",
+	"color": "#2563eb"
+}
+
+###
+
+POST {{VehicleApp.Api_HostAddress}}/api/trips/00000000-0000-0000-0000-000000000000/tags/00000000-0000-0000-0000-000000000000
+
+###
+
+GET {{VehicleApp.Api_HostAddress}}/api/trips/00000000-0000-0000-0000-000000000000/tags
+Accept: application/json
+
+###
+
+GET {{VehicleApp.Api_HostAddress}}/api/dtc/catalog
+Accept: application/json
+
+###
+
+POST {{VehicleApp.Api_HostAddress}}/api/dtc/catalog/upsert
+Content-Type: application/json
+
+{
+	"code": "P0300",
+	"description": "Random/Multiple Cylinder Misfire Detected",
+	"severity": "medium",
+	"category": "powertrain",
+	"source": "obdii"
+}
+
+###
+
+GET {{VehicleApp.Api_HostAddress}}/api/dtc/events?vehicleId=00000000-0000-0000-0000-000000000000&limit=100
+Accept: application/json
+
+###
+
+POST {{VehicleApp.Api_HostAddress}}/api/dtc/events/import-by-device
+Content-Type: application/json
+
+{
+	"traccarDeviceId": 1,
+	"events": [
+		{
+			"code": "P0300",
+			"detectedAt": "2026-09-26T19:00:00Z",
+			"status": "active",
+			"sourcePositionId": 987654321,
+			"rawPayload": {
+				"mil": true,
+				"freezeFrame": false
+			},
+			"notes": "sample import"
+		}
+	]
+}
+
+###
+
+POST {{VehicleApp.Api_HostAddress}}/api/dtc/events/import-from-traccar
+Content-Type: application/json
+
+{
+	"traccarDeviceId": 1,
+	"includeIo30Fallback": true,
+	"includeIo30ZeroBaseline": false,
+	"io30FallbackAllowedStatuses": ["alarm", "obd", "(empty)"],
+	"records": [
+		{
+			"detectedAt": "2026-09-26T19:10:00Z",
+			"status": "active",
+			"sourcePositionId": 987654322,
+			"sourceEventId": 22334455,
+			"attributes": {
+				"dtcCodes": ["P0420", "P0300"],
+				"mil": true
+			},
+			"rawPayload": {
+				"type": "obd",
+				"attributes": {
+					"faultCodes": "P0420,P0300"
+				}
+			}
+		}
+	]
+}
+
+###
