@@ -33,6 +33,24 @@ advice.
 - Buttons to test API connectivity and load live snapshot data
 - Vite dev proxy for `/api` to avoid browser CORS issues during local development
 
+## Visual Preview
+
+### Main Map View
+
+![Main map view](docs/screenshots/01-map-overview.png)
+
+### Trip Details View
+
+![Trip details view](docs/screenshots/02-trip-details.png)
+
+### Telemetry View
+
+![Telemetry view](docs/screenshots/06-telemetry.png)
+
+For Settings walkthrough screenshots and section-by-section setup guidance, see:
+
+- `docs/SETTINGS_CONFIGURATION_GUIDE.md`
+
 ## Code Structure
 
 - `src/App.jsx`: orchestration and state composition
