@@ -1,6 +1,13 @@
 # Traccar React Migration
 
 Modern React + Vite frontend with a .NET backend for trip analysis, telemetry, and import workflows.
+Includes Bouncie trip-history import and Traccar-focused telemetry tooling for self-hosted vehicle history.
+
+## Who This Is For
+
+- People migrating from Automatic or Bouncie who want long-term control of trip history.
+- Traccar users who want richer trip analysis, tagging, and diagnostics workflows.
+- Self-hosters who want to own their data and avoid monthly platform lock-in.
 
 ## License
 
@@ -21,6 +28,8 @@ This project is licensed under AGPLv3. See:
 - Leaflet map rendering with live position markers
 - Buttons to test API connectivity and load live snapshot data
 - Vite dev proxy for `/api` to avoid browser CORS issues during local development
+- Bouncie CSV import into the app database for durable historical trip analysis
+- Bouncie OAuth connection support for rate-limited backfill workflows
 
 ## Visual Preview
 
