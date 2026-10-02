@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Npgsql;
+using NpgsqlTypes;
 
 public static class StatusCardEndpoints
 {
@@ -21,7 +22,7 @@ public static class StatusCardEndpoints
             await using var conn = await db.OpenConnectionAsync(ct);
             await using var cmd = new NpgsqlCommand("insert into vehicle_status_card_preferences(vehicle_id,fields,updated_at) values(@vehicleId,@fields,now()) on conflict(vehicle_id) do update set fields=excluded.fields,updated_at=now()", conn);
             cmd.Parameters.AddWithValue("vehicleId", vehicleId);
-            cmd.Parameters.AddWithValue("fields", request.Fields.GetRawText());
+            cmd.Parameters.Add("fields", NpgsqlDbType.Jsonb).Value = request.Fields.GetRawText();
             await cmd.ExecuteNonQueryAsync(ct);
             return Results.Ok(new { vehicleId });
         });

@@ -677,6 +677,8 @@ function App() {
   const speedBandsForVehicle = useCallback((vehicleId) => (
     speedBandsByVehicle[vehicleId] || getSpeedBandsForVehicle(vehicleId)
   ), [speedBandsByVehicle])
+  const selectedTripVehicleId = selectedTrip?.vehicleId
+    || activeBindings.find((binding) => Number(binding.traccarDeviceId) === Number(selectedTrip?.deviceId))?.vehicleId
 
   useEffect(() => {
     const map = mapRef.current
@@ -759,13 +761,13 @@ function App() {
         for (let index = 1; index < tripPoints.length; index += 1) {
           const previous = tripPoints[index - 1]
           const current = tripPoints[index]
-          const band = speedBandFor(Number.isFinite(Number(current.speedMph)) ? current.speedMph : Number(current.speed || 0) * 1.15078, speedBandsForVehicle(selectedTrip.vehicleId))
+          const band = speedBandFor(Number.isFinite(Number(current.speedMph)) ? current.speedMph : Number(current.speed || 0) * 1.15078, speedBandsForVehicle(selectedTripVehicleId))
           L.polyline([[previous.latitude, previous.longitude], [current.latitude, current.longitude]], { color: band.color, weight: 5, opacity: 1 }).addTo(selectedTripLayer)
         }
       }
       tripPoints.forEach((point) => {
         const pointSpeedMph = Number.isFinite(Number(point.speedMph)) ? Number(point.speedMph) : Number(point.speed || 0) * 1.15078
-        const pointBand = speedBandFor(pointSpeedMph, speedBandsForVehicle(selectedTrip.vehicleId))
+        const pointBand = speedBandFor(pointSpeedMph, speedBandsForVehicle(selectedTripVehicleId))
         const marker = L.circleMarker([point.latitude, point.longitude], { radius: 4, color: pointBand.color, fillColor: pointBand.color, fillOpacity: 1, weight: 1 })
         const speedMph = Number(point.speed || 0) * 1.15078
         const telemetry = Object.entries(point.attributes || {})
@@ -816,7 +818,7 @@ function App() {
         programmaticMapMoveRef.current = false
       }, 0)
     }
-  }, [deviceColors, deviceVisibility, devices, historyByDevice, historyRoutePoints, selectStatusPoint, selectedDayKey, selectedDayKeys, selectedTrip, selectedTripEvents, selectedTripRoutePoints, speedBandsForVehicle])
+  }, [activeBindings, deviceColors, deviceVisibility, devices, historyByDevice, historyRoutePoints, selectStatusPoint, selectedDayKey, selectedDayKeys, selectedTrip, selectedTripEvents, selectedTripRoutePoints, selectedTripVehicleId, speedBandsForVehicle])
 
   const focusTripEvent = useCallback((event) => {
     const latitude = Number(event?.latitude)
@@ -1313,6 +1315,17 @@ function App() {
     })
     return () => { active = false }
   }, [bindingVehicles, settings.vehicleApiBaseUrl])
+
+  useEffect(() => {
+    const handleSpeedBandsUpdated = (event) => {
+      const vehicleId = event.detail?.vehicleId
+      const bands = event.detail?.bands
+      if (!vehicleId || !Array.isArray(bands)) return
+      setSpeedBandsByVehicle((current) => ({ ...current, [vehicleId]: bands }))
+    }
+    window.addEventListener('vehicle-speed-bands-updated', handleSpeedBandsUpdated)
+    return () => window.removeEventListener('vehicle-speed-bands-updated', handleSpeedBandsUpdated)
+  }, [])
 
   const saveStatusCardFields = useCallback(async (vehicleId, fields) => {
     await persistStatusCardFields(settings.vehicleApiBaseUrl, vehicleId, fields)
@@ -2516,7 +2529,7 @@ function App() {
     ? selectedMapPoint.point
     : (statusDevice ? (historyByDevice[statusDevice.id] || []).at(-1) : null)
   const statusVehicleId = statusDevice?.appVehicleId || bindingVehicles.find((vehicle) => vehicle.traccarDeviceId === statusDevice?.id)?.id
-  const activeSpeedBands = speedBandsByVehicle[selectedTrip?.vehicleId] || getSpeedBandsForVehicle(selectedTrip?.vehicleId)
+  const activeSpeedBands = speedBandsForVehicle(selectedTripVehicleId)
   const graphProfile = profileMap[deviceProfileById[selectedTrip?.deviceId || statusDevice?.id] || DEFAULT_PROFILE_ID]
 
   if (vehicleAuth.checking) {

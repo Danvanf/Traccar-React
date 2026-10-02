@@ -18,7 +18,7 @@ Yes. AGPLv3 allows commercial use.
 ### What if they modify and run the backend over a network?
 
 They must provide the corresponding source code of that modified AGPL-covered
-version to users who interact with it over the network.
+version to users who interact with it over the network. 
 
 ### Can this repo block all commercial backend use while staying pure AGPLv3?
 

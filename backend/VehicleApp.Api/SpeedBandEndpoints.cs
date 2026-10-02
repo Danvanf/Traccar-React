@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Npgsql;
+using NpgsqlTypes;
 
 public static class SpeedBandEndpoints
 {
@@ -21,7 +22,7 @@ public static class SpeedBandEndpoints
             await using var conn = await db.OpenConnectionAsync(ct);
             await using var cmd = new NpgsqlCommand("insert into vehicle_speed_bands(vehicle_id,bands,inherited_from_vehicle_id,updated_at) values(@vehicleId,@bands,@source,now()) on conflict(vehicle_id) do update set bands=excluded.bands,inherited_from_vehicle_id=excluded.inherited_from_vehicle_id,updated_at=now()", conn);
             cmd.Parameters.AddWithValue("vehicleId", vehicleId);
-            cmd.Parameters.AddWithValue("bands", request.Bands.GetRawText());
+            cmd.Parameters.Add("bands", NpgsqlDbType.Jsonb).Value = request.Bands.GetRawText();
             cmd.Parameters.AddWithValue("source", (object?)request.InheritedFromVehicleId ?? DBNull.Value);
             await cmd.ExecuteNonQueryAsync(ct);
             return Results.Ok(new { vehicleId });

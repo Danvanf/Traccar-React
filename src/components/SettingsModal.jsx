@@ -163,10 +163,15 @@ function SettingsModal({
   }, [statusCardFieldsByVehicle, vehicleEditId])
   const saveSpeedBands = async () => {
     if (!speedBandVehicleId) return
-    const saved = JSON.parse(localStorage.getItem('traccarVehicleSpeedBands') || '{}')
-    localStorage.setItem('traccarVehicleSpeedBands', JSON.stringify({ ...saved, [speedBandVehicleId]: speedBands }))
-    if (vehicleApiBaseUrl) await persistVehicleSpeedBands(vehicleApiBaseUrl, speedBandVehicleId, speedBands)
-    setSpeedBandStatus('Speed bands saved for this vehicle.')
+    try {
+      const saved = JSON.parse(localStorage.getItem('traccarVehicleSpeedBands') || '{}')
+      localStorage.setItem('traccarVehicleSpeedBands', JSON.stringify({ ...saved, [speedBandVehicleId]: speedBands }))
+      if (vehicleApiBaseUrl) await persistVehicleSpeedBands(vehicleApiBaseUrl, speedBandVehicleId, speedBands)
+      window.dispatchEvent(new CustomEvent('vehicle-speed-bands-updated', { detail: { vehicleId: speedBandVehicleId, bands: speedBands } }))
+      setSpeedBandStatus('Speed bands saved for this vehicle.')
+    } catch (error) {
+      setSpeedBandStatus(error instanceof Error ? error.message : 'Unable to save speed bands.')
+    }
   }
   const copySpeedBands = async () => {
     if (!speedBandVehicleId || !speedBandCopySourceId || speedBandCopySourceId === speedBandVehicleId) return
