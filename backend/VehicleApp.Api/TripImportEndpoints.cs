@@ -46,7 +46,7 @@ public static class TripImportEndpoints
                 await using (var existing = new NpgsqlCommand(
                     """
                     select id, vehicle_id, traccar_device_id, started_at, ended_at,
-                           start_traccar_position_id, end_traccar_position_id, notes, max_speed_mph
+                          start_traccar_position_id, end_traccar_position_id, notes, derivation_version, max_speed_mph
                     from trips
                     where traccar_device_id = @deviceId and traccar_source_id is null
                       and ((started_at < @endedAt and ended_at > @startedAt)
@@ -66,8 +66,8 @@ public static class TripImportEndpoints
                             reader.IsDBNull(5) ? null : reader.GetInt64(5),
                             reader.IsDBNull(6) ? null : reader.GetInt64(6),
                             reader.IsDBNull(7) ? null : reader.GetString(7),
-                            null,
-                            reader.IsDBNull(8) ? null : reader.GetDouble(8)));
+                            reader.IsDBNull(8) ? null : reader.GetString(8),
+                            reader.IsDBNull(9) ? null : reader.GetDouble(9)));
                 }
 
                 if (candidates.Count > 0)
@@ -75,14 +75,55 @@ public static class TripImportEndpoints
                     var match = TripIdentity.Resolve(candidates, traccarDeviceId, trip.StartedAt, trip.EndedAt,
                         trip.StartTraccarPositionId, trip.EndTraccarPositionId);
                     if (candidates.Count != 1 || (match.Status != TripIdentityStatus.Found && !request.TreatOverlappingAsExisting))
+                    {
+                        var first = candidates[0];
+                        var sourceMismatch = candidates.Count == 1
+                            && ((trip.StartTraccarPositionId.HasValue && first.StartTraccarPositionId.HasValue
+                                    && trip.StartTraccarPositionId != first.StartTraccarPositionId)
+                                || (trip.EndTraccarPositionId.HasValue && first.EndTraccarPositionId.HasValue
+                                    && trip.EndTraccarPositionId != first.EndTraccarPositionId));
+                        var timeWindowMismatch = candidates.Count == 1
+                            && (first.StartedAt != trip.StartedAt || first.EndedAt != trip.EndedAt);
+                        var conflictReason = candidates.Count != 1
+                            ? "multiple_overlaps"
+                            : match.Status == TripIdentityStatus.Ambiguous
+                                ? "ambiguous_identity"
+                                : sourceMismatch
+                                    ? "source_id_mismatch"
+                                    : timeWindowMismatch
+                                        ? "time_window_mismatch"
+                                        : "identity_mismatch";
+
                         return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict,
                             title: "Trip import conflicts with saved history",
                             detail: $"The trip starting {trip.StartedAt:O} overlaps saved history or has conflicting source IDs. No trips in this batch were saved. Existing notes and tags were preserved. Reuse the original range and movement threshold; changed trip boundaries require reconciliation.",
                             extensions: new Dictionary<string, object?> {
                                 ["code"] = "trip_import_conflict",
+                                ["conflictReason"] = conflictReason,
+                                ["matchStatus"] = match.Status.ToString(),
                                 ["conflictingTripIds"] = candidates.Select(row => row.Id).ToArray(),
+                                ["conflictingTrips"] = candidates.Select(row => new {
+                                    id = row.Id,
+                                    vehicleId = row.VehicleId,
+                                    startedAt = row.StartedAt,
+                                    endedAt = row.EndedAt,
+                                    startTraccarPositionId = row.StartTraccarPositionId,
+                                    endTraccarPositionId = row.EndTraccarPositionId,
+                                    derivationVersion = row.DerivationVersion,
+                                    maxSpeedMph = row.MaxSpeedMph,
+                                }).ToArray(),
+                                ["incomingTrip"] = new {
+                                    startedAt = trip.StartedAt,
+                                    endedAt = trip.EndedAt,
+                                    startTraccarPositionId = trip.StartTraccarPositionId,
+                                    endTraccarPositionId = trip.EndTraccarPositionId,
+                                    durationSeconds = trip.DurationSeconds,
+                                    distanceMeters = trip.DistanceMeters,
+                                    derivationVersion = request.DerivationVersion,
+                                },
                                 ["startedAt"] = trip.StartedAt, ["endedAt"] = trip.EndedAt,
                             });
+                    }
                     var saved = match.Trip ?? (request.TreatOverlappingAsExisting ? candidates[0] : null);
                     if (saved is null)
                         return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict,
@@ -112,10 +153,26 @@ public static class TripImportEndpoints
                     binding.Parameters.AddWithValue("endedAt", trip.EndedAt.UtcDateTime);
                     await using var reader = await binding.ExecuteReaderAsync(cancellationToken);
                     if (!await reader.ReadAsync(cancellationToken))
-                        return TypedResults.Conflict($"No complete vehicle binding covers trip {trip.StartedAt:O} to {trip.EndedAt:O}. Set an Effective From date for the device assignment and retry.");
+                        return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict,
+                            title: "Trip import requires a complete device binding",
+                            detail: $"No complete vehicle binding covers trip {trip.StartedAt:O} to {trip.EndedAt:O}. Set an Effective From date for the device assignment and retry.",
+                            extensions: new Dictionary<string, object?> {
+                                ["code"] = "trip_import_binding_missing",
+                                ["traccarDeviceId"] = traccarDeviceId,
+                                ["startedAt"] = trip.StartedAt,
+                                ["endedAt"] = trip.EndedAt,
+                            });
                     vehicleId = reader.GetGuid(0);
                     if (await reader.ReadAsync(cancellationToken))
-                        return TypedResults.Conflict($"Multiple vehicle bindings cover trip {trip.StartedAt:O} to {trip.EndedAt:O}. Resolve binding history before importing.");
+                        return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict,
+                            title: "Trip import found multiple matching bindings",
+                            detail: $"Multiple vehicle bindings cover trip {trip.StartedAt:O} to {trip.EndedAt:O}. Resolve binding history before importing.",
+                            extensions: new Dictionary<string, object?> {
+                                ["code"] = "trip_import_binding_ambiguous",
+                                ["traccarDeviceId"] = traccarDeviceId,
+                                ["startedAt"] = trip.StartedAt,
+                                ["endedAt"] = trip.EndedAt,
+                            });
                 }
                 await using var insertCommand = new NpgsqlCommand(
                     """
@@ -195,7 +252,11 @@ public static class TripImportEndpoints
         {
             return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict,
                 title: "Trip import conflicted with another change",
-                detail: "No trips in this batch were saved. Retry the import; existing history was preserved.");
+                detail: "No trips in this batch were saved. Retry the import once using the same range and settings; existing history was preserved.",
+                extensions: new Dictionary<string, object?> {
+                    ["code"] = "trip_import_concurrent_conflict",
+                    ["traccarDeviceId"] = traccarDeviceId,
+                });
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex)

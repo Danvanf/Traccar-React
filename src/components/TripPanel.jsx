@@ -42,7 +42,7 @@ function TripPanel({
       <h2>Trips ({filteredTrips.length})</h2>
       <div className="trip-list">
         {filteredTrips.slice(0, 60).map((trip) => {
-          const deviceName = devices.find((device) => device.id === trip.deviceId)?.name || `Device ${trip.deviceId}`
+          const deviceName = trip.vehicleName || devices.find((device) => device.id === trip.deviceId)?.name || `Device ${trip.deviceId}`
           return (
             <div key={trip.tripId} className="trip-item-row">
               <button

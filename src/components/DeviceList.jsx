@@ -5,7 +5,7 @@ function DeviceList({
   deviceVisibility,
   setDeviceVisibility,
   deviceColors,
-  statusDeviceId,
+  selectedDeviceId,
   onSelectDevice,
 }) {
   const [expanded, setExpanded] = useState(true)
@@ -18,7 +18,7 @@ function DeviceList({
       <summary>Devices ({devices.length}, {selectionLabel})</summary>
       <ul>
         {devices.map((device) => (
-          <li key={device.id} className={statusDeviceId === device.id ? 'selected-device' : ''} onClick={() => onSelectDevice(device.id)}>
+          <li key={device.id} className={selectedDeviceId === device.id ? 'selected-device' : ''} onClick={() => onSelectDevice(device.id)}>
             <label className="checkbox-row">
               <input
                 type="checkbox"

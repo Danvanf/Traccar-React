@@ -51,6 +51,15 @@ cd traccar-react
 
 Keep the deployment checkout separate from `~/docker/traccar`. The API source can be updated and rebuilt without touching the Traccar compose directory.
 
+Using a different stable base folder is also valid. For example, this guide's commands work the same if you use:
+
+```text
+~/docker/vehicle-app/
+  traccar-react/
+  vehicle-app.compose.yml
+  vehicle-app.env
+```
+
 ## 3. Add the API Dockerfile
 
 Create `backend/VehicleApp.Api/Dockerfile`:
@@ -91,6 +100,8 @@ Protect it:
 chmod 600 ~/vehicle-app/vehicle-app.env
 ```
 
+If your deployment root is `~/docker/vehicle-app`, keeping `vehicle-app.env` there is fine as long as it remains outside Git and locked down with `chmod 600`.
+
 The Bouncie encryption key must be the base64 encoding of exactly 32 random bytes. Generate one once and keep it stable:
 
 ```bash
@@ -115,6 +126,8 @@ services:
       - ~/vehicle-app/vehicle-app.env
     environment:
       ASPNETCORE_ENVIRONMENT: Production
+    ports:
+      - 5124:5124
     expose:
       - "5124"
     networks:
@@ -132,6 +145,15 @@ sudo docker compose -f ~/vehicle-app/vehicle-app.compose.yml up -d --build
 sudo docker compose -f ~/vehicle-app/vehicle-app.compose.yml logs -f vehicle-app-api
 ```
 
+If you are using `~/docker/vehicle-app`, the equivalent command path is:
+
+```bash
+sudo docker compose -f ~/docker/vehicle-app/vehicle-app.compose.yml up -d --build
+sudo docker compose -f ~/docker/vehicle-app/vehicle-app.compose.yml logs -f vehicle-app-api
+```
+
+Use that same compose-file path substitution in later sections (updates, restart, and shutdown commands).
+
 The first successful startup should show the API listening and completing its schema bootstrap. Leave the log view with `Ctrl+C`; that does not stop the container.
 
 ## 6. Apply additive database scripts
@@ -139,8 +161,10 @@ The first successful startup should show the API listening and completing its sc
 Back up `vehicle_app` before applying a new schema script. Keep the backup/restore procedure in your private internal runbook.
 
 Run scripts from the Linux host by streaming them into the existing database container:
-
+Change to the traccar-react folder
 ```bash
+cd traccar-react
+
 sudo docker exec -i traccar-db psql -U traccar -d vehicle_app \
   < scripts/phase7_trip_events_schema.sql
 
@@ -162,7 +186,13 @@ The migration scripts are additive and repeatable. Do not run the initial Phase 
 
 ## 7. Verify the API from the Linux host
 
-Because the API port is only exposed inside the Docker network, test it from a temporary container on that network:
+If you published `5124:5124`, test from the host first:
+
+```bash
+curl -fsS http://127.0.0.1:5124/health
+```
+
+You can also test from inside the Docker network:
 
 ```bash
 sudo docker run --rm --network traccar_default curlimages/curl:latest \
@@ -185,6 +215,41 @@ http://vehicle-app-api:5124/
 ```
 
 The proxy and API must share the Docker network. Use HTTPS before exposing the application outside the trusted LAN. The HttpOnly session cookie and Bouncie OAuth callback should use the final HTTPS hostname.
+
+Lightweight host check (what is already installed):
+
+```bash
+sudo systemctl is-active apache2
+sudo systemctl is-active nginx
+command -v caddy
+```
+
+Minimal reverse-proxy target for all options:
+
+```text
+/vehicle-api/  ->  http://127.0.0.1:5124/
+```
+
+Example Apache vhost snippet:
+
+```apache
+ProxyPreserveHost On
+ProxyPass /vehicle-api/ http://127.0.0.1:5124/
+ProxyPassReverse /vehicle-api/ http://127.0.0.1:5124/
+```
+
+Example Nginx location snippet:
+
+```nginx
+location /vehicle-api/ {
+  proxy_pass http://127.0.0.1:5124/;
+  proxy_set_header Host $host;
+  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+If Apache is already installed and serving your host, use Apache first to keep deployment simple.
 
 Before production Bouncie use, the callback URL must be made configurable and registered with Bouncie. The current development callback is:
 
@@ -225,3 +290,28 @@ sudo docker compose -f ~/vehicle-app/vehicle-app.compose.yml down
 ```
 
 Do not use `docker compose down -v` for this deployment. Removing volumes is destructive.
+
+## 11. First production login: required settings
+
+After the API container and reverse proxy are working, open the app and confirm Settings before normal operations.
+
+At minimum, verify these values:
+
+- `API Base URL`: `/api` when your reverse proxy forwards this path to Traccar.
+- `Vehicle API Base URL`: `/vehicle-api` when your reverse proxy forwards this path to VehicleApp API (`127.0.0.1:5124`).
+- `Device Source`: `Traccar /devices (default)` unless you intentionally run from backend catalog mode.
+
+If your reverse proxy does not provide these path mappings, set explicit absolute URLs instead:
+
+- `API Base URL`: `http://<host>:8082/api`
+- `Vehicle API Base URL`: `http://<host>:5124`
+
+For first-run operations, also review:
+
+- Vehicle Catalog entries (name, VIN, protocol profile, Traccar device assignment)
+- Device Bindings (active mapping for each device)
+- Bouncie OAuth redirect URL (must match your deployed hostname before connect/import)
+
+Continue with the full settings walkthrough in:
+
+- `docs/SETTINGS_CONFIGURATION_GUIDE.md`

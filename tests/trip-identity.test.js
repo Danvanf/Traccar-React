@@ -102,6 +102,9 @@ test('import conflict preserves server details and exposes a structured status t
   await assert.rejects(importTripsByDevice('/vehicle-api', { traccarDeviceId: 5, trips: [] }), error => {
     assert.equal(error.status, 409)
     assert.equal(error.code, 'trip_import_conflict')
+    assert.equal(error.problem?.code, 'trip_import_conflict')
+    assert.equal(error.problem?.title, 'Trip import conflicts with saved history')
+    assert.equal(error.problem?.detail, 'No trips in this batch were saved.')
     assert.match(error.message, /No trips in this batch were saved/)
     return true
   })

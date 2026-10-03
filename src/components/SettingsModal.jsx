@@ -63,6 +63,8 @@ function SettingsModal({
   deleteBindingById,
   saveBindingAndRetryImport,
   showRetryAction,
+  importRecovery,
+  clearImportRecovery,
   enrichmentStatus,
   namedPlaces,
   placeVehicleId,
@@ -137,6 +139,13 @@ function SettingsModal({
     }
     return () => panels.forEach((panel) => { panel.dataset.collapsibleReady = '' })
   }, [])
+  useEffect(() => {
+    if (!importRecovery && !showRetryAction) return
+    const panels = Array.from(document.querySelectorAll('.settings-modal .profile-editor'))
+    const bindingPanel = panels.find((panel) => panel.querySelector('h4')?.textContent.trim() === 'Device Bindings')
+    bindingPanel?.classList.remove('settings-panel-collapsed')
+    bindingPanel?.scrollIntoView({ block: 'nearest' })
+  }, [importRecovery, showRetryAction])
   useEffect(() => {
     setSpeedBandVehicleId(vehicleEditId || bindingVehicles[0]?.id || '')
     setSpeedBandCopySourceId('')
@@ -255,6 +264,48 @@ function SettingsModal({
         if (heading) heading.parentElement.classList.toggle('settings-panel-collapsed')
       }}>
         <h3>Settings</h3>
+        {importRecovery && (
+          <div className="settings-conflict-banner" role="status" aria-live="polite">
+            <div className="settings-conflict-banner-header">
+              <strong>{importRecovery.title || 'Trip import conflict'}</strong>
+              <span>HTTP 409</span>
+            </div>
+            <div>{importRecovery.detail || 'The server blocked this import to preserve existing trip history.'}</div>
+            <div className="settings-conflict-banner-facts">
+              {importRecovery.code && <span>Cause: {importRecovery.code}</span>}
+              {importRecovery.traccarDeviceId && <span>Device ID: {importRecovery.traccarDeviceId}</span>}
+              {(importRecovery.startedAtLabel || importRecovery.endedAtLabel) && (
+                <span>Incoming Window: {importRecovery.startedAtLabel || '?'} to {importRecovery.endedAtLabel || '?'}</span>
+              )}
+              {importRecovery.incomingSourceIdsLabel && (
+                <span>Incoming Source IDs: {importRecovery.incomingSourceIdsLabel}</span>
+              )}
+              {(importRecovery.firstConflictingTrip?.startedAtLabel || importRecovery.firstConflictingTrip?.endedAtLabel) && (
+                <span>
+                  Saved Window ({importRecovery.firstConflictingTrip?.idShort || 'trip'}): {importRecovery.firstConflictingTrip?.startedAtLabel || '?'} to {importRecovery.firstConflictingTrip?.endedAtLabel || '?'}
+                </span>
+              )}
+              {importRecovery.firstConflictingTrip?.sourceIdsLabel && (
+                <span>Saved Source IDs: {importRecovery.firstConflictingTrip.sourceIdsLabel}</span>
+              )}
+              {Array.isArray(importRecovery.conflictingTripIdsShort) && importRecovery.conflictingTripIdsShort.length > 0 && (
+                <span>
+                  Conflicting Trip IDs: {importRecovery.conflictingTripIdsShort.slice(0, 3).join(', ')}
+                  {importRecovery.conflictingTripIdsShort.length > 3 ? ` (+${importRecovery.conflictingTripIdsShort.length - 3} more)` : ''}
+                </span>
+              )}
+            </div>
+            {Array.isArray(importRecovery.steps) && importRecovery.steps.length > 0 && (
+              <ol>
+                {importRecovery.steps.map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}
+              </ol>
+            )}
+            <div className="actions two-up">
+              <button type="button" className="secondary" onClick={clearImportRecovery}>Dismiss Import Guidance</button>
+              {showRetryAction && <button type="button" onClick={saveBindingAndRetryImport} disabled={isBindingBusy}>Save Binding and Retry Import</button>}
+            </div>
+          </div>
+        )}
         <div className="profile-editor">
         <h4>General</h4>
         <label>
@@ -435,11 +486,30 @@ function SettingsModal({
           </label>
 
           {bindingStatus && <div className="profile-editor-status">{bindingStatus}</div>}
+          {importRecovery && (
+            <div className="profile-editor-status" role="status" aria-live="polite">
+              <strong>{importRecovery.title || 'Trip import conflict'}</strong>
+              <div>{importRecovery.detail || 'The server blocked this import to preserve saved history.'}</div>
+              {Array.isArray(importRecovery.steps) && importRecovery.steps.length > 0 && (
+                <ol>
+                  {importRecovery.steps.map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}
+                </ol>
+              )}
+              {clearImportRecovery && (
+                <button type="button" className="small secondary" onClick={clearImportRecovery}>Dismiss Import Guidance</button>
+              )}
+            </div>
+          )}
 
           <div className="actions">
             <button type="button" className="secondary" onClick={refreshBindings} disabled={isBindingBusy}>
               Refresh Bindings
             </button>
+            {showRetryAction && (
+              <button type="button" onClick={saveBindingAndRetryImport} disabled={isBindingBusy}>
+                Save Binding and Retry Import
+              </button>
+            )}
           </div>
 
           <div className="binding-list">

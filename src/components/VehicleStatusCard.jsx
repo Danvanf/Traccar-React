@@ -2,7 +2,17 @@ import { isTelemetryPlaceholderValue } from '../lib/telemetry'
 import { DEFAULT_STATUS_CARD_FIELDS } from '../lib/statusCardFields'
 
 function VehicleStatusCard({ device, point, historyPoints = [], profile = null, cardFields = DEFAULT_STATUS_CARD_FIELDS }) {
-  if (!device) return null
+  if (!device) {
+    return (
+      <div className="vehicle-status-card">
+        <div className="vehicle-status-header"><strong>Vehicle Status</strong><span>No mapped vehicle</span></div>
+        <div className="vehicle-status-diagnostic">
+          No vehicle-mapped device is currently selected. Open Settings and verify Vehicle Catalog and Device Bindings.
+        </div>
+        <small>No point loaded · 0 known values</small>
+      </div>
+    )
+  }
   const attrs = point?.attributes || {}
   const displayAttrs = Object.fromEntries(Object.entries(attrs).filter(([key, value]) => {
     const historyValues = historyPoints.map((candidate) => candidate.attributes?.[key]).filter((candidate) => candidate !== undefined && candidate !== null && candidate !== '')

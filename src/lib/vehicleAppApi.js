@@ -27,6 +27,7 @@ async function toResponseError(response, context, url) {
   const body = await response.text()
   let parsedMessage = ''
   let problemCode = null
+  let problem = null
 
   if (body) {
     try {
@@ -45,6 +46,13 @@ async function toResponseError(response, context, url) {
         parsedMessage = [title, detail, errors]
           .filter(Boolean)
           .join(' - ')
+
+        problem = {
+          ...payload,
+          title: title || null,
+          detail: detail || null,
+          code: problemCode,
+        }
       }
     } catch {
       parsedMessage = ''
@@ -59,6 +67,7 @@ async function toResponseError(response, context, url) {
   const error = new Error(`${context}${endpoint}: HTTP ${response.status} ${response.statusText}${snippet}`)
   error.status = response.status
   error.code = problemCode
+  error.problem = problem
   return error
 }
 
@@ -356,6 +365,32 @@ export async function fetchTripDaySummaries(baseUrl, { from, to } = {}) {
       throw await toResponseError(response, 'Vehicle API call failed for /api/trips/day-summaries-all', url)
     }
     await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)))
+  }
+  const payload = await response.json()
+  return Array.isArray(payload) ? payload : []
+}
+
+export async function fetchTripHistorySpan(baseUrl) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/trips/history-span`
+  const response = await vehicleFetch(url, { headers: { Accept: 'application/json' } })
+  if (!response.ok) {
+    throw await toResponseError(response, 'Vehicle API call failed for /api/trips/history-span', url)
+  }
+  const payload = await response.json()
+  return {
+    earliestStartedAt: payload?.earliestStartedAt || null,
+    latestEndedAt: payload?.latestEndedAt || null,
+    tripCount: Number(payload?.tripCount) || 0,
+  }
+}
+
+export async function fetchTripHistoryMonthSummaries(baseUrl) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/trips/history-month-summaries`
+  const response = await vehicleFetch(url, { headers: { Accept: 'application/json' } })
+  if (!response.ok) {
+    throw await toResponseError(response, 'Vehicle API call failed for /api/trips/history-month-summaries', url)
   }
   const payload = await response.json()
   return Array.isArray(payload) ? payload : []

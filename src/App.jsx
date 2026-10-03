@@ -43,6 +43,8 @@ import {
   fetchTripEvents,
   fetchTripRoutePoints,
   fetchTripEventNotifications,
+  fetchTripHistorySpan,
+  fetchTripHistoryMonthSummaries,
   fetchTripDaySummaries,
   deleteCalculatedTripEvents,
   fetchVehicleCatalog,
@@ -161,6 +163,251 @@ function summarizeSavedTrips(rows) {
   return [...grouped.values()].sort((a, b) => b.dayKey.localeCompare(a.dayKey))
 }
 
+function rowMatchesTripIdentity(row, trip) {
+  const rowDeviceId = Number(row?.traccarDeviceId)
+  const tripDeviceId = Number(trip?.deviceId)
+  if (!Number.isFinite(rowDeviceId) || !Number.isFinite(tripDeviceId) || rowDeviceId !== tripDeviceId) {
+    return false
+  }
+
+  const rowStartSourceId = Number(row?.startTraccarPositionId)
+  const rowEndSourceId = Number(row?.endTraccarPositionId)
+  const tripStartSourceId = Number(trip?.startTraccarPositionId)
+  const tripEndSourceId = Number(trip?.endTraccarPositionId)
+  const hasRowSourceIdentity = Number.isFinite(rowStartSourceId) && rowStartSourceId > 0
+    && Number.isFinite(rowEndSourceId) && rowEndSourceId > 0
+  const hasTripSourceIdentity = Number.isFinite(tripStartSourceId) && tripStartSourceId > 0
+    && Number.isFinite(tripEndSourceId) && tripEndSourceId > 0
+
+  if (hasRowSourceIdentity && hasTripSourceIdentity) {
+    return rowStartSourceId === tripStartSourceId && rowEndSourceId === tripEndSourceId
+  }
+
+  const rowStarted = new Date(row?.startedAt)
+  const rowEnded = new Date(row?.endedAt)
+  const tripStartedAt = trip?.start instanceof Date ? trip.start : new Date(trip?.start)
+  const tripEndedAt = trip?.end instanceof Date ? trip.end : new Date(trip?.end)
+  if (
+    Number.isNaN(rowStarted.getTime())
+    || Number.isNaN(rowEnded.getTime())
+    || Number.isNaN(tripStartedAt.getTime())
+    || Number.isNaN(tripEndedAt.getTime())
+  ) {
+    return false
+  }
+
+  return Math.abs(rowStarted.getTime() - tripStartedAt.getTime()) < 5000
+    && Math.abs(rowEnded.getTime() - tripEndedAt.getTime()) < 2000
+}
+
+function mergeHistoryRows(existingRows, incomingRows) {
+  return [...new Map([...(existingRows || []), ...(incomingRows || [])]
+    .map((row) => [row.id || `${row.startedAt}|${row.endedAt}|${row.vehicleId || ''}`, row])).values()]
+}
+
+function toMonthKey(value) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+}
+
+function buildMonthRangeKeys(earliestIso, latestIso) {
+  const earliest = new Date(earliestIso)
+  const latest = new Date(latestIso)
+  if (Number.isNaN(earliest.getTime()) || Number.isNaN(latest.getTime())) return []
+  const cursor = new Date(earliest.getFullYear(), earliest.getMonth(), 1)
+  const end = new Date(latest.getFullYear(), latest.getMonth(), 1)
+  const keys = []
+  while (cursor <= end) {
+    keys.push(`${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`)
+    cursor.setMonth(cursor.getMonth() + 1)
+  }
+  return keys.reverse()
+}
+
+function formatUtcIsoForUi(value) {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return date.toLocaleString()
+}
+
+function formatTripSourceIdsForUi(startId, endId) {
+  const start = Number.isFinite(Number(startId)) ? String(startId) : null
+  const end = Number.isFinite(Number(endId)) ? String(endId) : null
+  if (!start && !end) return null
+  return `${start || '?'} -> ${end || '?'}`
+}
+
+function summarizeConflictTripForUi(trip) {
+  if (!trip || typeof trip !== 'object') return null
+  return {
+    id: trip.id || null,
+    idShort: trip.id ? String(trip.id).slice(0, 8) : null,
+    startedAtLabel: formatUtcIsoForUi(trip.startedAt),
+    endedAtLabel: formatUtcIsoForUi(trip.endedAt),
+    sourceIdsLabel: formatTripSourceIdsForUi(trip.startTraccarPositionId, trip.endTraccarPositionId),
+  }
+}
+
+function describeTripImportConflict(error, fallbackDeviceId = null) {
+  if (!error || Number(error.status) !== 409) return null
+  const problem = error.problem && typeof error.problem === 'object' ? error.problem : {}
+  const code = String(problem.code || error.code || '').trim()
+  const detail = String(problem.detail || '').trim()
+  const conflictReason = String(problem.conflictReason || '').trim() || null
+  const incomingTrip = problem.incomingTrip && typeof problem.incomingTrip === 'object' ? problem.incomingTrip : null
+  const startedAtLabel = formatUtcIsoForUi(incomingTrip?.startedAt || problem.startedAt)
+  const endedAtLabel = formatUtcIsoForUi(incomingTrip?.endedAt || problem.endedAt)
+  const incomingSourceIdsLabel = formatTripSourceIdsForUi(incomingTrip?.startTraccarPositionId, incomingTrip?.endTraccarPositionId)
+  const traccarDeviceId = toPositiveInt32(problem.traccarDeviceId) || toPositiveInt32(fallbackDeviceId)
+  const conflictingTripIds = Array.isArray(problem.conflictingTripIds) ? problem.conflictingTripIds : []
+  const conflictingTrips = Array.isArray(problem.conflictingTrips)
+    ? problem.conflictingTrips.map(summarizeConflictTripForUi).filter(Boolean)
+    : []
+  const firstConflictingTrip = conflictingTrips[0] || null
+  const conflictingTripIdsShort = conflictingTripIds
+    .map((value) => String(value || '').slice(0, 8))
+    .filter(Boolean)
+
+  const withFacts = (payload) => ({
+    ...payload,
+    code: code || null,
+    traccarDeviceId,
+    startedAtLabel,
+    endedAtLabel,
+    incomingSourceIdsLabel,
+    conflictReason,
+    conflictingTripIds,
+    conflictingTripIdsShort,
+    conflictingTrips,
+    firstConflictingTrip,
+  })
+
+  if (code === 'trip_import_binding_missing') {
+    const rangeLabel = startedAtLabel && endedAtLabel ? ` for ${startedAtLabel} to ${endedAtLabel}` : ''
+    return withFacts({
+      title: 'Import blocked by missing device assignment',
+      detail: `A complete vehicle binding was not found${rangeLabel}.`,
+      status: 'Binding required before import',
+      steps: [
+        traccarDeviceId
+          ? `In Settings > Device Bindings, map device id ${traccarDeviceId} to the correct vehicle.`
+          : 'In Settings > Device Bindings, map this Traccar device to the correct vehicle.',
+        'Set Effective From at or before the trip start time.',
+        'Click Save Binding and Retry Import.',
+      ],
+      bindingHintDeviceId: traccarDeviceId,
+    })
+  }
+
+  if (code === 'trip_import_binding_ambiguous') {
+    return withFacts({
+      title: 'Import blocked by overlapping bindings',
+      detail: startedAtLabel && endedAtLabel
+        ? `More than one binding covers ${startedAtLabel} to ${endedAtLabel}.`
+        : 'More than one binding covers this trip window.',
+      status: 'Binding history conflict',
+      steps: [
+        'Open Settings > Device Bindings and remove or adjust overlapping assignment windows.',
+        'Ensure exactly one binding covers each imported trip time window.',
+        'Retry the same import range after the overlap is resolved.',
+      ],
+      bindingHintDeviceId: traccarDeviceId,
+    })
+  }
+
+  if (code === 'trip_import_conflict') {
+    const duplicateLabel = conflictingTripIds.length > 0 ? ` (${conflictingTripIds.length} conflicting saved trip(s) detected).` : '.'
+    const compareWindow = firstConflictingTrip?.startedAtLabel && firstConflictingTrip?.endedAtLabel && startedAtLabel && endedAtLabel
+      ? ` Saved trip ${firstConflictingTrip.idShort || 'record'} covers ${firstConflictingTrip.startedAtLabel} to ${firstConflictingTrip.endedAtLabel}, while the current derived trip is ${startedAtLabel} to ${endedAtLabel}.`
+      : ''
+    const compareSource = firstConflictingTrip?.sourceIdsLabel && incomingSourceIdsLabel && firstConflictingTrip.sourceIdsLabel !== incomingSourceIdsLabel
+      ? ` Saved source IDs are ${firstConflictingTrip.sourceIdsLabel}; current derived source IDs are ${incomingSourceIdsLabel}.`
+      : ''
+    const mismatchHint = conflictReason === 'source_id_mismatch'
+      ? 'The saved and derived source position IDs do not match.'
+      : (conflictReason === 'time_window_mismatch'
+          ? 'The saved and derived time windows do not match.'
+          : 'The saved and derived trip identity does not match.')
+    return withFacts({
+      title: 'Import blocked by saved-history identity conflict',
+      detail: `${mismatchHint}${duplicateLabel}${compareWindow}${compareSource}`.trim(),
+      status: 'Saved history conflict',
+      steps: [
+        'Open the conflict details and compare the saved vs current time windows and source IDs.',
+        'If this is background sync, keep the saved trip as authoritative and avoid repeated retries for the same day.',
+        'If you need to regenerate that period, reconcile the conflicting saved trip first, then rerun import once.',
+      ],
+      bindingHintDeviceId: null,
+    })
+  }
+
+  if (code === 'trip_import_concurrent_conflict') {
+    return withFacts({
+      title: 'Import collided with another active write',
+      detail: detail || 'Another operation changed trip history while this batch was saving.',
+      status: 'Concurrent import conflict',
+      steps: [
+        'Wait for other import activity on this device to finish.',
+        'Retry once with the same range and settings.',
+      ],
+      bindingHintDeviceId: traccarDeviceId,
+    })
+  }
+
+  if (detail.includes('No complete vehicle binding covers')) {
+    return withFacts({
+      title: 'Import blocked by missing device assignment',
+      detail: 'A complete vehicle binding was not found for this import window.',
+      status: 'Binding required before import',
+      steps: [
+        'Open Settings > Device Bindings and assign the device to a vehicle.',
+        'Set Effective From at or before the trip start time.',
+        'Retry the same range.',
+      ],
+      bindingHintDeviceId: traccarDeviceId,
+    })
+  }
+
+  if (detail.includes('Multiple vehicle bindings cover')) {
+    return withFacts({
+      title: 'Import blocked by overlapping bindings',
+      detail: 'More than one assignment covers the same trip window.',
+      status: 'Binding history conflict',
+      steps: [
+        'Open Settings > Device Bindings and remove overlapping windows.',
+        'Retry the same range after one binding remains for the period.',
+      ],
+      bindingHintDeviceId: traccarDeviceId,
+    })
+  }
+
+  if (detail.includes('overlaps saved history') || detail.includes('conflicts with saved history')) {
+    return withFacts({
+      title: 'Import blocked by saved-history identity conflict',
+      detail: 'The selected range conflicts with existing saved trips.',
+      status: 'Saved history conflict',
+      steps: [
+        'Retry using the original range and movement threshold.',
+        'If you must change boundaries, reconcile conflicting saved trips first.',
+      ],
+      bindingHintDeviceId: null,
+    })
+  }
+
+  return withFacts({
+    title: 'Trip import returned a conflict',
+    detail: detail || 'The server rejected this batch to protect saved history.',
+    status: 'Trip import conflict',
+    steps: [
+      'Review Device Bindings and effective dates.',
+      'Retry once with the same date range and movement threshold.',
+    ],
+    bindingHintDeviceId: traccarDeviceId,
+  })
+}
+
 function App() {
   const [settings, setSettings] = useState(readSettings)
   const [vehicleAuth, setVehicleAuth] = useState({ checking: true, enabled: false, authenticated: false })
@@ -185,11 +432,13 @@ function App() {
   const [devices, setDevices] = useState([])
   const [deviceColors, setDeviceColors] = useState({})
   const [deviceVisibility, setDeviceVisibility] = useState({})
+  const [deviceListSelectedId, setDeviceListSelectedId] = useState(null)
   const [statusDeviceId, setStatusDeviceId] = useState(null)
   const [selectedMapPoint, setSelectedMapPoint] = useState(null)
   const [historyByDevice, setHistoryByDevice] = useState({})
   const [historyDaySummaries, setHistoryDaySummaries] = useState([])
   const [historyDayRows, setHistoryDayRows] = useState([])
+  const historyDayRowsRef = useRef([])
   const [historyRoutePoints, setHistoryRoutePoints] = useState([])
   const [notifications, setNotifications] = useState([])
   const [notificationsLoading, setNotificationsLoading] = useState(false)
@@ -197,7 +446,11 @@ function App() {
   const [customFrom, setCustomFrom] = useState(() => toLocalInputValue(new Date(Date.now() - 24 * 60 * 60 * 1000)))
   const [customTo, setCustomTo] = useState(() => toLocalInputValue(new Date()))
   const [activeRangeLabel, setActiveRangeLabel] = useState('')
-  const [historyWindow, setHistoryWindow] = useState(() => ({ from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), to: new Date() }))
+  const DEFAULT_HISTORY_LOOKBACK_DAYS = 365
+  const [historyWindow, setHistoryWindow] = useState(() => ({ from: new Date(Date.now() - DEFAULT_HISTORY_LOOKBACK_DAYS * 24 * 60 * 60 * 1000), to: new Date() }))
+  const [historySpan, setHistorySpan] = useState({ earliestStartedAt: null, latestEndedAt: null, tripCount: 0 })
+  const [historyMonthSummaryByKey, setHistoryMonthSummaryByKey] = useState({})
+  const [historyMonthLoadState, setHistoryMonthLoadState] = useState({})
   const [selectedDayKey, setSelectedDayKey] = useState(null)
   const [selectedDayKeys, setSelectedDayKeys] = useState([])
   const [daySelectionAnchor, setDaySelectionAnchor] = useState(null)
@@ -222,6 +475,7 @@ function App() {
   const [profileAttributesJson, setProfileAttributesJson] = useState('{}')
   const [profileEditorStatus, setProfileEditorStatus] = useState('')
   const [importStatus, setImportStatus] = useState('')
+  const [importRecovery, setImportRecovery] = useState(null)
   const [exportMessage, setExportMessage] = useState('')
   const [dataImportMessage, setDataImportMessage] = useState('')
   const [isImportingTrips, setIsImportingTrips] = useState(false)
@@ -975,10 +1229,12 @@ function App() {
 
       const deviceTrips = buildTripsForDevice(deviceId, points, settings.movementThresholdM)
       allTrips.push(...deviceTrips.map((trip) => {
-        const saved = historyDayRows.find((row) => Math.abs(new Date(row.startedAt).getTime() - trip.start.getTime()) < 5000
-          && Math.abs(new Date(row.endedAt).getTime() - trip.end.getTime()) < 2000)
+        const saved = historyDayRows.find((row) => rowMatchesTripIdentity(row, trip))
         return {
           ...trip,
+          savedTripId: saved?.id || trip.savedTripId,
+          vehicleId: trip.vehicleId || saved?.vehicleId,
+          vehicleName: bindingVehicles.find((vehicle) => vehicle.id === (trip.vehicleId || saved?.vehicleId))?.displayName,
           maxSpeedMph: Number.isFinite(Number(saved?.maxSpeedMph)) ? Number(saved.maxSpeedMph) : getTripMaxSpeedMph(trip),
           eventCount: Number(saved?.eventCount) || 0,
         }
@@ -1004,6 +1260,7 @@ function App() {
         tripId: `saved-${row.id}`,
         savedTripId: row.id,
         vehicleId: row.vehicleId,
+        vehicleName: bindingVehicles.find((vehicle) => vehicle.id === row.vehicleId)?.displayName,
         deviceId,
         start,
         end,
@@ -1017,12 +1274,11 @@ function App() {
 
     allTrips.sort((a, b) => b.start - a.start)
     return allTrips
-  }, [deviceVisibility, historyByDevice, historyDayRows, settings.movementThresholdM])
+  }, [bindingVehicles, deviceVisibility, historyByDevice, historyDayRows, settings.movementThresholdM])
 
   const daySummaries = useMemo(() => {
     const localSummaries = summarizeSavedTrips(trips.map((trip) => {
-        const saved = historyDayRows.find((row) => Math.abs(new Date(row.startedAt).getTime() - trip.start.getTime()) < 5000
-          && Math.abs(new Date(row.endedAt).getTime() - trip.end.getTime()) < 2000)
+        const saved = historyDayRows.find((row) => rowMatchesTripIdentity(row, trip))
         return {
           startedAt: trip.start,
           distanceMeters: saved?.distanceMeters ?? trip.distance,
@@ -1050,6 +1306,17 @@ function App() {
     if (!includesToday || summaries.some((day) => day.dayKey === todayKey)) return summaries
     return [{ dayKey: todayKey, tripCount: 0, distanceM: 0 }, ...summaries]
   }, [devices, deviceVisibility, historyDayRows, historyDaySummaries, historyWindow, trips])
+
+  const historyMonthKeys = useMemo(() => {
+    if (historySpan.earliestStartedAt && historySpan.latestEndedAt) {
+      return buildMonthRangeKeys(historySpan.earliestStartedAt, historySpan.latestEndedAt)
+    }
+    if (daySummaries.length === 0) return []
+    const earliestDay = daySummaries[daySummaries.length - 1]?.dayKey
+    const latestDay = daySummaries[0]?.dayKey
+    if (!earliestDay || !latestDay) return []
+    return buildMonthRangeKeys(`${earliestDay}T00:00:00`, `${latestDay}T23:59:59`)
+  }, [daySummaries, historySpan.earliestStartedAt, historySpan.latestEndedAt])
 
   const visibleTrips = useMemo(() => {
     if (!selectedDayKey && selectedDayKeys.length === 0) return trips
@@ -1079,11 +1346,27 @@ function App() {
     // Imports continue to use the older metric-only version so the first day
     // view recalculates them automatically.
     const derivationVersion = `trip-v2-events-movement-${settings.movementThresholdM}`
+    const hasSavedRowForTrip = (trip) => historyDayRows.some((row) => rowMatchesTripIdentity(row, trip))
     const results = await Promise.allSettled(candidateTrips.map(async (trip) => {
       // Do not persist a completed derivation until the selected trip's points
       // have arrived. A range summary can briefly contain trips without points.
       if (!Array.isArray(trip.points) || trip.points.length === 0) return { skipped: true }
-      const saved = await resolveTrip(settings.vehicleApiBaseUrl, trip)
+      // Days can include Traccar-only trips that were intentionally not
+      // imported (for example unmanaged phone trackers). Skip identity
+      // resolution unless backend history already has a matching saved trip.
+      const hasTripPositionIdentity = Number.isFinite(Number(trip.startTraccarPositionId))
+        && Number(trip.startTraccarPositionId) > 0
+        && Number.isFinite(Number(trip.endTraccarPositionId))
+        && Number(trip.endTraccarPositionId) > 0
+      if (!hasTripPositionIdentity) return { skipped: true }
+      if (!hasSavedRowForTrip(trip)) return { skipped: true }
+      let saved
+      try {
+        saved = await resolveTrip(settings.vehicleApiBaseUrl, trip)
+      } catch (error) {
+        if (error?.status === 404) return { skipped: true }
+        throw error
+      }
       const calculatedMaxSpeedMph = getTripMaxSpeedMph(trip)
       const needsSpeedRepair = calculatedMaxSpeedMph != null
         && (saved.maxSpeedMph == null || saved.maxSpeedMph < calculatedMaxSpeedMph)
@@ -1109,7 +1392,7 @@ function App() {
       skipped: results.filter((result) => result.status === 'fulfilled' && result.value.skipped).length,
       failed: results.filter((result) => result.status === 'rejected').length,
     }
-  }, [settings.movementThresholdM, settings.vehicleApiBaseUrl])
+  }, [historyDayRows, settings.movementThresholdM, settings.vehicleApiBaseUrl])
 
   const refreshHistoryMetadata = useCallback(async () => {
     if (historyDayRows.length === 0) return
@@ -1118,6 +1401,7 @@ function App() {
         from: historyWindow.from,
         to: historyWindow.to,
       })
+      historyDayRowsRef.current = rows
       setHistoryDayRows(rows)
       setHistoryDaySummaries(summarizeSavedTrips(rows))
     } catch {
@@ -1209,6 +1493,13 @@ function App() {
 
     return normalized
   }, [apiFetch, profileDefinitions, settings.useBackendVehicleCatalog, settings.vehicleApiBaseUrl])
+
+  useEffect(() => {
+    if (deviceListSelectedId != null && devices.some((device) => device.id === deviceListSelectedId)) {
+      return
+    }
+    setDeviceListSelectedId(devices[0]?.id ?? null)
+  }, [deviceListSelectedId, devices])
 
   const refreshBindingData = useCallback(async () => {
     setIsBindingBusy(true)
@@ -1607,27 +1898,27 @@ function App() {
     refreshBindingData()
   }, [isSettingsOpen, refreshBindingData])
 
-  const loadHistorySummaries = useCallback(async (fromDate, toDate, label, { merge = false } = {}) => {
+  const loadHistorySummaries = useCallback(async (fromDate, toDate, label, { merge = false, selectFirstDay = false } = {}) => {
     setError('')
     setStatus(`Loading ${label} summary...`)
     const rows = await fetchTripDaySummaries(settings.vehicleApiBaseUrl, { from: fromDate, to: toDate })
-    const summaries = summarizeSavedTrips(rows)
-    const mergedRows = merge
-      ? [...new Map([...historyDayRows, ...rows].map((row) => [row.id || `${row.startedAt}|${row.endedAt}|${row.vehicleId || ''}`, row])).values()]
-      : rows
+    const mergedRows = merge ? mergeHistoryRows(historyDayRowsRef.current, rows) : rows
+    const nextSummaries = summarizeSavedTrips(mergedRows)
+    historyDayRowsRef.current = mergedRows
     setHistoryDayRows(mergedRows)
-    setHistoryDaySummaries(merge ? summarizeSavedTrips(mergedRows) : summaries)
+    setHistoryDaySummaries(nextSummaries)
     setHistoryWindow((previous) => ({
       from: merge ? new Date(Math.min(previous.from.getTime(), fromDate.getTime())) : fromDate,
       to: merge ? new Date(Math.max(previous.to.getTime(), toDate.getTime())) : toDate,
     }))
-    if (!merge && summaries.length > 0) {
-      setSelectedDayKey(summaries[0].dayKey)
-      setSelectedDayKeys([summaries[0].dayKey])
-      setDaySelectionAnchor(summaries[0].dayKey)
+    if ((selectFirstDay || !merge) && nextSummaries.length > 0) {
+      setSelectedDayKey(nextSummaries[0].dayKey)
+      setSelectedDayKeys([nextSummaries[0].dayKey])
+      setDaySelectionAnchor(nextSummaries[0].dayKey)
     }
-    setStatus(`Loaded history summary for ${summaries.length} active day${summaries.length === 1 ? '' : 's'}`)
-  }, [historyDayRows, settings.vehicleApiBaseUrl])
+    setStatus(`Loaded history summary for ${nextSummaries.length} active day${nextSummaries.length === 1 ? '' : 's'}`)
+    return { rows, summaries: nextSummaries }
+  }, [settings.vehicleApiBaseUrl])
 
   useEffect(() => {
     if (!historyWindow?.from || !historyWindow?.to) return undefined
@@ -1640,17 +1931,21 @@ function App() {
     return () => { active = false }
   }, [historyWindow.from, historyWindow.to, settings.vehicleApiBaseUrl])
 
-  const loadHistoryMonth = useCallback(async (monthKey) => {
-    if (!/^\d{4}-\d{2}$/.test(monthKey) || loadedHistoryMonthsRef.current.has(monthKey)) return
+  const loadHistoryMonth = useCallback(async (monthKey, { force = false, selectFirstDay = false } = {}) => {
+    if (!/^\d{4}-\d{2}$/.test(monthKey)) return
+    if (!force && loadedHistoryMonthsRef.current.has(monthKey)) return
+    setHistoryMonthLoadState((previous) => ({ ...previous, [monthKey]: 'loading' }))
     loadedHistoryMonthsRef.current.add(monthKey)
     const [year, month] = monthKey.split('-').map(Number)
     const from = new Date(year, month - 1, 1)
     const through = new Date(year, month, 1)
     through.setMilliseconds(-1)
     try {
-      await loadHistorySummaries(from, through, `${monthKey} history`, { merge: true })
+      const result = await loadHistorySummaries(from, through, `${monthKey} history`, { merge: true, selectFirstDay })
+      setHistoryMonthLoadState((previous) => ({ ...previous, [monthKey]: result.rows.length > 0 ? 'loaded' : 'empty' }))
     } catch (err) {
       loadedHistoryMonthsRef.current.delete(monthKey)
+      setHistoryMonthLoadState((previous) => ({ ...previous, [monthKey]: 'error' }))
       throw err
     }
   }, [loadHistorySummaries])
@@ -1668,8 +1963,7 @@ function App() {
       const existingThrough = existing?.through ? new Date(existing.through) : null
       const savedFrom = existingFrom && !Number.isNaN(existingFrom.getTime()) ? new Date(Math.min(existingFrom.getTime(), from.getTime())) : from
       const savedThrough = existingThrough && !Number.isNaN(existingThrough.getTime()) ? new Date(Math.max(existingThrough.getTime(), through.getTime())) : through
-      const savedSpanDays = (savedThrough.getTime() - savedFrom.getTime()) / (24 * 60 * 60 * 1000)
-      if (savedSpanDays <= 90) localStorage.setItem('vehicleApp:lastBouncieImportRange', JSON.stringify({ from: savedFrom.toISOString(), through: savedThrough.toISOString() }))
+      localStorage.setItem('vehicleApp:lastBouncieImportRange', JSON.stringify({ from: savedFrom.toISOString(), through: savedThrough.toISOString() }))
     } catch {
       // Local storage may be unavailable in private or restricted browser contexts.
     }
@@ -1762,6 +2056,7 @@ function App() {
           const result = await importTripsByDevice(settings.vehicleApiBaseUrl, {
             traccarDeviceId,
             derivationVersion: `trip-v1-movement-${settings.movementThresholdM}`,
+            treatOverlappingAsExisting: true,
             trips: tripsPayload,
           })
           imported += result.imported || 0
@@ -1769,8 +2064,20 @@ function App() {
         } catch (importErr) {
           // A missing binding should remain actionable through the transfer
           // dialog; it must not prevent the map from displaying history.
-          if (importErr?.status === 409) {
-            setImportStatus('Automatic trip sync found conflicting saved history; existing trips were preserved.')
+          const recovery = describeTripImportConflict(importErr, traccarDeviceId)
+          const bindingMissingForUnmanagedDevice = recovery?.code === 'trip_import_binding_missing'
+            && !device.appVehicleId
+            && !activeBindings.some((binding) => Number(binding.traccarDeviceId) === traccarDeviceId)
+            && !bindingVehicles.some((vehicle) => Number(vehicle?.traccarDeviceId) === traccarDeviceId)
+            && !historyDayRows.some((row) => Number(row?.traccarDeviceId) === traccarDeviceId)
+          if (bindingMissingForUnmanagedDevice) {
+            setImportStatus(`Automatic trip sync skipped for ${device.name}: device id ${traccarDeviceId} is not mapped to a vehicle.`)
+            continue
+          }
+          if (recovery) {
+            setImportRecovery(recovery)
+            setImportStatus(`Automatic trip sync skipped for ${device.name}: ${recovery.title}. ${recovery.steps[0] || ''}`.trim())
+            if (recovery.bindingHintDeviceId) setImportBindingHintDeviceId(recovery.bindingHintDeviceId)
           } else {
             setImportStatus(importErr instanceof Error ? importErr.message : 'Automatic trip sync failed.')
           }
@@ -1778,7 +2085,17 @@ function App() {
       }
       setStatus(`Loaded ${workingDevices.length} devices and ${pointCount} points; trips synchronized (${imported} new, ${skipped} already saved)`)
     },
-    [apiFetch, devices, loadDevices, namedPlaces, settings.movementThresholdM, settings.vehicleApiBaseUrl],
+    [
+      activeBindings,
+      apiFetch,
+      bindingVehicles,
+      devices,
+      historyDayRows,
+      loadDevices,
+      namedPlaces,
+      settings.movementThresholdM,
+      settings.vehicleApiBaseUrl,
+    ],
   )
 
   useEffect(() => {
@@ -1832,34 +2149,45 @@ function App() {
 
   const applyTimeRange = useCallback(async () => {
     setSelectedDayKey(null)
+    setSelectedDayKeys([])
+    setDaySelectionAnchor(null)
+    historyDayRowsRef.current = []
+    setHistoryDayRows([])
+    setHistoryDaySummaries([])
+    loadedHistoryMonthsRef.current.clear()
+    setHistoryMonthLoadState({})
 
     try {
-      const range = getRangeFromMode(timeMode, settings.realtimeHours, customFrom, customTo)
-      let requested = range
-      if (timeMode === 'history') {
-        try {
-          const saved = JSON.parse(localStorage.getItem('vehicleApp:lastBouncieImportRange') || 'null')
-          const importedFrom = saved?.from ? new Date(saved.from) : null
-          const importedThrough = saved?.through ? new Date(saved.through) : null
-          const spanDays = importedFrom && importedThrough ? (importedThrough.getTime() - importedFrom.getTime()) / (24 * 60 * 60 * 1000) : Infinity
-          if (importedFrom && importedThrough && !Number.isNaN(importedFrom.getTime()) && !Number.isNaN(importedThrough.getTime()) && spanDays <= 90) {
-            requested = {
-              ...range,
-              from: new Date(Math.min(range.from.getTime(), importedFrom.getTime())),
-              to: new Date(Math.max(range.to.getTime(), importedThrough.getTime())),
-              label: `${range.label} and last Bouncie import`,
-            }
-          }
-        } catch {
-          // Ignore malformed or unavailable browser storage.
-        }
+      setStatus('Loading history index...')
+      const [span, monthSummaries] = await Promise.all([
+        fetchTripHistorySpan(settings.vehicleApiBaseUrl),
+        fetchTripHistoryMonthSummaries(settings.vehicleApiBaseUrl),
+      ])
+      setHistorySpan(span)
+      setHistoryMonthSummaryByKey(Object.fromEntries(monthSummaries
+        .filter((row) => row?.monthKey)
+        .map((row) => [row.monthKey, {
+          activeDayCount: Number(row.activeDayCount) || 0,
+          tripCount: Number(row.tripCount) || 0,
+        }])))
+
+      if (!span?.tripCount || !span?.latestEndedAt) {
+        setStatus('No history is available yet.')
+        return
       }
-      await loadHistorySummaries(requested.from, requested.to, requested.label)
+
+      const latestMonthKey = toMonthKey(span.latestEndedAt)
+      if (!latestMonthKey) {
+        setStatus('History is available, but the latest month could not be resolved.')
+        return
+      }
+
+      await loadHistoryMonth(latestMonthKey, { selectFirstDay: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown range error')
-      setStatus('Range error')
+      setError(err instanceof Error ? err.message : 'Unknown history load error')
+      setStatus('History load failed')
     }
-  }, [customFrom, customTo, loadHistorySummaries, settings.realtimeHours, timeMode])
+  }, [loadHistoryMonth, settings.vehicleApiBaseUrl])
 
   useEffect(() => {
     if (startupLoadRef.current) return
@@ -2222,10 +2550,18 @@ function App() {
             treatOverlappingAsExisting: true,
             trips: tripsPayload,
           })
+          setImportRecovery(null)
           setDataImportMessage(`Restored ${appCsv.rows.length} positions for ${device.name}; saved ${result.imported} trips and skipped ${result.skipped} duplicates.`)
           await loadHistorySummaries(first, last, 'restored history')
         } catch (tripError) {
-          setDataImportMessage(`Restored ${appCsv.rows.length} positions for ${device.name}, but trips were not saved: ${tripError instanceof Error ? tripError.message : 'backend import failed'}`)
+          const recovery = describeTripImportConflict(tripError, primaryDeviceId)
+          if (recovery) {
+            setImportRecovery(recovery)
+            if (recovery.bindingHintDeviceId) setImportBindingHintDeviceId(recovery.bindingHintDeviceId)
+            setDataImportMessage(`Restored ${appCsv.rows.length} positions for ${device.name}, but trip import was blocked: ${recovery.title}. ${recovery.steps[0] || ''}`)
+          } else {
+            setDataImportMessage(`Restored ${appCsv.rows.length} positions for ${device.name}, but trips were not saved: ${tripError instanceof Error ? tripError.message : 'backend import failed'}`)
+          }
         }
         setStatus(`Restored ${appCsv.rows.length} positions from Traccar React CSV`)
         return
@@ -2273,6 +2609,7 @@ function App() {
 
     setError('')
     setImportBindingHintDeviceId(null)
+    setImportRecovery(null)
     setImportStatus('Loading range points from Traccar...')
     setStatus(`Preparing derived trips for ${device.name} (${range.label})...`)
     setIsImportingTrips(true)
@@ -2341,6 +2678,7 @@ function App() {
         derivationVersion: `trip-v1-movement-${settings.movementThresholdM}`,
         trips: tripsPayload,
       })
+      setImportRecovery(null)
       setImportStatus(
         `Import complete for ${device.name}: imported ${result.imported}, skipped ${result.skipped} duplicates${filteredOutCount > 0 ? `; filtered ${filteredOutCount} invalid trip(s)` : ''}.`,
       )
@@ -2348,25 +2686,17 @@ function App() {
     } catch (importErr) {
       const message = importErr instanceof Error ? importErr.message : 'Trip import failed'
       setError(message)
-      setImportStatus(importErr?.status === 409
-        ? 'Import stopped: conflicting saved history. No trips were saved; existing notes and tags are unchanged.'
-        : 'Trip import failed.')
-      setStatus('Trip import failed')
-
-      if (message.includes('No complete vehicle binding covers')) {
-        setImportStatus('Import needs a complete vehicle assignment. In Vehicle Catalog, select this device and set Effective From to a date at or before the historical data, then retry.')
-        setStatus('Vehicle assignment required before import')
-      } else if (message.includes('No active vehicle binding found for traccarDeviceId')) {
-        const match = message.match(/traccarDeviceId\s+(\d+)/i)
-        const hintedDeviceId = toPositiveInt32(match?.[1]) || primaryDeviceId
-        setImportBindingHintDeviceId(hintedDeviceId)
-        setImportStatus(
-          `Import requires a vehicle binding for device id ${hintedDeviceId}. Click Bind Device To Vehicle, then Save Binding and Retry Import.`,
-        )
-        setStatus('Binding required before import')
-      } else if (message.includes('overlaps saved history') || message.includes('conflicts with saved history')) {
-        setImportStatus('This range is already represented by saved history, but its derived boundaries differ. Reuse the original range and movement threshold, or reconcile the saved trip before importing it again.')
-        setStatus('Saved history conflict')
+      const recovery = describeTripImportConflict(importErr, primaryDeviceId)
+      if (recovery) {
+        setImportRecovery(recovery)
+        if (recovery.bindingHintDeviceId) setImportBindingHintDeviceId(recovery.bindingHintDeviceId)
+        setImportStatus(`${recovery.title}: ${recovery.detail}`)
+        setStatus(recovery.status || 'Trip import failed')
+      } else {
+        setImportStatus(importErr?.status === 409
+          ? 'Import stopped: conflicting saved history. No trips were saved; existing notes and tags are unchanged.'
+          : 'Trip import failed.')
+        setStatus('Trip import failed')
       }
     } finally {
       setIsImportingTrips(false)
@@ -2396,6 +2726,11 @@ function App() {
     setImportStatus('Binding saved. Retrying import...')
     await importTripsToBackend()
   }, [importTripsToBackend, saveBinding])
+
+  const dismissImportRecovery = useCallback(() => {
+    setImportRecovery(null)
+    setImportBindingHintDeviceId(null)
+  }, [])
 
   const saveProfileEdits = useCallback(() => {
     const trimmedName = profileName.trim()
@@ -2517,14 +2852,46 @@ function App() {
     setProfileEditorStatus('Profile deleted.')
   }, [profileOptions, selectedProfileId])
 
-  const firstCatalogVehicle = bindingVehicles[0]
+  const statusEligibleDeviceIds = useMemo(() => {
+    const ids = new Set()
+    devices.forEach((device) => {
+      if (device?.appVehicleId) ids.add(Number(device.id))
+    })
+    bindingVehicles.forEach((vehicle) => {
+      const id = Number(vehicle?.traccarDeviceId)
+      if (Number.isFinite(id) && id > 0) ids.add(id)
+    })
+    historyDayRows.forEach((row) => {
+      const id = Number(row?.traccarDeviceId)
+      if (Number.isFinite(id) && id > 0) ids.add(id)
+    })
+    return ids
+  }, [bindingVehicles, devices, historyDayRows])
+
+  const statusEligibleDevices = useMemo(
+    () => devices.filter((device) => statusEligibleDeviceIds.has(Number(device.id))),
+    [devices, statusEligibleDeviceIds],
+  )
+
+  useEffect(() => {
+    if (statusDeviceId != null && statusEligibleDeviceIds.has(Number(statusDeviceId))) {
+      return
+    }
+    const fallbackId = statusEligibleDevices[0]?.id ?? null
+    if (fallbackId !== statusDeviceId) {
+      setStatusDeviceId(fallbackId)
+    }
+  }, [statusDeviceId, statusEligibleDeviceIds, statusEligibleDevices])
+
+  const firstCatalogVehicle = bindingVehicles.find((vehicle) => statusEligibleDeviceIds.has(Number(vehicle.traccarDeviceId)))
   const firstCatalogDevice = firstCatalogVehicle?.traccarDeviceId == null
     ? null
-    : devices.find((device) => Number(device.id) === Number(firstCatalogVehicle.traccarDeviceId))
-  const statusDevice = devices.find((device) => device.id === statusDeviceId)
-    || devices.find((device) => device.id === selectedTrip?.deviceId)
+    : statusEligibleDevices.find((device) => Number(device.id) === Number(firstCatalogVehicle.traccarDeviceId))
+  const statusDevice = statusEligibleDevices.find((device) => device.id === statusDeviceId)
+    || statusEligibleDevices.find((device) => device.id === selectedTrip?.deviceId)
     || firstCatalogDevice
-    || (bindingVehicles.length === 0 ? devices[0] : null)
+    || statusEligibleDevices[0]
+    || null
   const statusPoint = selectedMapPoint && selectedMapPoint.deviceId === statusDevice?.id
     ? selectedMapPoint.point
     : (statusDevice ? (historyByDevice[statusDevice.id] || []).at(-1) : null)
@@ -2563,17 +2930,64 @@ function App() {
           </button>
         </div>
 
+        {importRecovery && (
+          <section className="import-conflict-badge" role="status" aria-live="polite">
+            <div className="import-conflict-badge-header">
+              <strong>Trip Sync Needs Attention</strong>
+              <span>HTTP 409</span>
+            </div>
+            <div className="import-conflict-badge-body">{importRecovery.title}</div>
+            <div className="import-conflict-badge-detail">{importRecovery.detail}</div>
+            <div className="import-conflict-badge-facts">
+              {importRecovery.code && <div>Cause: {importRecovery.code}</div>}
+              {importRecovery.traccarDeviceId && <div>Device ID: {importRecovery.traccarDeviceId}</div>}
+              {(importRecovery.startedAtLabel || importRecovery.endedAtLabel) && (
+                <div>
+                  Incoming Window: {importRecovery.startedAtLabel || '?'} to {importRecovery.endedAtLabel || '?'}
+                </div>
+              )}
+              {importRecovery.incomingSourceIdsLabel && <div>Incoming Source IDs: {importRecovery.incomingSourceIdsLabel}</div>}
+              {(importRecovery.firstConflictingTrip?.startedAtLabel || importRecovery.firstConflictingTrip?.endedAtLabel) && (
+                <div>
+                  Saved Window ({importRecovery.firstConflictingTrip?.idShort || 'trip'}): {importRecovery.firstConflictingTrip?.startedAtLabel || '?'} to {importRecovery.firstConflictingTrip?.endedAtLabel || '?'}
+                </div>
+              )}
+              {importRecovery.firstConflictingTrip?.sourceIdsLabel && (
+                <div>Saved Source IDs: {importRecovery.firstConflictingTrip.sourceIdsLabel}</div>
+              )}
+              {Array.isArray(importRecovery.conflictingTripIdsShort) && importRecovery.conflictingTripIdsShort.length > 0 && (
+                <div>
+                  Conflicting Trip IDs: {importRecovery.conflictingTripIdsShort.slice(0, 3).join(', ')}
+                  {importRecovery.conflictingTripIdsShort.length > 3 ? ` (+${importRecovery.conflictingTripIdsShort.length - 3} more)` : ''}
+                </div>
+              )}
+            </div>
+            {importRecovery.steps?.[0] && <div className="import-conflict-badge-hint">Next: {importRecovery.steps[0]}</div>}
+            <div className="import-conflict-badge-actions">
+              <button type="button" className="small secondary" onClick={() => setIsSettingsOpen(true)}>
+                Open Settings
+              </button>
+              <button type="button" className="small" onClick={dismissImportRecovery}>
+                Dismiss
+              </button>
+            </div>
+          </section>
+        )}
+
         <DeviceList
           devices={devices}
           deviceVisibility={deviceVisibility}
           setDeviceVisibility={setDeviceVisibility}
           deviceColors={deviceColors}
-          statusDeviceId={statusDeviceId}
-          onSelectDevice={setStatusDeviceId}
+          selectedDeviceId={deviceListSelectedId}
+          onSelectDevice={setDeviceListSelectedId}
         />
 
         <HistoryNavigator
           daySummaries={daySummaries}
+          monthKeys={historyMonthKeys}
+          monthSummaryByKey={historyMonthSummaryByKey}
+          monthLoadState={historyMonthLoadState}
           selectedDayKey={selectedDayKey}
           selectedDayKeys={selectedDayKeys}
           setSelectedDayKey={selectDay}
@@ -2627,7 +3041,7 @@ function App() {
           profile={statusDevice ? profileMap[deviceProfileById[statusDevice.id] || DEFAULT_PROFILE_ID] : null}
           cardFields={statusCardFieldsByVehicle[statusVehicleId] || DEFAULT_STATUS_CARD_FIELDS}
         />
-        {statusDevice && <VehicleStatsPanel baseUrl={settings.vehicleApiBaseUrl} vehicleId={statusVehicleId || null} />}
+        <VehicleStatsPanel baseUrl={settings.vehicleApiBaseUrl} vehicleId={statusVehicleId || null} />
         <div className="map-title">
           <span role={isPickingLocation ? 'status' : undefined}>{isPickingLocation ? 'Click the map to select a position. Pan or zoom to find it.' : 'Live Map'}</span>
           <button type="button" className="small secondary" onClick={() => setShowNamedPlaces((visible) => !visible)}>
@@ -2713,6 +3127,8 @@ function App() {
           deleteBindingById={deleteBindingById}
           saveBindingAndRetryImport={saveBindingAndRetryImport}
           showRetryAction={Boolean(importBindingHintDeviceId)}
+          importRecovery={importRecovery}
+          clearImportRecovery={dismissImportRecovery}
           enrichmentStatus={enrichmentStatus}
           namedPlaces={namedPlaces}
           placeVehicleId={placeVehicleId}

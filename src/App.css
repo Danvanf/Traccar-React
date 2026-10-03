@@ -228,6 +228,7 @@ body[data-theme='light'] {
 .history-month-list details { border-top: 1px solid var(--card-border); }
 .history-month-list summary { cursor: pointer; padding: 8px 3px; font-size: 13px; font-weight: 700; list-style-position: inside; }
 .history-month-list summary span { float: right; color: var(--muted); font-size: 11px; font-weight: 500; }
+.history-year-months { display: block; padding-left: 8px; }
 .history-day-list { display: flex; flex-direction: column; gap: 3px; padding: 0 0 7px 17px; }
 .history-day { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; padding: 7px 8px; border: 1px solid transparent; background: transparent; color: var(--panel-text); text-align: left; font-size: 12px; }
 .history-day-date, .history-day-summary { display: flex; flex-direction: column; gap: 2px; }
@@ -320,6 +321,56 @@ button.small {
 
 .status-card {
   font-size: 13px;
+}
+
+.import-conflict-badge {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid rgba(252, 165, 165, 0.45);
+  border-left: 4px solid var(--danger);
+  border-radius: 10px;
+  background: rgba(185, 28, 28, 0.12);
+}
+
+.import-conflict-badge-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.import-conflict-badge-header span {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.import-conflict-badge-body {
+  font-size: 12px;
+  color: var(--panel-text);
+}
+
+.import-conflict-badge-detail {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.import-conflict-badge-facts {
+  display: grid;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.import-conflict-badge-hint {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.import-conflict-badge-actions {
+  display: flex;
+  gap: 7px;
 }
 
 .status-line {
@@ -627,6 +678,44 @@ h2 {
   border: 1px solid var(--card-border);
   border-radius: 12px;
   padding: 10px;
+}
+
+.settings-conflict-banner {
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid rgba(252, 165, 165, 0.45);
+  border-left: 4px solid var(--danger);
+  border-radius: 10px;
+  background: rgba(185, 28, 28, 0.14);
+  font-size: 12px;
+}
+
+.settings-conflict-banner-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-conflict-banner-header span {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.settings-conflict-banner-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.settings-conflict-banner ol {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
 }
 
 .profile-editor.settings-panel-collapsed > :not(h4) { display: none; }
