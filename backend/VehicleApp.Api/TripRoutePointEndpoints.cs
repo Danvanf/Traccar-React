@@ -9,8 +9,9 @@ public static class TripRoutePointEndpoints
             .WithSummary("Returns persisted route geometry for an imported trip.");
     }
 
-    private static async Task<IResult> GetAsync(Guid tripId, NpgsqlDataSource dataSource, CancellationToken cancellationToken)
+    private static async Task<IResult> GetAsync(Guid tripId, NpgsqlDataSource dataSource, VehicleAppAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken)
     {
+        if (!await VehicleAccess.CanReadTripAsync(tripId, dataSource, authOptions, context, cancellationToken)) return TypedResults.Forbid();
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var command = new NpgsqlCommand("""
             select point_index, occurred_at, latitude, longitude, speed_mph

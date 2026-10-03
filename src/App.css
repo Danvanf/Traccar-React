@@ -664,6 +664,20 @@ h2 {
   gap: 10px;
 }
 
+.admin-tabs { display:flex; gap:.4rem; border-bottom:1px solid rgba(255,255,255,.2); margin:1rem 0; }
+.admin-tabs button { border-radius:.4rem .4rem 0 0; }
+.admin-tabs button.active { background:#35b7aa; color:#10233f; }
+.admin-toggle-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.5rem; }
+.admin-list-item { background:transparent; border:0; padding:0; color:inherit; cursor:pointer; }
+.admin-list-item.active { color:#35b7aa; font-weight:700; }
+.admin-delete-button { margin-left:auto; border:0; background:transparent; color:#ff6b6b; font-size:1.25rem; cursor:pointer; }
+.admin-switch { display:inline-flex; align-items:center; gap:.45rem; cursor:pointer; }
+.admin-switch input { position:absolute; opacity:0; pointer-events:none; }
+.admin-switch-slider { width:2rem; height:1.1rem; border-radius:1rem; background:#66758f; position:relative; transition:.15s; }
+.admin-switch-slider::after { content:""; position:absolute; width:.85rem; height:.85rem; top:.125rem; left:.125rem; border-radius:50%; background:#fff; transition:.15s; }
+.admin-switch input:checked + .admin-switch-slider { background:#35b7aa; }
+.admin-switch input:checked + .admin-switch-slider::after { transform:translateX(.9rem); }
+
 .settings-divider {
   width: 100%;
   border: 0;

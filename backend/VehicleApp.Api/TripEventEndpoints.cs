@@ -4,8 +4,9 @@ public static class TripEventEndpoints
 {
     public static void MapTripEventEndpoints(this WebApplication app)
     {
-        app.MapPost("/api/trips/{tripId:guid}/events", async (Guid tripId, TripEventBatchRequest request, NpgsqlDataSource dataSource, CancellationToken cancellationToken) =>
+        app.MapPost("/api/trips/{tripId:guid}/events", async (Guid tripId, TripEventBatchRequest request, NpgsqlDataSource dataSource, VehicleAppAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken) =>
         {
+            if (!await VehicleAccess.CanReadTripAsync(tripId, dataSource, authOptions, context, cancellationToken)) return Results.Forbid();
             if (request.Events is null || request.Events.Count > 5000) return Results.BadRequest("events must contain at most 5000 items.");
             await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
             await using var tx = await connection.BeginTransactionAsync(cancellationToken);
@@ -35,8 +36,9 @@ public static class TripEventEndpoints
             return Results.Ok(new { tripId, saved = request.Events.Count });
         });
 
-        app.MapGet("/api/trips/{tripId:guid}/events", async (Guid tripId, NpgsqlDataSource dataSource, CancellationToken cancellationToken) =>
+        app.MapGet("/api/trips/{tripId:guid}/events", async (Guid tripId, NpgsqlDataSource dataSource, VehicleAppAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken) =>
         {
+            if (!await VehicleAccess.CanReadTripAsync(tripId, dataSource, authOptions, context, cancellationToken)) return Results.Forbid();
             try
             {
                 await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -54,7 +56,7 @@ public static class TripEventEndpoints
             }
         });
 
-        app.MapGet("/api/trip-events/notifications", async (DateTimeOffset? from, DateTimeOffset? to, Guid? vehicleId, NpgsqlDataSource dataSource, CancellationToken cancellationToken) =>
+        app.MapGet("/api/trip-events/notifications", async (DateTimeOffset? from, DateTimeOffset? to, Guid? vehicleId, NpgsqlDataSource dataSource, VehicleAppAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken) =>
         {
             await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
             await using var command = new NpgsqlCommand("""
@@ -66,12 +68,16 @@ public static class TripEventEndpoints
                 where (cast(@from as timestamptz) is null or e.occurred_at >= cast(@from as timestamptz))
                   and (cast(@to as timestamptz) is null or e.occurred_at <= cast(@to as timestamptz))
                   and (cast(@vehicleId as uuid) is null or e.vehicle_id = cast(@vehicleId as uuid))
+                  and (not @authEnabled or @isAdmin or exists (select 1 from app_user_vehicle_access ua join app_users u on u.id = ua.user_id where ua.vehicle_id = e.vehicle_id and u.username = @username and u.active) or exists (select 1 from app_group_vehicle_access ga join app_group_memberships gm on gm.group_id = ga.group_id join app_users u on u.id = gm.user_id where ga.vehicle_id = e.vehicle_id and u.username = @username and u.active))
                 order by e.occurred_at desc
                 limit 500
                 """, connection);
             command.Parameters.AddWithValue("from", (object?)from?.UtcDateTime ?? DBNull.Value);
             command.Parameters.AddWithValue("to", (object?)to?.UtcDateTime ?? DBNull.Value);
             command.Parameters.AddWithValue("vehicleId", (object?)vehicleId ?? DBNull.Value);
+            command.Parameters.AddWithValue("authEnabled", authOptions.Enabled);
+            command.Parameters.AddWithValue("isAdmin", context.User.IsInRole("admin"));
+            command.Parameters.AddWithValue("username", context.User.Identity?.Name ?? string.Empty);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             var notifications = new List<object>();
             while (await reader.ReadAsync(cancellationToken))
@@ -94,8 +100,9 @@ public static class TripEventEndpoints
             return Results.Ok(notifications);
         }).WithName("GetTripEventNotifications");
 
-        app.MapDelete("/api/trips/{tripId:guid}/events", async (Guid tripId, NpgsqlDataSource dataSource, CancellationToken cancellationToken) =>
+        app.MapDelete("/api/trips/{tripId:guid}/events", async (Guid tripId, NpgsqlDataSource dataSource, VehicleAppAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken) =>
         {
+            if (!await VehicleAccess.CanReadTripAsync(tripId, dataSource, authOptions, context, cancellationToken)) return Results.Forbid();
             await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
             await using var command = new NpgsqlCommand("delete from trip_events where trip_id = @tripId and (source = 'calculated' or event_type = 'maximum_speed')", connection);
             command.Parameters.AddWithValue("tripId", tripId);

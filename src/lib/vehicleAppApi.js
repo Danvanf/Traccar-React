@@ -710,3 +710,121 @@ export async function fetchVehicleStats(baseUrl, vehicleId, { from, to, groupBy 
   if (!response.ok) throw await toResponseError(response, 'Vehicle API statistics lookup failed', url)
   return response.json()
 }
+
+export async function fetchAdminUsers(baseUrl) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/admin/users`
+  const response = await vehicleFetch(url)
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API user lookup failed', url)
+  return response.json()
+}
+
+export async function createAdminUser(baseUrl, user) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/admin/users`
+  const response = await vehicleFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(user) })
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API user creation failed', url)
+  return response.json()
+}
+
+export async function updateAdminUser(baseUrl, userId, user) {
+  const base = normalizeVehicleApiBase(baseUrl); const url = `${base}/api/admin/users/${encodeURIComponent(userId)}`
+  const response = await vehicleFetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(user) })
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API user update failed', url)
+}
+
+export async function fetchAdminGroups(baseUrl) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/admin/groups`
+  const response = await vehicleFetch(url)
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API group lookup failed', url)
+  return response.json()
+}
+
+export async function createAdminGroup(baseUrl, group) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/admin/groups`
+  const response = await vehicleFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(group) })
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API group creation failed', url)
+  return response.json()
+}
+
+export async function deleteAdminUser(baseUrl, userId) {
+  const base = normalizeVehicleApiBase(baseUrl); const url = `${base}/api/admin/users/${encodeURIComponent(userId)}`; const response = await vehicleFetch(url, { method: 'DELETE' }); if (!response.ok) throw await toResponseError(response, 'Vehicle API user deletion failed', url)
+}
+export async function deleteAdminGroup(baseUrl, groupId) {
+  const base = normalizeVehicleApiBase(baseUrl); const url = `${base}/api/admin/groups/${encodeURIComponent(groupId)}`; const response = await vehicleFetch(url, { method: 'DELETE' }); if (!response.ok) throw await toResponseError(response, 'Vehicle API group deletion failed', url)
+}
+
+export async function setAdminGroupMembership(baseUrl, groupId, userId, enabled) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/admin/groups/${encodeURIComponent(groupId)}/users/${encodeURIComponent(userId)}`
+  const response = await vehicleFetch(url, { method: enabled ? 'PUT' : 'DELETE' })
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API group membership update failed', url)
+}
+export async function fetchAdminGroupUsers(baseUrl, groupId) { const base = normalizeVehicleApiBase(baseUrl); const url = `${base}/api/admin/groups/${encodeURIComponent(groupId)}/users`; const response = await vehicleFetch(url); if (!response.ok) throw await toResponseError(response, 'Vehicle API group members lookup failed', url); return response.json() }
+export async function fetchAdminUserGroups(baseUrl, userId) { const base = normalizeVehicleApiBase(baseUrl); const url = `${base}/api/admin/users/${encodeURIComponent(userId)}/groups`; const response = await vehicleFetch(url); if (!response.ok) throw await toResponseError(response, 'Vehicle API user groups lookup failed', url); return response.json() }
+
+export async function setAdminUserVehicleAccess(baseUrl, userId, vehicleId, enabled) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/admin/users/${encodeURIComponent(userId)}/vehicles/${encodeURIComponent(vehicleId)}`
+  const response = await vehicleFetch(url, { method: enabled ? 'PUT' : 'DELETE' })
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API user vehicle access update failed', url)
+}
+
+export async function fetchAdminUserVehicles(baseUrl, userId) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/admin/users/${encodeURIComponent(userId)}/vehicles`
+  const response = await vehicleFetch(url)
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API user access lookup failed', url)
+  return response.json()
+}
+
+export async function setAdminGroupVehicleAccess(baseUrl, groupId, vehicleId, enabled) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/admin/groups/${encodeURIComponent(groupId)}/vehicles/${encodeURIComponent(vehicleId)}`
+  const response = await vehicleFetch(url, { method: enabled ? 'PUT' : 'DELETE' })
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API group vehicle access update failed', url)
+}
+
+export async function fetchAdminGroupVehicles(baseUrl, groupId) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/admin/groups/${encodeURIComponent(groupId)}/vehicles`
+  const response = await vehicleFetch(url)
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API group access lookup failed', url)
+  return response.json()
+}
+
+export async function setAdminUserAutoAccess(baseUrl, userId, enabled) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/admin/users/${encodeURIComponent(userId)}/auto-access`
+  const response = await vehicleFetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) })
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API user auto-access update failed', url)
+}
+
+export async function setAdminGroupAutoAccess(baseUrl, groupId, enabled) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/admin/groups/${encodeURIComponent(groupId)}/auto-access`
+  const response = await vehicleFetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) })
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API group auto-access update failed', url)
+}
+
+async function setAdminDeviceAccess(baseUrl, kind, id, deviceId, enabled) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/admin/${kind}/${encodeURIComponent(id)}/devices/${encodeURIComponent(deviceId)}`
+  const response = await vehicleFetch(url, { method: enabled ? 'PUT' : 'DELETE' })
+  if (!response.ok) throw await toResponseError(response, `Vehicle API ${kind} device access update failed`, url)
+}
+
+export const setAdminUserDeviceAccess = (baseUrl, userId, deviceId, enabled) => setAdminDeviceAccess(baseUrl, 'users', userId, deviceId, enabled)
+export const setAdminGroupDeviceAccess = (baseUrl, groupId, deviceId, enabled) => setAdminDeviceAccess(baseUrl, 'groups', groupId, deviceId, enabled)
+
+async function fetchAdminDeviceAccess(baseUrl, kind, id) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/admin/${kind}/${encodeURIComponent(id)}/devices`
+  const response = await vehicleFetch(url)
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API device access lookup failed', url)
+  return response.json()
+}
+export const fetchAdminUserDevices = (baseUrl, userId) => fetchAdminDeviceAccess(baseUrl, 'users', userId)
+export const fetchAdminGroupDevices = (baseUrl, groupId) => fetchAdminDeviceAccess(baseUrl, 'groups', groupId)

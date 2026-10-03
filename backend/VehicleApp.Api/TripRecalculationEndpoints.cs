@@ -13,8 +13,10 @@ public static class TripRecalculationEndpoints
         Guid tripId,
         RecalculateTripRequest request,
         NpgsqlDataSource dataSource,
+        VehicleAppAuthOptions authOptions, HttpContext context,
         CancellationToken cancellationToken)
     {
+        if (!await VehicleAccess.CanReadTripAsync(tripId, dataSource, authOptions, context, cancellationToken)) return TypedResults.Forbid();
         if (string.IsNullOrWhiteSpace(request.DerivationVersion))
             return TypedResults.BadRequest("derivationVersion is required.");
         if (request.DurationSeconds <= 0 || !double.IsFinite(request.DistanceMeters) || request.DistanceMeters < 0)

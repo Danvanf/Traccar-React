@@ -53,6 +53,6 @@ public static class OperationsReportEndpoints
                 rows.Add(row);
             }
             return Results.Ok(new { report, generatedAtUtc = DateTimeOffset.UtcNow, rows });
-        });
+        }).RequireAuthorization(policy => policy.RequireRole("admin"));
     }
 }

@@ -19,7 +19,7 @@ public static class TripDaySummaryEndpoints
 
     private static async Task<IResult> GetHistorySpanAsync(
         Guid? vehicleId,
-        NpgsqlDataSource dataSource,
+        NpgsqlDataSource dataSource, VehicleAppAuthOptions authOptions, HttpContext context,
         CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -30,8 +30,10 @@ public static class TripDaySummaryEndpoints
                    count(*)::bigint as trip_count
             from trips
             where (cast(@vehicleId as uuid) is null or vehicle_id = cast(@vehicleId as uuid))
+              and (not @authEnabled or @isAdmin or vehicle_id in (select vehicle_id from app_user_vehicle_access ua join app_users u on u.id = ua.user_id where u.username = @username and u.active union select ga.vehicle_id from app_group_vehicle_access ga join app_group_memberships gm on gm.group_id = ga.group_id join app_users u on u.id = gm.user_id where u.username = @username and u.active))
             """, connection);
         command.Parameters.AddWithValue("vehicleId", (object?)vehicleId ?? DBNull.Value);
+        AddAccessParameters(command, authOptions, context);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         await reader.ReadAsync(cancellationToken);
@@ -45,7 +47,7 @@ public static class TripDaySummaryEndpoints
 
     private static async Task<IResult> GetHistoryMonthSummariesAsync(
         Guid? vehicleId,
-        NpgsqlDataSource dataSource,
+        NpgsqlDataSource dataSource, VehicleAppAuthOptions authOptions, HttpContext context,
         CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -56,10 +58,12 @@ public static class TripDaySummaryEndpoints
                    count(*)::int as trip_count
             from trips
             where (cast(@vehicleId as uuid) is null or vehicle_id = cast(@vehicleId as uuid))
+              and (not @authEnabled or @isAdmin or vehicle_id in (select vehicle_id from app_user_vehicle_access ua join app_users u on u.id = ua.user_id where u.username = @username and u.active union select ga.vehicle_id from app_group_vehicle_access ga join app_group_memberships gm on gm.group_id = ga.group_id join app_users u on u.id = gm.user_id where u.username = @username and u.active))
             group by 1
             order by 1 desc
             """, connection);
         command.Parameters.AddWithValue("vehicleId", (object?)vehicleId ?? DBNull.Value);
+        AddAccessParameters(command, authOptions, context);
 
         var rows = new List<object>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -78,7 +82,7 @@ public static class TripDaySummaryEndpoints
 
     private static async Task<IResult> GetAsync(
         DateTimeOffset? from, DateTimeOffset? to, Guid? vehicleId,
-        NpgsqlDataSource dataSource, CancellationToken cancellationToken)
+        NpgsqlDataSource dataSource, VehicleAppAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken)
     {
         if (from.HasValue && to.HasValue && to < from)
             return TypedResults.BadRequest("to must be on or after from.");
@@ -96,12 +100,14 @@ public static class TripDaySummaryEndpoints
             where (cast(@from as timestamptz) is null or ended_at >= cast(@from as timestamptz))
               and (cast(@to as timestamptz) is null or started_at <= cast(@to as timestamptz))
               and (cast(@vehicleId as uuid) is null or vehicle_id = cast(@vehicleId as uuid))
+              and (not @authEnabled or @isAdmin or vehicle_id in (select vehicle_id from app_user_vehicle_access ua join app_users u on u.id = ua.user_id where u.username = @username and u.active union select ga.vehicle_id from app_group_vehicle_access ga join app_group_memberships gm on gm.group_id = ga.group_id join app_users u on u.id = gm.user_id where u.username = @username and u.active))
             order by started_at desc
             limit 10000
             """, connection);
         command.Parameters.AddWithValue("from", (object?)from?.UtcDateTime ?? DBNull.Value);
         command.Parameters.AddWithValue("to", (object?)to?.UtcDateTime ?? DBNull.Value);
         command.Parameters.AddWithValue("vehicleId", (object?)vehicleId ?? DBNull.Value);
+        AddAccessParameters(command, authOptions, context);
 
         var rows = new List<object>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -127,5 +133,12 @@ public static class TripDaySummaryEndpoints
                 endAddress = reader.IsDBNull(16) ? null : reader.GetString(16),
             });
         return TypedResults.Ok(rows);
+    }
+
+    private static void AddAccessParameters(NpgsqlCommand command, VehicleAppAuthOptions options, HttpContext context)
+    {
+        command.Parameters.AddWithValue("authEnabled", options.Enabled);
+        command.Parameters.AddWithValue("isAdmin", context.User.IsInRole("admin"));
+        command.Parameters.AddWithValue("username", context.User.Identity?.Name ?? string.Empty);
     }
 }

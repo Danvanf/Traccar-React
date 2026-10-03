@@ -410,7 +410,7 @@ function describeTripImportConflict(error, fallbackDeviceId = null) {
 
 function App() {
   const [settings, setSettings] = useState(readSettings)
-  const [vehicleAuth, setVehicleAuth] = useState({ checking: true, enabled: false, authenticated: false })
+  const [vehicleAuth, setVehicleAuth] = useState({ checking: true, enabled: false, authenticated: false, role: null })
   const [vehicleLoginUsername, setVehicleLoginUsername] = useState('')
   const [vehicleLoginPassword, setVehicleLoginPassword] = useState('')
   const [vehicleLoginError, setVehicleLoginError] = useState('')
@@ -1192,8 +1192,8 @@ function App() {
   useEffect(() => {
     let active = true
     fetchVehicleAuthStatus(settings.vehicleApiBaseUrl)
-      .then((result) => { if (active) setVehicleAuth({ checking: false, enabled: Boolean(result.enabled), authenticated: Boolean(result.authenticated) }) })
-      .catch(() => { if (active) setVehicleAuth({ checking: false, enabled: false, authenticated: false }) })
+      .then((result) => { if (active) setVehicleAuth({ checking: false, enabled: Boolean(result.enabled), authenticated: Boolean(result.authenticated), role: result.role || null }) })
+      .catch(() => { if (active) setVehicleAuth({ checking: false, enabled: false, authenticated: false, role: null }) })
     return () => { active = false }
   }, [settings.vehicleApiBaseUrl])
 
@@ -3176,6 +3176,7 @@ function App() {
           cancelBouncieImport={cancelBouncieSync}
           forgetBouncieCredentials={forgetBouncieConnection}
           restoreBouncieConnection={restoreBouncieStoredConnection}
+          vehicleAuth={vehicleAuth}
         />
       )}
 

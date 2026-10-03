@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { DEFAULT_SPEED_BANDS } from '../lib/speedBands'
 import { DEFAULT_STATUS_CARD_FIELDS, STATUS_CARD_FIELDS } from '../lib/statusCardFields'
 import { fetchVehicleSpeedBands, saveVehicleSpeedBands as persistVehicleSpeedBands } from '../lib/vehicleAppApi'
+import AdminAccessPanel from './AdminAccessPanel'
 
 function SettingsModal({
   isPickingLocation,
@@ -113,6 +114,7 @@ function SettingsModal({
   forgetBouncieCredentials,
   restoreBouncieConnection,
   vehicleApiBaseUrl,
+  vehicleAuth,
 }) {
   const [speedBandVehicleId, setSpeedBandVehicleId] = useState(vehicleEditId || bindingVehicles[0]?.id || '')
   const [speedBands, setSpeedBands] = useState(DEFAULT_SPEED_BANDS)
@@ -264,6 +266,7 @@ function SettingsModal({
         if (heading) heading.parentElement.classList.toggle('settings-panel-collapsed')
       }}>
         <h3>Settings</h3>
+        <AdminAccessPanel baseUrl={vehicleApiBaseUrl} isAdmin={vehicleAuth?.role === 'admin'} vehicles={bindingVehicles} devices={bindingDevices} />
         {importRecovery && (
           <div className="settings-conflict-banner" role="status" aria-live="polite">
             <div className="settings-conflict-banner-header">

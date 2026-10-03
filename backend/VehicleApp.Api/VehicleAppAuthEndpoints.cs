@@ -13,20 +13,47 @@ public static class VehicleAppAuthEndpoints
     public static void MapVehicleAppAuthEndpoints(this WebApplication app)
     {
         app.MapGet("/auth/status", (VehicleAppAuthOptions options, HttpContext context) =>
-            Results.Ok(new { enabled = options.Enabled, authenticated = context.User.Identity?.IsAuthenticated ?? false }));
+        {
+            var authenticated = context.User.Identity?.IsAuthenticated ?? false;
+            var username = context.User.Identity?.Name;
+            var role = context.User.FindFirstValue(ClaimTypes.Role);
+            if (authenticated && role is null && options.Enabled && SecureEquals(username, options.Username))
+                role = "admin";
+            return Results.Ok(new { enabled = options.Enabled, authenticated, role });
+        });
 
-        app.MapPost("/auth/login", async (LoginRequest request, VehicleAppAuthOptions options, HttpContext context) =>
+        app.MapPost("/auth/login", async (LoginRequest request, VehicleAppAuthOptions options, Npgsql.NpgsqlDataSource dataSource, HttpContext context, CancellationToken cancellationToken) =>
         {
             if (!options.Enabled)
                 return Results.Problem("VehicleApp authentication is not configured.", statusCode: StatusCodes.Status503ServiceUnavailable);
 
-            var usernameMatches = SecureEquals(request.Username, options.Username);
-            var passwordMatches = SecureEquals(request.Password, options.Password);
-            if (!usernameMatches || !passwordMatches)
+            string? role = null;
+            string? databaseHash = null;
+            await using (var connection = await dataSource.OpenConnectionAsync(cancellationToken))
+            await using (var command = new Npgsql.NpgsqlCommand("select password_hash, role from app_users where username = @username and active", connection))
+            {
+                command.Parameters.AddWithValue("username", request.Username ?? string.Empty);
+                await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                if (await reader.ReadAsync(cancellationToken))
+                {
+                    databaseHash = reader.IsDBNull(0) ? null : reader.GetString(0);
+                    role = reader.GetString(1);
+                }
+            }
+
+            var databaseMatches = databaseHash is not null && PasswordHashing.Verify(request.Password ?? string.Empty, databaseHash);
+            var environmentMatches = SecureEquals(request.Username, options.Username) && SecureEquals(request.Password, options.Password);
+            if (!databaseMatches && !environmentMatches)
                 return Results.Unauthorized();
 
+            role ??= "admin";
+
             var identity = new ClaimsIdentity(
-                new[] { new Claim(ClaimTypes.Name, options.Username!) },
+                new[]
+                {
+                    new Claim(ClaimTypes.Name, options.Username!),
+                    new Claim(ClaimTypes.Role, role)
+                },
                 CookieAuthenticationDefaults.AuthenticationScheme);
             await context.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
             return Results.Ok(new { authenticated = true });

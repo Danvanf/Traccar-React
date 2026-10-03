@@ -56,6 +56,7 @@ var app = builder.Build();
 var requestLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("RequestTiming");
 
 await EnsureEnrichmentSchemaAsync(app.Services);
+await EnsureInitialAdminAsync(app.Services, authOptions);
 await app.Services.GetRequiredService<BouncieRestService>().InitializeAsync();
 
 if (app.Environment.IsDevelopment())
@@ -123,7 +124,34 @@ app.Use(async (context, next) =>
 
     await next();
 });
+app.Use(async (context, next) =>
+{
+    if (authOptions.Enabled
+        && (HttpMethods.IsPost(context.Request.Method) || HttpMethods.IsPut(context.Request.Method) || HttpMethods.IsPatch(context.Request.Method) || HttpMethods.IsDelete(context.Request.Method)))
+    {
+        var path = context.Request.Path;
+        var configurationWrite = path.StartsWithSegments("/api/vehicles/upsert")
+            || path.StartsWithSegments("/api/device-bindings")
+            || path.StartsWithSegments("/api/named-places")
+            || path.StartsWithSegments("/api/trip-tags/upsert")
+            || path.StartsWithSegments("/api/trip-tags/")
+            || path.StartsWithSegments("/api/event-thresholds")
+            || (path.StartsWithSegments("/api/vehicles/") && (path.Value?.Contains("speed-bands", StringComparison.OrdinalIgnoreCase) ?? false))
+            || path.StartsWithSegments("/api/integrations/bouncie")
+            || path.StartsWithSegments("/api/trips/import")
+            || path.StartsWithSegments("/api/dtc/catalog")
+            || path.StartsWithSegments("/api/dtc/events");
+        if (configurationWrite && !context.User.IsInRole("admin"))
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            await context.Response.WriteAsJsonAsync(new { title = "Administrator access required", detail = "This configuration operation is limited to administrators." });
+            return;
+        }
+    }
+    await next();
+});
 app.MapVehicleAppAuthEndpoints();
+app.MapUserAccessEndpoints();
 app.MapTripIdentityEndpoints();
 app.MapTripDaySummaryEndpoints();
 app.MapTripRecalculationEndpoints();
@@ -156,7 +184,7 @@ app.MapGet("/health", async Task<IResult> (NpgsqlDataSource dataSource, Cancella
 .WithSummary("Checks API and PostgreSQL connectivity.")
 .WithDescription("Returns 200 when the API can open a connection to vehicle_app.");
 
-app.MapGet("/api/vehicles", async Task<IResult> (NpgsqlDataSource dataSource, CancellationToken cancellationToken) =>
+app.MapGet("/api/vehicles", async Task<IResult> (NpgsqlDataSource dataSource, VehicleAppAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken) =>
 {
     try
     {
@@ -184,8 +212,25 @@ app.MapGet("/api/vehicles", async Task<IResult> (NpgsqlDataSource dataSource, Ca
                             order by b.is_primary desc, b.starts_at desc
                             limit 1
                         ) b on true
+                        where not @authEnabled or @isAdmin or exists (
+                            select 1
+                            from app_users u
+                            where u.username = @username and u.active
+                              and (
+                                exists (select 1 from app_user_vehicle_access ua where ua.user_id = u.id and ua.vehicle_id = v.id)
+                                or exists (
+                                    select 1
+                                    from app_group_memberships gm
+                                    join app_group_vehicle_access ga on ga.group_id = gm.group_id
+                                    where gm.user_id = u.id and ga.vehicle_id = v.id
+                                )
+                              )
+                        )
             order by created_at desc
             """, connection);
+        command.Parameters.AddWithValue("authEnabled", authOptions.Enabled);
+        command.Parameters.AddWithValue("isAdmin", context.User.IsInRole("admin"));
+        command.Parameters.AddWithValue("username", context.User.Identity?.Name ?? string.Empty);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         var results = new List<VehicleResponse>();
@@ -1887,6 +1932,78 @@ static async Task EnsureEnrichmentSchemaAsync(IServiceProvider services)
                         create index if not exists ix_named_places_vehicle
                         on named_places (vehicle_id, name);
 
+                        create table if not exists app_users (
+                            id uuid primary key default gen_random_uuid(),
+                            username text not null unique,
+                            password_hash text,
+                            first_name text,
+                            last_name text,
+                            email text,
+                            role text not null default 'regular' check (role in ('admin', 'regular')),
+                            active boolean not null default true,
+                            auto_access_new_devices boolean not null default false,
+                            created_at timestamptz not null default now(),
+                            updated_at timestamptz not null default now()
+                        );
+
+                        create table if not exists app_groups (
+                            id uuid primary key default gen_random_uuid(),
+                            name text not null unique,
+                            auto_access_new_devices boolean not null default false,
+                            created_at timestamptz not null default now(),
+                            updated_at timestamptz not null default now()
+                        );
+
+                        create table if not exists app_group_memberships (
+                            user_id uuid not null references app_users(id) on delete cascade,
+                            group_id uuid not null references app_groups(id) on delete cascade,
+                            created_at timestamptz not null default now(),
+                            primary key (user_id, group_id)
+                        );
+
+                        create table if not exists app_user_vehicle_access (
+                            user_id uuid not null references app_users(id) on delete cascade,
+                            vehicle_id uuid not null references vehicles(id) on delete cascade,
+                            created_at timestamptz not null default now(),
+                            primary key (user_id, vehicle_id)
+                        );
+
+                        create table if not exists app_group_vehicle_access (
+                            group_id uuid not null references app_groups(id) on delete cascade,
+                            vehicle_id uuid not null references vehicles(id) on delete cascade,
+                            created_at timestamptz not null default now(),
+                            primary key (group_id, vehicle_id)
+                        );
+
+                        create table if not exists app_user_device_access (
+                            user_id uuid not null references app_users(id) on delete cascade,
+                            traccar_device_id integer not null,
+                            created_at timestamptz not null default now(),
+                            primary key (user_id, traccar_device_id)
+                        );
+
+                        create table if not exists app_group_device_access (
+                            group_id uuid not null references app_groups(id) on delete cascade,
+                            traccar_device_id integer not null,
+                            created_at timestamptz not null default now(),
+                            primary key (group_id, traccar_device_id)
+                        );
+
+                        create index if not exists ix_app_group_memberships_group
+                        on app_group_memberships (group_id, user_id);
+
+                        create index if not exists ix_app_user_vehicle_access_vehicle
+                        on app_user_vehicle_access (vehicle_id, user_id);
+
+                        create index if not exists ix_app_group_vehicle_access_vehicle
+                        on app_group_vehicle_access (vehicle_id, group_id);
+
+                        create index if not exists ix_app_user_device_access_device
+                        on app_user_device_access (traccar_device_id, user_id);
+
+                        create index if not exists ix_app_group_device_access_device
+                        on app_group_device_access (traccar_device_id, group_id);
+
                         create table if not exists trip_tags (
                             id uuid primary key default gen_random_uuid(),
                             vehicle_id uuid references vehicles(id) on delete cascade,
@@ -1972,6 +2089,26 @@ static async Task EnsureEnrichmentSchemaAsync(IServiceProvider services)
         {
                 logger.LogWarning(ex, "Enrichment schema bootstrap failed. Named places and trip tags may return 503 until schema is applied.");
         }
+}
+
+static async Task EnsureInitialAdminAsync(IServiceProvider services, VehicleAppAuthOptions authOptions)
+{
+    if (!authOptions.Enabled || string.IsNullOrWhiteSpace(authOptions.Username))
+    {
+        return;
+    }
+
+    var dataSource = services.GetRequiredService<NpgsqlDataSource>();
+    await using var connection = await dataSource.OpenConnectionAsync();
+    await using var command = new NpgsqlCommand("""
+        insert into app_users (username, first_name, role, active)
+        values (@username, @firstName, 'admin', true)
+        on conflict (username) do update
+          set role = 'admin', active = true, updated_at = now()
+        """, connection);
+    command.Parameters.AddWithValue("username", authOptions.Username);
+    command.Parameters.AddWithValue("firstName", authOptions.Username);
+    await command.ExecuteNonQueryAsync();
 }
 
 /// <summary>API and database liveness status.</summary>
