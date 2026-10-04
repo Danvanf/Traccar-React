@@ -1,11 +1,94 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { isTelemetryPlaceholderValue } from '../lib/telemetry'
 import { DEFAULT_STATUS_CARD_FIELDS } from '../lib/statusCardFields'
 
-function VehicleStatusCard({ device, point, historyPoints = [], profile = null, cardFields = DEFAULT_STATUS_CARD_FIELDS }) {
+function VehicleStatusCard({
+  device,
+  point,
+  historyPoints = [],
+  profile = null,
+  cardFields = DEFAULT_STATUS_CARD_FIELDS,
+  style,
+  position,
+  onPositionChange,
+  onPositionCommit,
+}) {
+  const [collapsed, setCollapsed] = useState(false)
+  const panelRef = useRef(null)
+  const dragRef = useRef(null)
+  const suppressClickRef = useRef(false)
+
+  const clampPosition = useCallback((left, top) => {
+    const width = panelRef.current?.offsetWidth || 280
+    const height = panelRef.current?.offsetHeight || 100
+    const margin = 8
+    return {
+      left: Math.max(margin, Math.min(left, window.innerWidth - width - margin)),
+      top: Math.max(margin, Math.min(top, window.innerHeight - height - margin)),
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!position) return undefined
+    const keepInViewport = () => {
+      const next = clampPosition(position.left, position.top)
+      if (next.left !== position.left || next.top !== position.top) onPositionCommit(next)
+    }
+    keepInViewport()
+    window.addEventListener('resize', keepInViewport)
+    return () => window.removeEventListener('resize', keepInViewport)
+  }, [clampPosition, onPositionCommit, position])
+
+  const startDragging = useCallback((event) => {
+    if (event.button !== 0 || event.target.closest('button, a, input, select, textarea')) return
+    const rect = panelRef.current?.getBoundingClientRect()
+    if (!rect) return
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+      moved: false,
+      position: { left: rect.left, top: rect.top },
+    }
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }, [])
+
+  const dragPanel = useCallback((event) => {
+    const drag = dragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    if (!drag.moved && Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < 3) return
+    drag.moved = true
+    const next = clampPosition(event.clientX - drag.offsetX, event.clientY - drag.offsetY)
+    drag.position = next
+    onPositionChange(next)
+  }, [clampPosition, onPositionChange])
+
+  const stopDragging = useCallback((event) => {
+    const drag = dragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    dragRef.current = null
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+    if (drag.moved) {
+      suppressClickRef.current = true
+      onPositionCommit(drag.position)
+    }
+  }, [onPositionCommit])
+
+  const dragHandleProps = {
+    className: 'vehicle-status-header vehicle-status-drag-handle',
+    title: 'Drag to move Vehicle Status',
+    onPointerDown: startDragging,
+    onPointerMove: dragPanel,
+    onPointerUp: stopDragging,
+    onPointerCancel: stopDragging,
+  }
+
   if (!device) {
     return (
-      <div className="vehicle-status-card">
-        <div className="vehicle-status-header"><strong>Vehicle Status</strong><span>No mapped vehicle</span></div>
+      <div ref={panelRef} className="vehicle-status-card" style={style}>
+        <div {...dragHandleProps}><strong>Vehicle Status</strong><span>No mapped vehicle</span></div>
         <div className="vehicle-status-diagnostic">
           No vehicle-mapped device is currently selected. Open Settings and verify Vehicle Catalog and Device Bindings.
         </div>
@@ -44,7 +127,15 @@ function VehicleStatusCard({ device, point, historyPoints = [], profile = null, 
   const known = visibleValues
   const ageMinutes = point ? Math.max(0, Math.round((Date.now() - point.timestamp.getTime()) / 60000)) : null
   const ignition = attrs.ignition ?? attrs.io239
-  const connection = !point ? 'No data loaded' : ageMinutes <= 15 ? 'Recent data' : ageMinutes <= 60 ? 'Stale data' : 'No recent data'
+  const compactTimestamp = point ? point.timestamp.toLocaleString(undefined, {
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  }) : ''
+  const connection = !point ? 'No data loaded' : ageMinutes <= 15 ? 'Recent data' : ageMinutes <= 60 ? 'Stale data' : compactTimestamp
   const active = ignition === true || ignition === 'true' || attrs.motion === true || attrs.motion === 'true'
   const currentRpm = attrs.io36 ?? attrs.rpm
   const lastRpmPoint = [...historyPoints].reverse().find((candidate) => {
@@ -54,7 +145,44 @@ function VehicleStatusCard({ device, point, historyPoints = [], profile = null, 
   const rpmGapMinutes = point && lastRpmPoint ? Math.max(0, (point.timestamp - lastRpmPoint.timestamp) / 60000) : null
   const rpmWarning = active && (currentRpm === undefined || currentRpm === null || currentRpm === '') && (!lastRpmPoint || rpmGapMinutes >= 5)
   const engineState = ignition === true || ignition === 'true' ? 'Running' : ignition === false || ignition === 'false' ? 'Off' : null
-  return <div className="vehicle-status-card"><div className="vehicle-status-header"><strong>{device.name}</strong><span>{connection}</span></div>{visibleValues.length > 0 || (selectedFields.has('ignition') && engineState) ? <div className="vehicle-status-grid">{visibleValues.map(([, label, value, unit, convert]) => { const displayValue = convert ? Number(convert(value)).toFixed(1) : value; return <div key={label}><span>{label}</span><strong>{`${displayValue} ${unit}`}</strong></div> })}{selectedFields.has('ignition') && engineState && <div><span>Engine state</span><strong>{engineState}</strong></div>}</div> : null}{rpmWarning && <div className="vehicle-status-diagnostic">RPM has not been reported for {lastRpmPoint ? `${Math.round(rpmGapMinutes)} minutes` : 'the loaded history'} while the device appears active; unchanged RPM values are otherwise treated as valid.</div>}<details><summary>Other fields ({Object.keys(displayAttrs).length})</summary><pre>{JSON.stringify(displayAttrs, null, 2)}</pre></details><small>{point ? `Point: ${point.timestamp.toLocaleString()} · ${ageMinutes} min old` : 'No point loaded'} · {known.length} known values</small></div>
+  const compactValue = (value, unit) => {
+    if (!isKnown(value)) return `— ${unit}`
+    const numeric = Number(value)
+    const formatted = Number.isFinite(numeric) ? numeric.toLocaleString(undefined, { maximumFractionDigits: 1 }) : value
+    return `${formatted} ${unit}`
+  }
+  const compactTelemetry = [
+    compactValue(profileValue('io36', attrs.rpm), 'rpm'),
+    compactValue(profileValue('io41'), profileUnit('io41', '%')),
+    compactValue(profileValue('io40'), profileUnit('io40', 'g/s')),
+  ]
+  const toggleCollapsed = () => setCollapsed((value) => !value)
+  const handleCardClick = (event) => {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false
+      return
+    }
+    if (event.target.closest('button, details, summary, input, select, textarea, a')) return
+    toggleCollapsed()
+  }
+  return <div ref={panelRef} className={`vehicle-status-card${collapsed ? ' is-collapsed' : ''}`} style={style} onClick={handleCardClick} onKeyDown={(event) => {
+    if ((event.key === 'Enter' || event.key === ' ') && event.target === event.currentTarget) {
+      event.preventDefault()
+      toggleCollapsed()
+    }
+  }} role="button" tabIndex={0} title={collapsed ? 'Click to expand vehicle status' : 'Click to collapse vehicle status'}>
+    <div {...dragHandleProps}>
+      <strong>{device.name}</strong>
+      <span>{connection}</span>
+      <button type="button" className="vehicle-status-toggle" onClick={toggleCollapsed} aria-expanded={!collapsed} title={collapsed ? 'Expand vehicle status' : 'Collapse vehicle status'}>{collapsed ? '＋' : '−'}</button>
+    </div>
+    {collapsed ? <div className="vehicle-status-compact-values" aria-label="RPM, throttle position, and mass air flow">{compactTelemetry.map((value, index) => <span key={index}>{value}</span>)}</div> : <>
+      {visibleValues.length > 0 || (selectedFields.has('ignition') && engineState) ? <div className="vehicle-status-grid">{visibleValues.map(([, label, value, unit, convert]) => { const displayValue = convert ? Number(convert(value)).toFixed(1) : value; return <div key={label}><span>{label}</span><strong>{`${displayValue} ${unit}`}</strong></div> })}{selectedFields.has('ignition') && engineState && <div><span>Engine state</span><strong>{engineState}</strong></div>}</div> : null}
+      {rpmWarning && <div className="vehicle-status-diagnostic">RPM has not been reported for {lastRpmPoint ? `${Math.round(rpmGapMinutes)} minutes` : 'the loaded history'} while the device appears active; unchanged RPM values are otherwise treated as valid.</div>}
+      <details><summary>Other fields ({Object.keys(displayAttrs).length})</summary><pre>{JSON.stringify(displayAttrs, null, 2)}</pre></details>
+      <small>{point ? `Point: ${point.timestamp.toLocaleString()} · ${ageMinutes} min old` : 'No point loaded'} · {known.length} known values</small>
+    </>}
+  </div>
 }
 
 export default VehicleStatusCard

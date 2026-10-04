@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { autoUpdate, offset, shift, useFloating } from '@floating-ui/react-dom'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import './App.css'
@@ -37,6 +39,7 @@ import {
   fetchTripTagsForTrip,
   deleteNamedPlace,
   fetchActiveDeviceBindings,
+  fetchNearestDeviceBinding,
   fetchNamedPlaces,
   fetchTripTags,
   fetchOperationsReport,
@@ -58,8 +61,8 @@ import {
   cancelBouncieImport,
   forgetBouncieCredentials,
   restoreBouncieConnection,
+  repairMissingDeviceBinding,
   removeTagFromTrip,
-  recalculateTrip,
   saveTripEvents,
   updateTripNotes,
   upsertNamedPlace,
@@ -67,6 +70,8 @@ import {
   deleteTripTag,
   upsertDeviceBinding,
   fetchVehicleAuthStatus,
+  fetchUserPreference,
+  saveUserPreference,
   fetchVehicleSpeedBands,
   fetchStatusCardFields,
   saveStatusCardFields as persistStatusCardFields,
@@ -75,6 +80,13 @@ import {
 } from './lib/vehicleAppApi'
 
 const MAX_INT32 = 2147483647
+const MAP_CONTENT_SHIFT_PX = 50
+
+function fitBoundsWithPanelOffset(map, bounds, padding) {
+  map.fitBounds(bounds, { padding })
+  // Move the fitted content right to leave room for the floating Trips panel.
+  map.panBy([-MAP_CONTENT_SHIFT_PX, 0], { animate: false })
+}
 const TAG_COLOR_PALETTE = ['#2563eb', '#16a34a', '#dc2626', '#d97706', '#7c3aed', '#0891b2', '#db2777', '#4f46e5']
 
 function toPositiveInt32(value) {
@@ -180,7 +192,10 @@ function rowMatchesTripIdentity(row, trip) {
     && Number.isFinite(tripEndSourceId) && tripEndSourceId > 0
 
   if (hasRowSourceIdentity && hasTripSourceIdentity) {
-    return rowStartSourceId === tripStartSourceId && rowEndSourceId === tripEndSourceId
+    // A trip can be synchronized while it is still receiving positions. Its
+    // end position may move forward later, but the unique Traccar start
+    // position still identifies the same trip.
+    return rowStartSourceId === tripStartSourceId
   }
 
   const rowStarted = new Date(row?.startedAt)
@@ -274,6 +289,8 @@ function describeTripImportConflict(error, fallbackDeviceId = null) {
     ...payload,
     code: code || null,
     traccarDeviceId,
+    startedAt: incomingTrip?.startedAt || problem.startedAt || null,
+    endedAt: incomingTrip?.endedAt || problem.endedAt || null,
     startedAtLabel,
     endedAtLabel,
     incomingSourceIdsLabel,
@@ -292,8 +309,8 @@ function describeTripImportConflict(error, fallbackDeviceId = null) {
       status: 'Binding required before import',
       steps: [
         traccarDeviceId
-          ? `In Settings > Device Bindings, map device id ${traccarDeviceId} to the correct vehicle.`
-          : 'In Settings > Device Bindings, map this Traccar device to the correct vehicle.',
+          ? `Confirm the nearby Vehicle Catalog assignment suggested for device id ${traccarDeviceId}.`
+          : 'Confirm the nearby Vehicle Catalog assignment suggested for this Traccar device.',
         'Set Effective From at or before the trip start time.',
         'Click Save Binding and Retry Import.',
       ],
@@ -309,7 +326,7 @@ function describeTripImportConflict(error, fallbackDeviceId = null) {
         : 'More than one binding covers this trip window.',
       status: 'Binding history conflict',
       steps: [
-        'Open Settings > Device Bindings and remove or adjust overlapping assignment windows.',
+        'Review the assignment list at the bottom of Settings > Vehicle Catalog.',
         'Ensure exactly one binding covers each imported trip time window.',
         'Retry the same import range after the overlap is resolved.',
       ],
@@ -362,7 +379,7 @@ function describeTripImportConflict(error, fallbackDeviceId = null) {
       detail: 'A complete vehicle binding was not found for this import window.',
       status: 'Binding required before import',
       steps: [
-        'Open Settings > Device Bindings and assign the device to a vehicle.',
+        'Review the assignment list at the bottom of Settings > Vehicle Catalog.',
         'Set Effective From at or before the trip start time.',
         'Retry the same range.',
       ],
@@ -376,7 +393,7 @@ function describeTripImportConflict(error, fallbackDeviceId = null) {
       detail: 'More than one assignment covers the same trip window.',
       status: 'Binding history conflict',
       steps: [
-        'Open Settings > Device Bindings and remove overlapping windows.',
+        'Review the assignment list at the bottom of Settings > Vehicle Catalog.',
         'Retry the same range after one binding remains for the period.',
       ],
       bindingHintDeviceId: traccarDeviceId,
@@ -401,7 +418,7 @@ function describeTripImportConflict(error, fallbackDeviceId = null) {
     detail: detail || 'The server rejected this batch to protect saved history.',
     status: 'Trip import conflict',
     steps: [
-      'Review Device Bindings and effective dates.',
+      'Review Vehicle Catalog assignments and effective dates.',
       'Retry once with the same date range and movement threshold.',
     ],
     bindingHintDeviceId: traccarDeviceId,
@@ -410,7 +427,7 @@ function describeTripImportConflict(error, fallbackDeviceId = null) {
 
 function App() {
   const [settings, setSettings] = useState(readSettings)
-  const [vehicleAuth, setVehicleAuth] = useState({ checking: true, enabled: false, authenticated: false, role: null })
+  const [vehicleAuth, setVehicleAuth] = useState({ checking: true, enabled: false, authenticated: false, username: null, role: null })
   const [vehicleLoginUsername, setVehicleLoginUsername] = useState('')
   const [vehicleLoginPassword, setVehicleLoginPassword] = useState('')
   const [vehicleLoginError, setVehicleLoginError] = useState('')
@@ -426,6 +443,15 @@ function App() {
   const [bouncieCoverage, setBouncieCoverage] = useState([])
   const [bouncieBusy, setBouncieBusy] = useState(false)
   const [status, setStatus] = useState('Ready')
+  const { refs: tripFlyoutRefs, floatingStyles: tripFlyoutStyles } = useFloating({
+    placement: 'right-start',
+    strategy: 'fixed',
+    middleware: [offset({ mainAxis: 8, crossAxis: 40 }), shift({ padding: 16 })],
+    whileElementsMounted: autoUpdate,
+  })
+  const [showTripsPanel, setShowTripsPanel] = useState(false)
+  const [tripFlyoutPosition, setTripFlyoutPosition] = useState(null)
+  const [vehicleStatusPosition, setVehicleStatusPosition] = useState(null)
   const [error, setError] = useState('')
   const [sessionState, setSessionState] = useState('unknown')
   const [isAutoFitPaused, setIsAutoFitPaused] = useState(false)
@@ -442,10 +468,10 @@ function App() {
   const [historyRoutePoints, setHistoryRoutePoints] = useState([])
   const [notifications, setNotifications] = useState([])
   const [notificationsLoading, setNotificationsLoading] = useState(false)
+  const [notificationsRefreshNonce, setNotificationsRefreshNonce] = useState(0)
   const [timeMode, setTimeMode] = useState('history')
   const [customFrom, setCustomFrom] = useState(() => toLocalInputValue(new Date(Date.now() - 24 * 60 * 60 * 1000)))
   const [customTo, setCustomTo] = useState(() => toLocalInputValue(new Date()))
-  const [activeRangeLabel, setActiveRangeLabel] = useState('')
   const DEFAULT_HISTORY_LOOKBACK_DAYS = 365
   const [historyWindow, setHistoryWindow] = useState(() => ({ from: new Date(Date.now() - DEFAULT_HISTORY_LOOKBACK_DAYS * 24 * 60 * 60 * 1000), to: new Date() }))
   const [historySpan, setHistorySpan] = useState({ earliestStartedAt: null, latestEndedAt: null, tripCount: 0 })
@@ -453,6 +479,14 @@ function App() {
   const [historyMonthLoadState, setHistoryMonthLoadState] = useState({})
   const [selectedDayKey, setSelectedDayKey] = useState(null)
   const [selectedDayKeys, setSelectedDayKeys] = useState([])
+  const notificationSelectedDays = useMemo(() => (selectedDayKeys.length > 0
+    ? [...selectedDayKeys].sort()
+    : (selectedDayKey ? [selectedDayKey] : [])), [selectedDayKey, selectedDayKeys])
+  const notificationsRangeLabel = useMemo(() => {
+    if (notificationSelectedDays.length === 0) return 'Last 7 days'
+    if (notificationSelectedDays.length > 1) return `${notificationSelectedDays.length} selected days`
+    return new Date(`${notificationSelectedDays[0]}T12:00:00`).toLocaleDateString()
+  }, [notificationSelectedDays])
   const [daySelectionAnchor, setDaySelectionAnchor] = useState(null)
   const [selectedTripId, setSelectedTripId] = useState(null)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -476,6 +510,9 @@ function App() {
   const [profileEditorStatus, setProfileEditorStatus] = useState('')
   const [importStatus, setImportStatus] = useState('')
   const [importRecovery, setImportRecovery] = useState(null)
+  const [bindingRepairSuggestion, setBindingRepairSuggestion] = useState(null)
+  const [bindingRepairBusy, setBindingRepairBusy] = useState(false)
+  const [bindingRepairStatus, setBindingRepairStatus] = useState('')
   const [exportMessage, setExportMessage] = useState('')
   const [dataImportMessage, setDataImportMessage] = useState('')
   const [isImportingTrips, setIsImportingTrips] = useState(false)
@@ -514,6 +551,7 @@ function App() {
   const [importBindingHintDeviceId, setImportBindingHintDeviceId] = useState(null)
   const [enrichmentStatus, setEnrichmentStatus] = useState('')
   const [namedPlaces, setNamedPlaces] = useState([])
+  const [mapReady, setMapReady] = useState(false)
   const [tripTags, setTripTags] = useState([])
   const [placeVehicleId, setPlaceVehicleId] = useState(null)
   const [placeName, setPlaceName] = useState('')
@@ -541,6 +579,7 @@ function App() {
   const loadedHistoryMonthsRef = useRef(new Set())
   const pointLoadRequestRef = useRef(0)
   const startupLoadRef = useRef(false)
+  const initialCurrentLocationsLoadedRef = useRef(false)
   const [tripEditorLoading, setTripEditorLoading] = useState(false)
   const [tripEditorStatus, setTripEditorStatus] = useState('')
   const [tripEditorAvailableTags, setTripEditorAvailableTags] = useState([])
@@ -579,6 +618,9 @@ function App() {
       setDaySelectionAnchor(null)
       return
     }
+    // Selecting a day is an explicit request to inspect its trips. Reopen the
+    // flyout even when the user previously hid it manually.
+    setShowTripsPanel(true)
     const modifierToggle = ctrlKey || metaKey || toggle
     const currentSelection = selectedDayKeys.length > 0 ? selectedDayKeys : (selectedDayKey ? [selectedDayKey] : [])
     let nextSelection
@@ -616,6 +658,10 @@ function App() {
   const selectedTripLayerRef = useRef(null)
   const eventMarkerRefs = useRef({})
   const namedPlaceLayerRef = useRef(null)
+  const namedPlacesControlRef = useRef(null)
+  const resetAutoZoomControlRef = useRef(null)
+  const cancelLocationControlRef = useRef(null)
+  const resetMapAutoFitActionRef = useRef(null)
   const mapAutoFitRef = useRef(true)
   const programmaticMapMoveRef = useRef(false)
   const liveIntervalRef = useRef(null)
@@ -749,7 +795,7 @@ function App() {
 
     if (bounds.length > 0) {
       programmaticMapMoveRef.current = true
-      map.fitBounds(bounds, { padding: [20, 20] })
+      fitBoundsWithPanelOffset(map, bounds, [20, 20])
       setTimeout(() => {
         programmaticMapMoveRef.current = false
       }, 0)
@@ -859,6 +905,51 @@ function App() {
     trailLayerRef.current = L.layerGroup().addTo(map)
     selectedTripLayerRef.current = L.layerGroup().addTo(map)
     namedPlaceLayerRef.current = L.layerGroup().addTo(map)
+    const namedPlacesPane = map.createPane('namedPlacesPane')
+    namedPlacesPane.style.zIndex = '650'
+
+    const mapActions = L.control({ position: 'topleft' })
+    mapActions.onAdd = () => {
+      const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control map-action-control')
+      const createButton = (className, label, icon, action) => {
+        const button = L.DomUtil.create('a', className, container)
+        button.href = '#'
+        button.title = label
+        button.setAttribute('role', 'button')
+        button.setAttribute('aria-label', label)
+        button.innerHTML = icon
+        L.DomEvent.on(button, 'click', L.DomEvent.stop)
+        L.DomEvent.on(button, 'click', action)
+        return button
+      }
+      namedPlacesControlRef.current = createButton(
+        'map-action-named-places',
+        'Hide named places from the map',
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s6-5.2 6-12a6 6 0 1 0-12 0c0 6.8 6 12 6 12Z"/><circle cx="12" cy="9" r="2.2"/></svg>',
+        () => setShowNamedPlaces((visible) => !visible),
+      )
+      resetAutoZoomControlRef.current = createButton(
+        'map-action-auto-zoom leaflet-disabled',
+        'Resume automatic zoom and fit the visible map data',
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M21 16v5h-5M3 16v5h5"/><path d="m3 8 5-5m8 0 5 5m0 8-5 5M8 21l-5-5"/></svg>',
+        (event) => {
+          if (event.currentTarget.getAttribute('aria-disabled') === 'true') return
+          resetMapAutoFitActionRef.current?.()
+        },
+      )
+      resetAutoZoomControlRef.current.setAttribute('aria-disabled', 'true')
+      cancelLocationControlRef.current = createButton(
+        'map-action-cancel-location',
+        'Cancel map location selection',
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5 5 19"/></svg>',
+        () => setIsPickingLocation(false),
+      )
+      cancelLocationControlRef.current.hidden = true
+      L.DomEvent.disableClickPropagation(container)
+      L.DomEvent.disableScrollPropagation(container)
+      return container
+    }
+    mapActions.addTo(map)
 
     map.on('zoomstart', () => {
       if (!programmaticMapMoveRef.current) {
@@ -875,6 +966,7 @@ function App() {
     })
 
     mapRef.current = map
+    setMapReady(true)
 
     return () => {
       if (liveIntervalRef.current) {
@@ -886,6 +978,10 @@ function App() {
       trailLayerRef.current = null
       selectedTripLayerRef.current = null
       namedPlaceLayerRef.current = null
+      namedPlacesControlRef.current = null
+      resetAutoZoomControlRef.current = null
+      cancelLocationControlRef.current = null
+      setMapReady(false)
     }
   }, [vehicleAuth.checking, vehicleAuth.enabled, vehicleAuth.authenticated])
 
@@ -928,6 +1024,32 @@ function App() {
     fitMapToVisibleDevices()
   }, [fitMapToVisibleDevices])
 
+  useEffect(() => {
+    resetMapAutoFitActionRef.current = resetMapAutoFit
+  }, [resetMapAutoFit])
+
+  useEffect(() => {
+    const button = namedPlacesControlRef.current
+    if (!button) return
+    const label = showNamedPlaces ? 'Hide named places from the map' : 'Show named places on the map'
+    button.title = label
+    button.setAttribute('aria-label', label)
+    button.classList.toggle('is-active', showNamedPlaces)
+  }, [mapReady, showNamedPlaces])
+
+  useEffect(() => {
+    const button = resetAutoZoomControlRef.current
+    if (!button) return
+    const disabled = !isAutoFitPaused || isPickingLocation
+    button.classList.toggle('leaflet-disabled', disabled)
+    button.setAttribute('aria-disabled', String(disabled))
+  }, [isAutoFitPaused, isPickingLocation, mapReady])
+
+  useEffect(() => {
+    const button = cancelLocationControlRef.current
+    if (button) button.hidden = !isPickingLocation
+  }, [isPickingLocation, mapReady])
+
   const speedBandsForVehicle = useCallback((vehicleId) => (
     speedBandsByVehicle[vehicleId] || getSpeedBandsForVehicle(vehicleId)
   ), [speedBandsByVehicle])
@@ -960,7 +1082,9 @@ function App() {
       const sourcePoints = [...(historyByDevice[device.id] || []), ...historyRoutePoints.filter((point) => Number(point.deviceId) === Number(device.id))]
         .sort((a, b) => a.timestamp - b.timestamp)
       const points = sourcePoints.filter((point) => {
-        if (!selectedDayKey && selectedDayKeys.length === 0) return true
+        if (!selectedDayKey && selectedDayKeys.length === 0) {
+          return point.timestamp.getTime() >= Date.now() - 48 * 60 * 60 * 1000
+        }
         const date = point.timestamp
         const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
         return selectedDayKeys.includes(key) || key === selectedDayKey
@@ -1067,7 +1191,7 @@ function App() {
     const fitBounds = selectedTripBounds.length > 0 ? selectedTripBounds : bounds
     if (fitBounds.length > 0 && mapAutoFitRef.current) {
       programmaticMapMoveRef.current = true
-      map.fitBounds(fitBounds, { padding: [20, 20] })
+      fitBoundsWithPanelOffset(map, fitBounds, [20, 20])
       setTimeout(() => {
         programmaticMapMoveRef.current = false
       }, 0)
@@ -1092,7 +1216,7 @@ function App() {
 
   useEffect(() => {
     const selectedDays = selectedDayKeys.length > 0 ? selectedDayKeys : (selectedDayKey ? [selectedDayKey] : [])
-    if (selectedDays.length === 0 || !mapRef.current) return
+    if (selectedDays.length === 0 || selectedTrip || !mapRef.current) return
     const ranges = selectedDays.map((dayKey) => [new Date(`${dayKey}T00:00:00`).getTime(), new Date(`${dayKey}T23:59:59.999`).getTime()])
     const bounds = []
     Object.values(historyByDevice).forEach((points) => {
@@ -1103,10 +1227,10 @@ function App() {
     })
     if (bounds.length > 0) {
       programmaticMapMoveRef.current = true
-      mapRef.current.fitBounds(bounds, { padding: [30, 30] })
+      fitBoundsWithPanelOffset(mapRef.current, bounds, [30, 30])
       setTimeout(() => { programmaticMapMoveRef.current = false }, 0)
     }
-  }, [historyByDevice, selectedDayKey, selectedDayKeys])
+  }, [historyByDevice, selectedDayKey, selectedDayKeys, selectedTrip])
 
   useEffect(() => {
     const selectedDays = selectedDayKeys.length > 0 ? selectedDayKeys : (selectedDayKey ? [selectedDayKey] : [])
@@ -1168,6 +1292,7 @@ function App() {
         weight: 2,
         fillColor: '#22c55e',
         fillOpacity: 0.15,
+        pane: 'namedPlacesPane',
       })
 
       const notesBlock = place.notes ? `<br/>${place.notes}` : ''
@@ -1176,7 +1301,7 @@ function App() {
       )
       circle.addTo(placeLayer)
     })
-  }, [activeBindings, bindingVehicles, deviceVisibility, namedPlaces, showNamedPlaces])
+  }, [activeBindings, bindingVehicles, deviceVisibility, mapReady, namedPlaces, showNamedPlaces])
 
   useEffect(() => {
     sessionAttemptedRef.current = false
@@ -1192,10 +1317,92 @@ function App() {
   useEffect(() => {
     let active = true
     fetchVehicleAuthStatus(settings.vehicleApiBaseUrl)
-      .then((result) => { if (active) setVehicleAuth({ checking: false, enabled: Boolean(result.enabled), authenticated: Boolean(result.authenticated), role: result.role || null }) })
-      .catch(() => { if (active) setVehicleAuth({ checking: false, enabled: false, authenticated: false, role: null }) })
+      .then((result) => { if (active) setVehicleAuth({ checking: false, enabled: Boolean(result.enabled), authenticated: Boolean(result.authenticated), username: result.username || null, role: result.role || null }) })
+      .catch(() => { if (active) setVehicleAuth({ checking: false, enabled: false, authenticated: false, username: null, role: null }) })
     return () => { active = false }
   }, [settings.vehicleApiBaseUrl])
+
+  const tripFlyoutPreferenceKey = useMemo(() => {
+    if (vehicleAuth.checking) return null
+    const userKey = vehicleAuth.authenticated && vehicleAuth.username
+      ? vehicleAuth.username.trim().toLowerCase()
+      : 'local'
+    return `vehicleApp:tripFlyoutPosition:${userKey}`
+  }, [vehicleAuth.authenticated, vehicleAuth.checking, vehicleAuth.username])
+
+  useEffect(() => {
+    if (!tripFlyoutPreferenceKey) return
+    let active = true
+    const applyPosition = (saved) => {
+      if (!active) return
+      const left = Number(saved?.left)
+      const top = Number(saved?.top)
+      setTripFlyoutPosition(Number.isFinite(left) && Number.isFinite(top) ? { left, top } : null)
+    }
+    try {
+      const saved = JSON.parse(localStorage.getItem(tripFlyoutPreferenceKey) || 'null')
+      applyPosition(saved)
+    } catch {
+      applyPosition(null)
+    }
+
+    if (vehicleAuth.authenticated) {
+      fetchUserPreference(settings.vehicleApiBaseUrl, 'trips-panel-position')
+        .then((saved) => { if (saved) applyPosition(saved) })
+        .catch(() => {})
+    }
+    return () => { active = false }
+  }, [settings.vehicleApiBaseUrl, tripFlyoutPreferenceKey, vehicleAuth.authenticated])
+
+  const persistTripFlyoutPosition = useCallback((position) => {
+    setTripFlyoutPosition(position)
+    if (tripFlyoutPreferenceKey) {
+      localStorage.setItem(tripFlyoutPreferenceKey, JSON.stringify(position))
+    }
+    if (vehicleAuth.authenticated) {
+      saveUserPreference(settings.vehicleApiBaseUrl, 'trips-panel-position', position).catch(() => {})
+    }
+  }, [settings.vehicleApiBaseUrl, tripFlyoutPreferenceKey, vehicleAuth.authenticated])
+
+  const vehicleStatusPreferenceKey = useMemo(() => {
+    if (vehicleAuth.checking) return null
+    const userKey = vehicleAuth.authenticated && vehicleAuth.username
+      ? vehicleAuth.username.trim().toLowerCase()
+      : 'local'
+    return `vehicleApp:vehicleStatusPosition:${userKey}`
+  }, [vehicleAuth.authenticated, vehicleAuth.checking, vehicleAuth.username])
+
+  useEffect(() => {
+    if (!vehicleStatusPreferenceKey) return
+    let active = true
+    const applyPosition = (saved) => {
+      if (!active) return
+      const left = Number(saved?.left)
+      const top = Number(saved?.top)
+      setVehicleStatusPosition(Number.isFinite(left) && Number.isFinite(top) ? { left, top } : null)
+    }
+    try {
+      applyPosition(JSON.parse(localStorage.getItem(vehicleStatusPreferenceKey) || 'null'))
+    } catch {
+      applyPosition(null)
+    }
+    if (vehicleAuth.authenticated) {
+      fetchUserPreference(settings.vehicleApiBaseUrl, 'vehicle-status-position')
+        .then((saved) => { if (saved) applyPosition(saved) })
+        .catch(() => {})
+    }
+    return () => { active = false }
+  }, [settings.vehicleApiBaseUrl, vehicleAuth.authenticated, vehicleStatusPreferenceKey])
+
+  const persistVehicleStatusPosition = useCallback((position) => {
+    setVehicleStatusPosition(position)
+    if (vehicleStatusPreferenceKey) {
+      localStorage.setItem(vehicleStatusPreferenceKey, JSON.stringify(position))
+    }
+    if (vehicleAuth.authenticated) {
+      saveUserPreference(settings.vehicleApiBaseUrl, 'vehicle-status-position', position).catch(() => {})
+    }
+  }, [settings.vehicleApiBaseUrl, vehicleAuth.authenticated, vehicleStatusPreferenceKey])
 
   const submitVehicleLogin = useCallback(async (event) => {
     event.preventDefault()
@@ -1247,9 +1454,7 @@ function App() {
       const start = new Date(row.startedAt)
       const end = new Date(row.endedAt)
       if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return
-      const duplicate = allTrips.some((trip) => trip.deviceId === deviceId
-        && Math.abs(trip.start.getTime() - start.getTime()) < 5000
-        && Math.abs(trip.end.getTime() - end.getTime()) < 2000)
+      const duplicate = allTrips.some((trip) => rowMatchesTripIdentity(row, trip))
       if (duplicate) return
       const hasStart = Number.isFinite(Number(row.startLatitude)) && Number.isFinite(Number(row.startLongitude))
       const hasEnd = Number.isFinite(Number(row.endLatitude)) && Number.isFinite(Number(row.endLongitude))
@@ -1342,10 +1547,10 @@ function App() {
   }, [selectedDayKey, selectedDayKeys, visibleTrips])
 
   const recalculateTripSet = useCallback(async (candidateTrips, { force = false } = {}) => {
-    // v2 includes persisted event detection and the single-maximum-speed rule.
+    // v4 adds plausibility filtering for calculated acceleration and braking.
     // Imports continue to use the older metric-only version so the first day
     // view recalculates them automatically.
-    const derivationVersion = `trip-v2-events-movement-${settings.movementThresholdM}`
+    const derivationVersion = `trip-v4-plausible-events-movement-${settings.movementThresholdM}`
     const hasSavedRowForTrip = (trip) => historyDayRows.some((row) => rowMatchesTripIdentity(row, trip))
     const results = await Promise.allSettled(candidateTrips.map(async (trip) => {
       // Do not persist a completed derivation until the selected trip's points
@@ -1416,7 +1621,10 @@ function App() {
     if (autoCalculatedDaysRef.current.has(key)) return
     autoCalculatedDaysRef.current.add(key)
     recalculateTripSet(readyTrips).then(async (result) => {
-      if (result.recalculated > 0) await refreshHistoryMetadata()
+      if (result.recalculated > 0) {
+        await refreshHistoryMetadata()
+        setNotificationsRefreshNonce((value) => value + 1)
+      }
       // A transient API failure should be retryable if the user selects the
       // same day again, while successful or skipped trips remain completed.
       if (result.failed > 0) autoCalculatedDaysRef.current.delete(key)
@@ -1578,6 +1786,34 @@ function App() {
       setIsBindingBusy(false)
     }
   }, [devices, importBindingHintDeviceId, settings.vehicleApiBaseUrl])
+
+  useEffect(() => {
+    const canSuggest = importRecovery?.code === 'trip_import_binding_missing'
+      && importRecovery.traccarDeviceId
+      && importRecovery.startedAt
+      && importRecovery.endedAt
+    if (!canSuggest) {
+      setBindingRepairSuggestion(null)
+      setBindingRepairStatus('')
+      return undefined
+    }
+
+    let active = true
+    setBindingRepairSuggestion(null)
+    setBindingRepairStatus('Finding the nearest assignment for this device...')
+    fetchNearestDeviceBinding(settings.vehicleApiBaseUrl, {
+      traccarDeviceId: importRecovery.traccarDeviceId,
+      startedAt: importRecovery.startedAt,
+      endedAt: importRecovery.endedAt,
+    }).then((suggestion) => {
+      if (!active) return
+      setBindingRepairSuggestion(suggestion)
+      setBindingRepairStatus(suggestion ? '' : 'No nearby assignment exists for this device.')
+    }).catch((error) => {
+      if (active) setBindingRepairStatus(error instanceof Error ? error.message : 'Unable to find a nearby assignment.')
+    })
+    return () => { active = false }
+  }, [importRecovery?.code, importRecovery?.endedAt, importRecovery?.startedAt, importRecovery?.traccarDeviceId, settings.vehicleApiBaseUrl])
 
   useEffect(() => {
     let active = true
@@ -1891,12 +2127,14 @@ function App() {
   }, [refreshBindingData, settings.vehicleApiBaseUrl])
 
   useEffect(() => {
-    if (!isSettingsOpen) {
+    // Load enrichment data for the map on startup as well as when Settings is
+    // opened. Previously named places were only fetched by the Settings flow.
+    if (!isSettingsOpen && namedPlaces.length > 0) {
       return
     }
 
     refreshBindingData()
-  }, [isSettingsOpen, refreshBindingData])
+  }, [isSettingsOpen, namedPlaces.length, refreshBindingData])
 
   const loadHistorySummaries = useCallback(async (fromDate, toDate, label, { merge = false, selectFirstDay = false } = {}) => {
     setError('')
@@ -1921,15 +2159,38 @@ function App() {
   }, [settings.vehicleApiBaseUrl])
 
   useEffect(() => {
-    if (!historyWindow?.from || !historyWindow?.to) return undefined
+    const selectedDays = notificationSelectedDays
+    let from
+    let to
+    if (selectedDays.length > 0) {
+      from = new Date(`${selectedDays[0]}T00:00:00`)
+      to = new Date(`${selectedDays.at(-1)}T23:59:59.999`)
+    } else {
+      to = new Date()
+      from = new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000)
+    }
     let active = true
     setNotificationsLoading(true)
-    fetchTripEventNotifications(settings.vehicleApiBaseUrl, { from: historyWindow.from, to: historyWindow.to })
-      .then((rows) => { if (active) setNotifications(Array.isArray(rows) ? rows : []) })
+    fetchTripEventNotifications(settings.vehicleApiBaseUrl, { from, to })
+      .then((rows) => {
+        if (!active) return
+        const result = Array.isArray(rows) ? rows : []
+        if (selectedDays.length === 0) {
+          setNotifications(result)
+          return
+        }
+        const selected = new Set(selectedDays)
+        setNotifications(result.filter((row) => {
+          const occurred = new Date(row.occurredAt)
+          if (Number.isNaN(occurred.getTime())) return false
+          const dayKey = `${occurred.getFullYear()}-${String(occurred.getMonth() + 1).padStart(2, '0')}-${String(occurred.getDate()).padStart(2, '0')}`
+          return selected.has(dayKey)
+        }))
+      })
       .catch(() => { if (active) setNotifications([]) })
       .finally(() => { if (active) setNotificationsLoading(false) })
     return () => { active = false }
-  }, [historyWindow.from, historyWindow.to, settings.vehicleApiBaseUrl])
+  }, [notificationSelectedDays, notificationsRefreshNonce, settings.vehicleApiBaseUrl])
 
   const loadHistoryMonth = useCallback(async (monthKey, { force = false, selectFirstDay = false } = {}) => {
     if (!/^\d{4}-\d{2}$/.test(monthKey)) return
@@ -2029,7 +2290,6 @@ function App() {
         return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
       })
       if (!merge && !pointOnly && loadedDayKeys.length > 0) setSelectedDayKey([...new Set(loadedDayKeys)].sort().at(-1))
-      setActiveRangeLabel(`${label}: ${fromDate.toLocaleString()} - ${toDate.toLocaleString()}`)
       setStatus(`Loaded ${workingDevices.length} devices and ${pointCount} points; syncing trips...`)
 
       // Keep the normal day view synchronized with VehicleApp. The import API
@@ -2151,6 +2411,7 @@ function App() {
     setSelectedDayKey(null)
     setSelectedDayKeys([])
     setDaySelectionAnchor(null)
+    setShowTripsPanel(false)
     historyDayRowsRef.current = []
     setHistoryDayRows([])
     setHistoryDaySummaries([])
@@ -2182,7 +2443,7 @@ function App() {
         return
       }
 
-      await loadHistoryMonth(latestMonthKey, { selectFirstDay: true })
+      await loadHistoryMonth(latestMonthKey)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown history load error')
       setStatus('History load failed')
@@ -2198,6 +2459,16 @@ function App() {
     })
     applyTimeRange()
   }, [applyTimeRange, loadDevices])
+
+  useEffect(() => {
+    if (initialCurrentLocationsLoadedRef.current || devices.length === 0) return
+    initialCurrentLocationsLoadedRef.current = true
+    const through = new Date()
+    const from = new Date(through.getTime() - 48 * 60 * 60 * 1000)
+    loadHistoryRange(from, through, 'current device locations', { merge: true }).catch(() => {
+      initialCurrentLocationsLoadedRef.current = false
+    })
+  }, [devices.length, loadHistoryRange])
 
   useEffect(() => {
     if (liveIntervalRef.current) {
@@ -2229,7 +2500,7 @@ function App() {
     const bounds = L.latLngBounds(trip.points)
     mapAutoFitRef.current = true
     programmaticMapMoveRef.current = true
-    map.fitBounds(bounds, { padding: [30, 30] })
+    fitBoundsWithPanelOffset(map, bounds, [30, 30])
     setTimeout(() => {
       programmaticMapMoveRef.current = false
     }, 0)
@@ -2264,15 +2535,56 @@ function App() {
     setTripEditorLoading(true)
 
     try {
-      const savedTrip = trip.savedTripId
-        ? { id: trip.savedTripId, vehicleId: trip.vehicleId, maxSpeedMph: trip.maxSpeedMph, notes: trip.notes, derivationVersion: trip.derivationVersion }
-        : await resolveTrip(settings.vehicleApiBaseUrl, trip)
+      let savedTrip
+      if (trip.savedTripId) {
+        savedTrip = { id: trip.savedTripId, vehicleId: trip.vehicleId, maxSpeedMph: trip.maxSpeedMph, notes: trip.notes, derivationVersion: trip.derivationVersion }
+      } else {
+        try {
+          savedTrip = await resolveTrip(settings.vehicleApiBaseUrl, trip)
+        } catch (resolveError) {
+          if (resolveError?.status !== 404) throw resolveError
+
+          const device = devices.find((item) => Number(item.id) === Number(trip.deviceId))
+          const vehicleId = trip.vehicleId
+            || device?.appVehicleId
+            || activeBindings.find((binding) => Number(binding.traccarDeviceId) === Number(trip.deviceId))?.vehicleId
+          const startPositionId = Number(trip.startTraccarPositionId)
+          const endPositionId = Number(trip.endTraccarPositionId)
+          if (!vehicleId || !Number.isFinite(startPositionId) || !Number.isFinite(endPositionId) || startPositionId <= 0 || endPositionId <= 0) {
+            throw resolveError
+          }
+
+          setTripEditorStatus('Trip is not synchronized yet. Importing this trip…')
+          await importTripsByDevice(settings.vehicleApiBaseUrl, {
+            traccarDeviceId: Number(trip.deviceId),
+            derivationVersion: `trip-v1-movement-${settings.movementThresholdM}`,
+            treatOverlappingAsExisting: true,
+            trips: [{
+              startTraccarPositionId: startPositionId,
+              endTraccarPositionId: endPositionId,
+              startLabel: labelForNamedPlace(trip.startLatitude, trip.startLongitude, namedPlaces, vehicleId),
+              endLabel: labelForNamedPlace(trip.endLatitude, trip.endLongitude, namedPlaces, vehicleId),
+              startedAt: trip.start.toISOString(),
+              endedAt: trip.end.toISOString(),
+              durationSeconds: Math.max(1, Math.round((trip.end - trip.start) / 1000)),
+              distanceMeters: Number(Number(trip.distance || 0).toFixed(2)),
+              maxSpeedMph: getTripMaxSpeedMph(trip),
+            }],
+          })
+          savedTrip = await resolveTrip(settings.vehicleApiBaseUrl, trip)
+        }
+      }
       if (!isCurrent()) return
-      const [mappedTags, knownTags] = await Promise.all([
-        fetchTripTagsForTrip(settings.vehicleApiBaseUrl, savedTrip.id),
-        fetchTripTags(settings.vehicleApiBaseUrl, savedTrip.vehicleId),
+      const [tagResults, initialEvents, routeRows] = await Promise.all([
+        Promise.all([
+          fetchTripTagsForTrip(settings.vehicleApiBaseUrl, savedTrip.id),
+          fetchTripTags(settings.vehicleApiBaseUrl, savedTrip.vehicleId),
+        ]),
+        fetchTripEvents(settings.vehicleApiBaseUrl, savedTrip.id),
+        fetchTripRoutePoints(settings.vehicleApiBaseUrl, savedTrip.id).catch(() => []),
       ])
-      let events = await fetchTripEvents(settings.vehicleApiBaseUrl, savedTrip.id)
+      const [mappedTags, knownTags] = tagResults
+      let events = initialEvents
       if (!isCurrent()) return
 
       if (!Array.isArray(events) || events.length === 0) {
@@ -2285,7 +2597,6 @@ function App() {
 
       // Enable writes only after this selection's complete metadata has loaded.
       setSelectedBackendTripId(savedTrip.id)
-      const routeRows = await fetchTripRoutePoints(settings.vehicleApiBaseUrl, savedTrip.id).catch(() => [])
       if (isCurrent() && routeRows.length > 0) {
         setSelectedTripRoutePoints(routeRows.map((point) => ({
           latitude: Number(point.latitude),
@@ -2306,9 +2617,8 @@ function App() {
       setTripNoteDraft(savedTrip.notes || '')
       setTripEditorTags(mappedTags)
       setSelectedTripEvents(collapseTripEvents(events))
-      await refreshHistoryMetadata()
       setTripEditorAvailableTags(knownTags)
-      setTripEditorStatus('Trip metadata loaded.')
+      setTripEditorStatus('')
     } catch (err) {
       if (isCurrent()) {
         if (err?.status === 404) {
@@ -2320,7 +2630,7 @@ function App() {
     } finally {
       if (isCurrent()) setTripEditorLoading(false)
     }
-  }, [refreshHistoryMetadata, settings.vehicleApiBaseUrl])
+  }, [activeBindings, devices, namedPlaces, settings.movementThresholdM, settings.vehicleApiBaseUrl])
 
   const editSelectedTrip = useCallback(async (action, successMessage, reloadTags = false) => {
     if (!selectedBackendTripId || tripEditorLoading || tripWritePending.current) return
@@ -2366,32 +2676,6 @@ function App() {
     (id) => updateTripNotes(settings.vehicleApiBaseUrl, id, tripNoteDraft),
     'Trip note saved.',
   ), [editSelectedTrip, settings.vehicleApiBaseUrl, tripNoteDraft])
-
-  const recalculateSelectedTrip = useCallback(async () => {
-    if (!selectedBackendTripId || !selectedTrip || tripEditorLoading || tripEditorBusy) return
-    const points = Array.isArray(selectedTrip.points) ? selectedTrip.points : []
-    let distanceMeters = 0
-    for (let index = 1; index < points.length; index += 1) {
-      distanceMeters += metersBetween(points[index - 1][0], points[index - 1][1], points[index][0], points[index][1])
-    }
-    const durationSeconds = Math.max(1, Math.round((selectedTrip.end.getTime() - selectedTrip.start.getTime()) / 1000))
-    await editSelectedTrip(
-      async (id) => {
-        await recalculateTrip(settings.vehicleApiBaseUrl, id, {
-          durationSeconds,
-          distanceMeters,
-          maxSpeedMph: getTripMaxSpeedMph(selectedTrip),
-          derivationVersion: `trip-v2-events-movement-${settings.movementThresholdM}`,
-        })
-        const events = detectTripEvents(selectedTrip, resolveEventThresholds())
-        await deleteCalculatedTripEvents(settings.vehicleApiBaseUrl, id)
-        if (events.length > 0) await saveTripEvents(settings.vehicleApiBaseUrl, id, events)
-        const savedEvents = await fetchTripEvents(settings.vehicleApiBaseUrl, id)
-        setSelectedTripEvents(Array.isArray(savedEvents) ? savedEvents : [])
-      },
-      'Trip metrics recalculated. Notes and tags were preserved.',
-    )
-  }, [editSelectedTrip, selectedBackendTripId, selectedTrip, settings.movementThresholdM, settings.vehicleApiBaseUrl, tripEditorBusy, tripEditorLoading])
 
   const testApi = useCallback(async () => {
     setError('')
@@ -2727,9 +3011,39 @@ function App() {
     await importTripsToBackend()
   }, [importTripsToBackend, saveBinding])
 
+  const repairBindingAndRetryTrip = useCallback(async () => {
+    if (!bindingRepairSuggestion || !importRecovery?.startedAt || !importRecovery?.endedAt) return
+    setBindingRepairBusy(true)
+    setBindingRepairStatus(`Assigning this trip window to ${bindingRepairSuggestion.vehicleDisplayName}...`)
+    try {
+      await repairMissingDeviceBinding(settings.vehicleApiBaseUrl, {
+        bindingId: bindingRepairSuggestion.id,
+        traccarDeviceId: importRecovery.traccarDeviceId,
+        startedAt: importRecovery.startedAt,
+        endedAt: importRecovery.endedAt,
+      })
+      await refreshBindingData()
+      const tripDate = new Date(importRecovery.startedAt)
+      const dayStart = new Date(tripDate)
+      dayStart.setHours(0, 0, 0, 0)
+      const dayEnd = new Date(tripDate)
+      dayEnd.setHours(23, 59, 59, 999)
+      setBindingRepairStatus('Assignment repaired. Retrying this day...')
+      setImportRecovery(null)
+      setImportBindingHintDeviceId(null)
+      await loadHistoryRange(dayStart, dayEnd, `day ${toDateInputValue(tripDate)}`, { pointOnly: true, merge: true })
+    } catch (error) {
+      setBindingRepairStatus(error instanceof Error ? error.message : 'Unable to repair this assignment.')
+    } finally {
+      setBindingRepairBusy(false)
+    }
+  }, [bindingRepairSuggestion, importRecovery, loadHistoryRange, refreshBindingData, settings.vehicleApiBaseUrl])
+
   const dismissImportRecovery = useCallback(() => {
     setImportRecovery(null)
     setImportBindingHintDeviceId(null)
+    setBindingRepairSuggestion(null)
+    setBindingRepairStatus('')
   }, [])
 
   const saveProfileEdits = useCallback(() => {
@@ -2913,10 +3227,18 @@ function App() {
         <div className="panel-header">
           <div>
             <h1>Traccar React</h1>
-            <p className="subhead">Migration baseline with auth, ranges, map trails, and timeline trips.</p>
           </div>
-          <button type="button" className="small secondary" onClick={() => setIsSettingsOpen(true)}>
-            Settings
+          <button
+            type="button"
+            className="small secondary settings-button"
+            onClick={() => setIsSettingsOpen(true)}
+            title="Settings"
+            aria-label="Settings"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" />
+              <path d="m19.4 15 .1.1a1.8 1.8 0 0 1-2.5 2.5l-.1-.1a1.8 1.8 0 0 0-3 .9v.2a1.8 1.8 0 0 1-3.6 0v-.2a1.8 1.8 0 0 0-3-.9l-.1.1a1.8 1.8 0 1 1-2.5-2.5l.1-.1a1.8 1.8 0 0 0-.9-3H3.7a1.8 1.8 0 0 1 0-3h.2a1.8 1.8 0 0 0 .9-3l-.1-.1a1.8 1.8 0 1 1 2.5-2.5l.1.1a1.8 1.8 0 0 0 3-.9v-.2a1.8 1.8 0 0 1 3.6 0v.2a1.8 1.8 0 0 0 3 .9l.1-.1a1.8 1.8 0 1 1 2.5 2.5l-.1.1a1.8 1.8 0 0 0 .9 3h.2a1.8 1.8 0 0 1 0 3h-.2a1.8 1.8 0 0 0-.9 3Z" />
+            </svg>
           </button>
           {vehicleAuth.enabled && <button type="button" className="small secondary" onClick={logoutVehicleSession}>Sign out</button>}
           <button
@@ -2947,6 +3269,10 @@ function App() {
                 </div>
               )}
               {importRecovery.incomingSourceIdsLabel && <div>Incoming Source IDs: {importRecovery.incomingSourceIdsLabel}</div>}
+              {bindingRepairSuggestion && <>
+                <div>Suggested Vehicle: {bindingRepairSuggestion.vehicleDisplayName}</div>
+                <div>Nearest Assignment: {new Date(bindingRepairSuggestion.startsAt).toLocaleString()} to {bindingRepairSuggestion.endsAt ? new Date(bindingRepairSuggestion.endsAt).toLocaleString() : 'present'} ({Math.round(Number(bindingRepairSuggestion.distanceSeconds || 0) / 86400)} days away)</div>
+              </>}
               {(importRecovery.firstConflictingTrip?.startedAtLabel || importRecovery.firstConflictingTrip?.endedAtLabel) && (
                 <div>
                   Saved Window ({importRecovery.firstConflictingTrip?.idShort || 'trip'}): {importRecovery.firstConflictingTrip?.startedAtLabel || '?'} to {importRecovery.firstConflictingTrip?.endedAtLabel || '?'}
@@ -2963,9 +3289,13 @@ function App() {
               )}
             </div>
             {importRecovery.steps?.[0] && <div className="import-conflict-badge-hint">Next: {importRecovery.steps[0]}</div>}
+            {bindingRepairStatus && <div className="import-conflict-badge-hint">{bindingRepairStatus}</div>}
             <div className="import-conflict-badge-actions">
-              <button type="button" className="small secondary" onClick={() => setIsSettingsOpen(true)}>
-                Open Settings
+              {bindingRepairSuggestion && <button type="button" className="small" onClick={repairBindingAndRetryTrip} disabled={bindingRepairBusy}>
+                {bindingRepairBusy ? 'Repairing...' : `Assign to ${bindingRepairSuggestion.vehicleDisplayName} and Retry`}
+              </button>}
+              <button type="button" className="small secondary" onClick={() => { localStorage.setItem('openVehicleCatalogPanel', 'true'); setIsSettingsOpen(true) }}>
+                Open Vehicle Catalog
               </button>
               <button type="button" className="small" onClick={dismissImportRecovery}>
                 Dismiss
@@ -2983,6 +3313,7 @@ function App() {
           onSelectDevice={setDeviceListSelectedId}
         />
 
+        <div ref={tripFlyoutRefs.setReference} className="history-trips-row">
         <HistoryNavigator
           daySummaries={daySummaries}
           monthKeys={historyMonthKeys}
@@ -2995,8 +3326,22 @@ function App() {
           loadMonth={loadHistoryMonth}
           onReportDays={openSelectedDaysGraph}
         />
+        {!showTripsPanel && (selectedDayKey || selectedDayKeys.length > 0) && <button
+          type="button"
+          className="small secondary trip-panel-show-button"
+          onClick={() => setShowTripsPanel(true)}
+          title="Show Trips panel"
+        >Show Trips</button>}
 
-        <TripPanel
+        {showTripsPanel && createPortal(<TripPanel
+          floatingRef={tripFlyoutRefs.setFloating}
+          style={tripFlyoutPosition
+            ? { position: 'fixed', left: `${tripFlyoutPosition.left}px`, top: `${tripFlyoutPosition.top}px` }
+            : tripFlyoutStyles}
+          position={tripFlyoutPosition}
+          onPositionChange={setTripFlyoutPosition}
+          onPositionCommit={persistTripFlyoutPosition}
+          onHide={() => setShowTripsPanel(false)}
           visibleTrips={visibleTrips}
           selectedDayKey={selectedDayKey}
           devices={devices}
@@ -3018,16 +3363,13 @@ function App() {
           noteDraft={tripNoteDraft}
           setNoteDraft={setTripNoteDraft}
           saveSelectedTripNote={saveSelectedTripNote}
-          recalculateSelectedTrip={recalculateSelectedTrip}
           openTripGraph={openTripGraph}
-        />
-        <NotificationsPanel notifications={notifications} loading={notificationsLoading} />
-
-        <p className="legacy-note">Legacy reference file remains at ../traccar.html while migration continues.</p>
+        />, document.body)}
+        </div>
+        <NotificationsPanel notifications={notifications} loading={notificationsLoading} rangeLabel={notificationsRangeLabel} />
 
         <StatusCard
           status={status}
-          activeRangeLabel={activeRangeLabel}
           sessionState={sessionState}
           error={error}
         />
@@ -3035,6 +3377,12 @@ function App() {
 
       <section className={`map-panel${isPickingLocation ? ' map-location-picker' : ''}`}>
         <VehicleStatusCard
+          style={vehicleStatusPosition
+            ? { position: 'fixed', left: `${vehicleStatusPosition.left}px`, top: `${vehicleStatusPosition.top}px`, right: 'auto' }
+            : undefined}
+          position={vehicleStatusPosition}
+          onPositionChange={setVehicleStatusPosition}
+          onPositionCommit={persistVehicleStatusPosition}
           device={statusDevice}
           point={statusPoint}
           historyPoints={statusDevice ? (historyByDevice[statusDevice.id] || []) : []}
@@ -3042,16 +3390,6 @@ function App() {
           cardFields={statusCardFieldsByVehicle[statusVehicleId] || DEFAULT_STATUS_CARD_FIELDS}
         />
         <VehicleStatsPanel baseUrl={settings.vehicleApiBaseUrl} vehicleId={statusVehicleId || null} />
-        <div className="map-title">
-          <span role={isPickingLocation ? 'status' : undefined}>{isPickingLocation ? 'Click the map to select a position. Pan or zoom to find it.' : 'Live Map'}</span>
-          <button type="button" className="small secondary" onClick={() => setShowNamedPlaces((visible) => !visible)}>
-            {showNamedPlaces ? 'Hide Named Places' : 'Show Named Places'}
-          </button>
-          {isPickingLocation && <button type="button" className="small secondary" onClick={() => setIsPickingLocation(false)}>Cancel</button>}
-          <button type="button" className="small secondary" onClick={resetMapAutoFit} disabled={!isAutoFitPaused || isPickingLocation}>
-            Reset Auto-Zoom
-          </button>
-        </div>
         <div ref={mapElementRef} className="map-canvas" />
         <div
           className="speed-band-key"

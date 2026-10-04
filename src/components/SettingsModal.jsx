@@ -139,14 +139,19 @@ function SettingsModal({
       speedPanel?.classList.remove('settings-panel-collapsed')
       localStorage.removeItem('openSpeedBandsPanel')
     }
+    if (localStorage.getItem('openVehicleCatalogPanel') === 'true') {
+      const vehiclePanel = panels.find((panel) => panel.querySelector('h4')?.textContent.trim() === 'Vehicle Catalog')
+      vehiclePanel?.classList.remove('settings-panel-collapsed')
+      localStorage.removeItem('openVehicleCatalogPanel')
+    }
     return () => panels.forEach((panel) => { panel.dataset.collapsibleReady = '' })
   }, [])
   useEffect(() => {
     if (!importRecovery && !showRetryAction) return
     const panels = Array.from(document.querySelectorAll('.settings-modal .profile-editor'))
-    const bindingPanel = panels.find((panel) => panel.querySelector('h4')?.textContent.trim() === 'Device Bindings')
-    bindingPanel?.classList.remove('settings-panel-collapsed')
-    bindingPanel?.scrollIntoView({ block: 'nearest' })
+    const vehiclePanel = panels.find((panel) => panel.querySelector('h4')?.textContent.trim() === 'Vehicle Catalog')
+    vehiclePanel?.classList.remove('settings-panel-collapsed')
+    vehiclePanel?.scrollIntoView({ block: 'nearest' })
   }, [importRecovery, showRetryAction])
   useEffect(() => {
     setSpeedBandVehicleId(vehicleEditId || bindingVehicles[0]?.id || '')
@@ -251,13 +256,6 @@ function SettingsModal({
     return shortId ? `${vehicle.displayName} (${shortId})` : vehicle.displayName
   }
 
-  const displayedBindings = filterBindingsToSelectedDevice && bindingDeviceId
-    ? activeBindings.filter((binding) => Number(binding.traccarDeviceId) === Number(bindingDeviceId))
-    : activeBindings
-  const displayedBindingDevices = (filterBindingsToSelectedDevice && bindingDeviceId
-    ? bindingDevices.filter((device) => Number(device.id) === Number(bindingDeviceId))
-    : bindingDevices)
-
   return (
     <div className="settings-backdrop" style={isPickingLocation ? { display: 'none' } : undefined} onClick={closeModal}>
       <section className="settings-modal" onClick={(event) => {
@@ -305,7 +303,6 @@ function SettingsModal({
             )}
             <div className="actions two-up">
               <button type="button" className="secondary" onClick={clearImportRecovery}>Dismiss Import Guidance</button>
-              {showRetryAction && <button type="button" onClick={saveBindingAndRetryImport} disabled={isBindingBusy}>Save Binding and Retry Import</button>}
             </div>
           </div>
         )}
@@ -441,6 +438,23 @@ function SettingsModal({
             {cardFieldsStatus && <div className="profile-editor-status">{cardFieldsStatus}</div>}
             <div className="actions"><button type="button" className="secondary" onClick={saveCardFields}>Save Status Card Fields</button></div>
           </>}
+          <h5>Current Device Assignments</h5>
+          <p className="profile-editor-help">These are the current Traccar hardware assignments used to associate trips with Vehicle Catalog records.</p>
+          {bindingStatus && <div className="profile-editor-status">{bindingStatus}</div>}
+          <div className="actions"><button type="button" className="secondary" onClick={refreshBindings} disabled={isBindingBusy}>Refresh Assignments</button></div>
+          <div className="binding-list">
+            {bindingDevices.length === 0 && <div className="trip-empty">No Traccar devices found.</div>}
+            {bindingDevices.length > 0 && <ul>{bindingDevices.map((device) => {
+              const deviceBindings = activeBindings.filter((binding) => Number(binding.traccarDeviceId) === Number(device.id))
+              if (deviceBindings.length === 0) return <li key={`unassigned-${device.id}`}><strong>{device.name}</strong><span>Traccar ID: {device.id}</span><span>is unassigned (no vehicle binding)</span></li>
+              return deviceBindings.map((binding) => <li key={binding.id}>
+                <strong>{device.name}</strong>
+                <span>Traccar ID: {device.id}</span>
+                <span>maps to {binding.vehicleDisplayName} (binding {String(binding.id).slice(0, 8)})</span>
+                <button type="button" className="small danger" onClick={() => deleteBindingById(binding.id)} disabled={isBindingBusy}>Delete</button>
+              </li>)
+            })}</ul>}
+          </div>
         </div>
 
         <div className="profile-editor">
@@ -469,73 +483,6 @@ function SettingsModal({
             </div>)}</div>
             <div className="actions"><button type="button" className="secondary" onClick={addSpeedBand} disabled={speedBands.length >= 10}>Add Speed Band</button><button type="button" onClick={saveSpeedBands}>Save Speed Bands</button></div>
           </>}
-        </div>
-
-        <hr className="settings-divider" />
-
-        <div className="profile-editor">
-          <h4>Device Bindings</h4>
-          <p className="profile-editor-help">
-            This list shows the current trip-ownership assignment for every Traccar device. Select the device and effective date in Vehicle Catalog to create or move an assignment.
-          </p>
-
-          <label className="checkbox-row">
-            <input
-              type="checkbox"
-              checked={filterBindingsToSelectedDevice}
-              onChange={(event) => setFilterBindingsToSelectedDevice(event.target.checked)}
-            />
-            Show only selected Traccar device in binding list
-          </label>
-
-          {bindingStatus && <div className="profile-editor-status">{bindingStatus}</div>}
-          {importRecovery && (
-            <div className="profile-editor-status" role="status" aria-live="polite">
-              <strong>{importRecovery.title || 'Trip import conflict'}</strong>
-              <div>{importRecovery.detail || 'The server blocked this import to preserve saved history.'}</div>
-              {Array.isArray(importRecovery.steps) && importRecovery.steps.length > 0 && (
-                <ol>
-                  {importRecovery.steps.map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}
-                </ol>
-              )}
-              {clearImportRecovery && (
-                <button type="button" className="small secondary" onClick={clearImportRecovery}>Dismiss Import Guidance</button>
-              )}
-            </div>
-          )}
-
-          <div className="actions">
-            <button type="button" className="secondary" onClick={refreshBindings} disabled={isBindingBusy}>
-              Refresh Bindings
-            </button>
-            {showRetryAction && (
-              <button type="button" onClick={saveBindingAndRetryImport} disabled={isBindingBusy}>
-                Save Binding and Retry Import
-              </button>
-            )}
-          </div>
-
-          <div className="binding-list">
-            {displayedBindingDevices.length === 0 && <div className="trip-empty">No Traccar devices found.</div>}
-            {displayedBindingDevices.length > 0 && (
-              <ul>
-                {displayedBindingDevices.map((device) => {
-                  const deviceBindings = displayedBindings.filter((binding) => Number(binding.traccarDeviceId) === Number(device.id))
-                  if (deviceBindings.length === 0) {
-                    return <li key={`unassigned-${device.id}`}><strong>{device.name}</strong><span>is unassigned (no vehicle binding)</span></li>
-                  }
-
-                  return deviceBindings.map((binding) => (
-                    <li key={binding.id}>
-                      <strong>{binding.vehicleDisplayName}</strong>
-                      <span>maps to {device.name} (binding {String(binding.id).slice(0, 8)})</span>
-                      <button type="button" className="small danger" onClick={() => deleteBindingById(binding.id)} disabled={isBindingBusy}>Delete</button>
-                    </li>
-                  ))
-                })}
-              </ul>
-            )}
-          </div>
         </div>
 
         <hr className="settings-divider" />

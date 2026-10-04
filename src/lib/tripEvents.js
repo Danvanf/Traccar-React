@@ -5,6 +5,17 @@ export const DEFAULT_EVENT_THRESHOLDS = {
   long_idle: { value: 300, unit: 'seconds' },
 }
 
+// This is a data-quality ceiling, not the harsh-driving threshold. Two g is
+// intentionally generous for road vehicles while rejecting corrupt tracker
+// samples such as near-instantaneous speed jumps.
+export const MAX_PLAUSIBLE_LONGITUDINAL_ACCELERATION_MPS2 = 2 * 9.80665
+
+export function isPlausibleLongitudinalAcceleration(value) {
+  const acceleration = Number(value)
+  return Number.isFinite(acceleration)
+    && Math.abs(acceleration) <= MAX_PLAUSIBLE_LONGITUDINAL_ACCELERATION_MPS2
+}
+
 export function resolveEventThresholds({ global = {}, system = {}, vehicle = {} } = {}) {
   const eventTypes = new Set([
     ...Object.keys(DEFAULT_EVENT_THRESHOLDS),
@@ -73,7 +84,7 @@ export function detectTripEvents(trip, thresholds = {}) {
     }
 
     const acceleration = Number(metadata.accelerationMps2 ?? NaN)
-    if (Number.isFinite(acceleration)) {
+    if (isPlausibleLongitudinalAcceleration(acceleration)) {
       const braking = acceleration <= resolvedThreshold('hard_braking', thresholds).value
       const accelerating = acceleration >= resolvedThreshold('hard_acceleration', thresholds).value
       const evidence = { accelerationMps2: acceleration, speedMph: Number.isFinite(speedMph) ? speedMph : null }
@@ -81,6 +92,10 @@ export function detectTripEvents(trip, thresholds = {}) {
       if (accelerating && !accelerationEpisodeActive) events.push({ eventType: 'hard_acceleration', source: metadata.accelerationSource || 'calculated', occurredAt: metadata.timestamp || trip.start, latitude, longitude, measuredValue: acceleration, thresholdValue: resolvedThreshold('hard_acceleration', thresholds).value, unit: 'm/s²', rawEvidence: JSON.stringify(evidence) })
       brakingEpisodeActive = braking
       accelerationEpisodeActive = accelerating
+    } else {
+      // A corrupt sample must not keep an episode open or become an event.
+      brakingEpisodeActive = false
+      accelerationEpisodeActive = false
     }
 
     if (index > 0) {
@@ -111,6 +126,9 @@ export function collapseTripEvents(events, gapSeconds = 30) {
   return ordered.filter((event) => {
     if (event.eventType === 'maximum_speed') return event === maximumSpeed
     if (!['hard_braking', 'hard_acceleration'].includes(event.eventType)) return true
+    const measuredValue = Number(event.measuredValue)
+    const accelerationUnits = event.unit === 'm/s²' || ['calculated', 'obd2'].includes(event.source)
+    if (accelerationUnits && Number.isFinite(measuredValue) && !isPlausibleLongitudinalAcceleration(measuredValue)) return false
     const timestamp = new Date(event.occurredAt).getTime()
     const previous = lastByType.get(event.eventType)
     if (previous != null && timestamp - previous <= gapSeconds * 1000) return false

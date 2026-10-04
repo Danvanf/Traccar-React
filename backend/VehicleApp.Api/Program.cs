@@ -152,6 +152,7 @@ app.Use(async (context, next) =>
 });
 app.MapVehicleAppAuthEndpoints();
 app.MapUserAccessEndpoints();
+app.MapUserPreferenceEndpoints();
 app.MapTripIdentityEndpoints();
 app.MapTripDaySummaryEndpoints();
 app.MapTripRecalculationEndpoints();
@@ -383,6 +384,157 @@ app.MapGet("/api/device-bindings", async Task<IResult> (NpgsqlDataSource dataSou
 .WithName("GetActiveDeviceBindings")
 .WithSummary("Returns active device-to-vehicle bindings.")
 .WithDescription("Reads active rows from vehicle_app.vehicle_device_bindings joined to vehicles.");
+
+app.MapGet("/api/device-bindings/nearest", async Task<IResult> (
+    int traccarDeviceId,
+    DateTimeOffset startedAt,
+    DateTimeOffset endedAt,
+    NpgsqlDataSource dataSource,
+    CancellationToken cancellationToken) =>
+{
+    if (traccarDeviceId <= 0 || endedAt < startedAt)
+    {
+        return TypedResults.BadRequest("A positive traccarDeviceId and a valid trip window are required.");
+    }
+
+    await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+    await using var command = new NpgsqlCommand(
+        """
+        select
+          b.id,
+          b.vehicle_id,
+          v.display_name,
+          b.traccar_device_id,
+          b.starts_at,
+          b.ends_at,
+          b.is_primary,
+          extract(epoch from case
+            when b.ends_at is not null and b.ends_at < @startedAt then @startedAt - b.ends_at
+            when b.starts_at > @endedAt then b.starts_at - @endedAt
+            else interval '0'
+          end)::double precision as distance_seconds
+        from vehicle_device_bindings b
+        join vehicles v on v.id = b.vehicle_id
+        where b.traccar_device_id = @traccarDeviceId
+        order by distance_seconds, b.starts_at desc
+        limit 1
+        """, connection);
+    command.Parameters.AddWithValue("traccarDeviceId", traccarDeviceId);
+    command.Parameters.AddWithValue("startedAt", startedAt.UtcDateTime);
+    command.Parameters.AddWithValue("endedAt", endedAt.UtcDateTime);
+
+    await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+    if (!await reader.ReadAsync(cancellationToken)) return TypedResults.NotFound();
+
+    return TypedResults.Ok(new NearestDeviceBindingResponse(
+        reader.GetGuid(0),
+        reader.GetGuid(1),
+        reader.GetString(2),
+        reader.GetInt32(3),
+        reader.GetFieldValue<DateTimeOffset>(4),
+        reader.IsDBNull(5) ? null : reader.GetFieldValue<DateTimeOffset>(5),
+        reader.GetBoolean(6),
+        reader.GetDouble(7)));
+})
+.WithName("GetNearestDeviceBinding")
+.WithSummary("Finds the binding nearest to a missing trip window for one Traccar device.");
+
+app.MapPost("/api/device-bindings/repair-missing", async Task<IResult> (
+    RepairMissingDeviceBindingRequest request,
+    NpgsqlDataSource dataSource,
+    CancellationToken cancellationToken) =>
+{
+    if (request.TraccarDeviceId <= 0 || request.EndedAt < request.StartedAt)
+    {
+        return TypedResults.BadRequest("A positive traccarDeviceId and a valid trip window are required.");
+    }
+
+    await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+    await using var tx = await connection.BeginTransactionAsync(cancellationToken);
+    await using (var lockCommand = new NpgsqlCommand(
+        "select pg_advisory_xact_lock(724104, @traccarDeviceId)", connection, tx))
+    {
+        lockCommand.Parameters.AddWithValue("traccarDeviceId", request.TraccarDeviceId);
+        await lockCommand.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    Guid vehicleId;
+    string vehicleDisplayName;
+    DateTimeOffset oldStart;
+    DateTimeOffset? oldEnd;
+    await using (var candidateCommand = new NpgsqlCommand(
+        """
+        select b.vehicle_id, v.display_name, b.starts_at, b.ends_at
+        from vehicle_device_bindings b
+        join vehicles v on v.id = b.vehicle_id
+        where b.id = @bindingId and b.traccar_device_id = @traccarDeviceId
+        for update
+        """, connection, tx))
+    {
+        candidateCommand.Parameters.AddWithValue("bindingId", request.BindingId);
+        candidateCommand.Parameters.AddWithValue("traccarDeviceId", request.TraccarDeviceId);
+        await using var reader = await candidateCommand.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken)) return TypedResults.NotFound("The proposed binding no longer exists.");
+        vehicleId = reader.GetGuid(0);
+        vehicleDisplayName = reader.GetString(1);
+        oldStart = reader.GetFieldValue<DateTimeOffset>(2);
+        oldEnd = reader.IsDBNull(3) ? null : reader.GetFieldValue<DateTimeOffset>(3);
+    }
+
+    var newStart = request.StartedAt < oldStart ? request.StartedAt : oldStart;
+    var newEnd = oldEnd is null || request.EndedAt > oldEnd ? (oldEnd is null ? null : request.EndedAt) : oldEnd;
+
+    await using (var overlapCommand = new NpgsqlCommand(
+        """
+        select count(*)
+        from vehicle_device_bindings
+        where traccar_device_id = @traccarDeviceId
+          and id <> @bindingId
+          and starts_at < coalesce(@newEnd, 'infinity'::timestamptz)
+          and coalesce(ends_at, 'infinity'::timestamptz) > @newStart
+        """, connection, tx))
+    {
+        overlapCommand.Parameters.AddWithValue("traccarDeviceId", request.TraccarDeviceId);
+        overlapCommand.Parameters.AddWithValue("bindingId", request.BindingId);
+        overlapCommand.Parameters.AddWithValue("newStart", newStart.UtcDateTime);
+        overlapCommand.Parameters.Add(new NpgsqlParameter("newEnd", NpgsqlTypes.NpgsqlDbType.TimestampTz)
+        {
+            Value = (object?)newEnd?.UtcDateTime ?? DBNull.Value
+        });
+        var overlapCount = Convert.ToInt64(await overlapCommand.ExecuteScalarAsync(cancellationToken));
+        if (overlapCount > 0)
+        {
+            return TypedResults.Conflict("The proposed repair would overlap another binding. Review this device's binding history.");
+        }
+    }
+
+    await using (var updateCommand = new NpgsqlCommand(
+        """
+        update vehicle_device_bindings
+        set starts_at = @newStart, ends_at = @newEnd
+        where id = @bindingId
+        """, connection, tx))
+    {
+        updateCommand.Parameters.AddWithValue("bindingId", request.BindingId);
+        updateCommand.Parameters.AddWithValue("newStart", newStart.UtcDateTime);
+        updateCommand.Parameters.Add(new NpgsqlParameter("newEnd", NpgsqlTypes.NpgsqlDbType.TimestampTz)
+        {
+            Value = (object?)newEnd?.UtcDateTime ?? DBNull.Value
+        });
+        await updateCommand.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    await tx.CommitAsync(cancellationToken);
+    return TypedResults.Ok(new RepairMissingDeviceBindingResponse(
+        request.BindingId,
+        vehicleId,
+        vehicleDisplayName,
+        request.TraccarDeviceId,
+        newStart,
+        newEnd));
+})
+.WithName("RepairMissingDeviceBinding")
+.WithSummary("Extends a confirmed nearby binding to cover one missing trip window when no overlap would result.");
 
 app.MapPost("/api/device-bindings/upsert", async Task<IResult> (
     UpsertDeviceBindingRequest request,
@@ -1946,6 +2098,14 @@ static async Task EnsureEnrichmentSchemaAsync(IServiceProvider services)
                             updated_at timestamptz not null default now()
                         );
 
+                        create table if not exists app_user_preferences (
+                            user_id uuid not null references app_users(id) on delete cascade,
+                            preference_key text not null,
+                            preference_value jsonb not null,
+                            updated_at timestamptz not null default now(),
+                            primary key (user_id, preference_key)
+                        );
+
                         create table if not exists app_groups (
                             id uuid primary key default gen_random_uuid(),
                             name text not null unique,
@@ -2148,6 +2308,30 @@ public sealed record DeviceBindingResponse(
     DateTimeOffset StartsAt,
     DateTimeOffset? EndsAt,
     bool IsPrimary);
+
+public sealed record NearestDeviceBindingResponse(
+    Guid Id,
+    Guid VehicleId,
+    string VehicleDisplayName,
+    int TraccarDeviceId,
+    DateTimeOffset StartsAt,
+    DateTimeOffset? EndsAt,
+    bool IsPrimary,
+    double DistanceSeconds);
+
+public sealed record RepairMissingDeviceBindingRequest(
+    Guid BindingId,
+    int TraccarDeviceId,
+    DateTimeOffset StartedAt,
+    DateTimeOffset EndedAt);
+
+public sealed record RepairMissingDeviceBindingResponse(
+    Guid BindingId,
+    Guid VehicleId,
+    string VehicleDisplayName,
+    int TraccarDeviceId,
+    DateTimeOffset StartsAt,
+    DateTimeOffset? EndsAt);
 
 /// <summary>Derived trip summary from vehicle_app.</summary>
 public sealed record TripResponse(

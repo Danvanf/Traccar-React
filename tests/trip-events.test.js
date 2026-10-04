@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { detectTripEvents, normalizePointTelemetry, resolveEventThresholds } from '../src/lib/tripEvents.js'
+import { collapseTripEvents, detectTripEvents, normalizePointTelemetry, resolveEventThresholds } from '../src/lib/tripEvents.js'
 
 test('detects maximum speed using the configured threshold', () => {
   const trip = { start: new Date('2026-01-01T00:00:00Z'), points: [[1, 2, { speedMph: 72, timestamp: '2026-01-01T00:01:00Z' }]] }
@@ -33,6 +33,34 @@ test('detects hard braking and acceleration from supplied measurements', () => {
 test('does not emit events below thresholds', () => {
   const trip = { start: new Date('2026-01-01T00:00:00Z'), points: [[1, 2, { speedMph: 20, accelerationMps2: 0.2 }]] }
   assert.deepEqual(detectTripEvents(trip), [])
+})
+
+test('rejects physically implausible supplied acceleration and braking values', () => {
+  const trip = { start: new Date('2026-01-01T00:00:00Z'), points: [
+    [1, 2, { accelerationMps2: 360, accelerationSource: 'obd2' }],
+    [1, 2, { accelerationMps2: -360, accelerationSource: 'obd2' }],
+    [1, 2, { accelerationMps2: 4, accelerationSource: 'obd2' }],
+  ] }
+  const events = detectTripEvents(trip)
+  assert.deepEqual(events.map((event) => event.eventType), ['hard_acceleration'])
+  assert.equal(events[0].measuredValue, 4)
+})
+
+test('rejects implausible acceleration calculated from a corrupt speed interval', () => {
+  const start = new Date('2026-01-01T00:00:00Z')
+  const trip = { start, points: [
+    [1, 2, { timestamp: start, speedMph: 0 }],
+    [1, 2, { timestamp: new Date(start.getTime() + 100), speedMph: 60 }],
+  ] }
+  assert.deepEqual(detectTripEvents(trip), [])
+})
+
+test('filters previously persisted implausible calculated events', () => {
+  const events = collapseTripEvents([
+    { id: 'bad', eventType: 'hard_acceleration', source: 'calculated', measuredValue: 360, unit: 'm/s²', occurredAt: '2026-01-01T00:00:01Z' },
+    { id: 'valid', eventType: 'hard_braking', source: 'calculated', measuredValue: -4, unit: 'm/s²', occurredAt: '2026-01-01T00:00:02Z' },
+  ])
+  assert.deepEqual(events.map((event) => event.id), ['valid'])
 })
 
 test('normalizes common tracker telemetry names', () => {

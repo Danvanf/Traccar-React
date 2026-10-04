@@ -98,6 +98,28 @@ export async function logoutVehicleApi(baseUrl) {
   if (!response.ok) throw await toResponseError(response, 'Vehicle API logout failed', url)
 }
 
+export async function fetchUserPreference(baseUrl, preferenceKey) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/user/preferences/${encodeURIComponent(preferenceKey)}`
+  const response = await vehicleFetch(url, { headers: { Accept: 'application/json' } })
+  if (response.status === 404) return null
+  if (!response.ok) throw await toResponseError(response, 'User preference lookup failed', url)
+  const payload = await response.json()
+  return payload?.value ?? null
+}
+
+export async function saveUserPreference(baseUrl, preferenceKey, value) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/user/preferences/${encodeURIComponent(preferenceKey)}`
+  const response = await vehicleFetch(url, {
+    method: 'PUT',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ value }),
+  })
+  if (!response.ok) throw await toResponseError(response, 'User preference save failed', url)
+  return response.json()
+}
+
 export async function fetchVehicleCatalog(baseUrl) {
   const base = normalizeVehicleApiBase(baseUrl)
   const url = `${base}/api/vehicles`
@@ -411,6 +433,36 @@ export async function fetchActiveDeviceBindings(baseUrl) {
 
   const payload = await response.json()
   return Array.isArray(payload) ? payload : []
+}
+
+export async function fetchNearestDeviceBinding(baseUrl, { traccarDeviceId, startedAt, endedAt }) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const query = new URLSearchParams({
+    traccarDeviceId: String(traccarDeviceId),
+    startedAt,
+    endedAt,
+  })
+  const url = `${base}/api/device-bindings/nearest?${query}`
+  const response = await vehicleFetch(url, { headers: { Accept: 'application/json' } })
+  if (response.status === 404) return null
+  if (!response.ok) {
+    throw await toResponseError(response, 'Vehicle API call failed for /api/device-bindings/nearest', url)
+  }
+  return response.json()
+}
+
+export async function repairMissingDeviceBinding(baseUrl, request) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/device-bindings/repair-missing`
+  const response = await vehicleFetch(url, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  })
+  if (!response.ok) {
+    throw await toResponseError(response, 'Vehicle API call failed for /api/device-bindings/repair-missing', url)
+  }
+  return response.json()
 }
 
 export async function upsertDeviceBinding(baseUrl, request) {

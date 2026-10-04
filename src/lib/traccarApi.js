@@ -56,6 +56,10 @@ export function createTraccarApi({ settings, onSessionStateChange, sessionAttemp
       throw await toResponseError(response, `API call failed for ${path}`)
     }
 
+    if (settings.username && settings.password) {
+      onSessionStateChange('ok')
+    }
+
     if (response.status === 204) {
       return null
     }

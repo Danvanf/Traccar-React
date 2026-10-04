@@ -19,7 +19,7 @@ public static class VehicleAppAuthEndpoints
             var role = context.User.FindFirstValue(ClaimTypes.Role);
             if (authenticated && role is null && options.Enabled && SecureEquals(username, options.Username))
                 role = "admin";
-            return Results.Ok(new { enabled = options.Enabled, authenticated, role });
+            return Results.Ok(new { enabled = options.Enabled, authenticated, username, role });
         });
 
         app.MapPost("/auth/login", async (LoginRequest request, VehicleAppAuthOptions options, Npgsql.NpgsqlDataSource dataSource, HttpContext context, CancellationToken cancellationToken) =>

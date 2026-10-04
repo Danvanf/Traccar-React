@@ -4,11 +4,11 @@ function eventLabel(value) {
   return String(value || 'event').replaceAll('_', ' ')
 }
 
-function NotificationsPanel({ notifications = [], loading = false }) {
+function NotificationsPanel({ notifications = [], loading = false, rangeLabel = 'Current selection' }) {
   return (
     <section className="notifications-panel">
       <div className="notifications-header">
-        <div><h2>Notifications</h2><p>Stored trip events in the current history window</p></div>
+        <div><h2>Notifications</h2><p>Stored trip events · {rangeLabel}</p></div>
         <span className="notifications-count">{notifications.length}</span>
       </div>
       {loading && <div className="notifications-empty">Loading notifications…</div>}

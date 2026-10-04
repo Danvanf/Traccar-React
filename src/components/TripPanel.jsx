@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useRef } from 'react'
 import { formatDistance } from '../lib/format'
 import { formatEventMeasurement } from '../lib/tripEvents'
 
@@ -28,9 +29,76 @@ function TripPanel({
   noteDraft,
   setNoteDraft,
   saveSelectedTripNote,
-  recalculateSelectedTrip,
   openTripGraph,
+  floatingRef,
+  style,
+  position,
+  onPositionChange,
+  onPositionCommit,
+  onHide,
 }) {
+  const panelRef = useRef(null)
+  const dragRef = useRef(null)
+  const setPanelRef = useCallback((node) => {
+    panelRef.current = node
+    if (typeof floatingRef === 'function') floatingRef(node)
+    else if (floatingRef) floatingRef.current = node
+  }, [floatingRef])
+
+  const clampPosition = useCallback((left, top) => {
+    const panel = panelRef.current
+    const width = panel?.offsetWidth || 300
+    const height = panel?.offsetHeight || 120
+    const margin = 8
+    return {
+      left: Math.max(margin, Math.min(left, window.innerWidth - width - margin)),
+      top: Math.max(margin, Math.min(top, window.innerHeight - height - margin)),
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!position) return undefined
+    const keepInViewport = () => {
+      const next = clampPosition(position.left, position.top)
+      if (next.left !== position.left || next.top !== position.top) onPositionCommit(next)
+    }
+    keepInViewport()
+    window.addEventListener('resize', keepInViewport)
+    return () => window.removeEventListener('resize', keepInViewport)
+  }, [clampPosition, onPositionCommit, position])
+
+  const startDragging = useCallback((event) => {
+    if (event.button !== 0 || event.target.closest('button, a, input, select, textarea')) return
+    const rect = panelRef.current?.getBoundingClientRect()
+    if (!rect) return
+    dragRef.current = {
+      pointerId: event.pointerId,
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+      position: { left: rect.left, top: rect.top },
+    }
+    event.currentTarget.setPointerCapture(event.pointerId)
+    event.preventDefault()
+  }, [])
+
+  const dragPanel = useCallback((event) => {
+    if (!dragRef.current || dragRef.current.pointerId !== event.pointerId) return
+    const next = clampPosition(
+      event.clientX - dragRef.current.offsetX,
+      event.clientY - dragRef.current.offsetY,
+    )
+    dragRef.current.position = next
+    onPositionChange(next)
+  }, [clampPosition, onPositionChange])
+
+  const stopDragging = useCallback((event) => {
+    if (!dragRef.current || dragRef.current.pointerId !== event.pointerId) return
+    const next = dragRef.current.position
+    dragRef.current = null
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+    onPositionCommit(next)
+  }, [onPositionCommit])
+
   const filteredTrips = visibleTrips.filter((trip) => {
     if (!selectedDayKey && selectedDayKeys.length === 0) return true
     const date = trip.start
@@ -38,8 +106,15 @@ function TripPanel({
     return selectedDayKeys.includes(localKey) || localKey === selectedDayKey
   })
   return (
-    <div className="trip-panel">
-      <h2>Trips ({filteredTrips.length})</h2>
+    <div ref={setPanelRef} className="trip-panel trip-panel-flyout" style={style}>
+      <div
+        className="trip-panel-heading trip-panel-drag-handle"
+        title="Drag to move Trips panel"
+        onPointerDown={startDragging}
+        onPointerMove={dragPanel}
+        onPointerUp={stopDragging}
+        onPointerCancel={stopDragging}
+      ><h2>Trips ({filteredTrips.length})</h2><button type="button" className="small secondary" onClick={onHide} title="Hide Trips panel">×</button></div>
       <div className="trip-list">
         {filteredTrips.slice(0, 60).map((trip) => {
           const deviceName = trip.vehicleName || devices.find((device) => device.id === trip.deviceId)?.name || `Device ${trip.deviceId}`
@@ -68,10 +143,8 @@ function TripPanel({
           <div className="trip-editor-heading"><h3>Selected Trip</h3><button type="button" className="trip-graph-button" onClick={() => openTripGraph(selectedTrip)} title="Graph this trip" aria-label="Graph selected trip"><GraphIcon /></button></div>
           <div className="trip-editor-meta">
             {selectedTrip.start.toLocaleString()} - {selectedTrip.end.toLocaleTimeString()}
+            {Number.isFinite(selectedTripMaxSpeedMph) && ` · Max: ${selectedTripMaxSpeedMph.toFixed(1)} mph`}
           </div>
-          {Number.isFinite(selectedTripMaxSpeedMph) && (
-            <div className="trip-editor-meta">Trip maximum speed: {selectedTripMaxSpeedMph.toFixed(1)} mph</div>
-          )}
           {selectedTripEvents.length > 0 && (
             <div className="trip-events-summary">
               <strong>Detected events</strong>
@@ -122,9 +195,6 @@ function TripPanel({
                 />
               </label>
               <button type="button" className="small" onClick={saveSelectedTripNote} disabled={tripEditorDisabled}>Save Notes</button>
-              <button type="button" className="small secondary" onClick={recalculateSelectedTrip} disabled={tripEditorDisabled}>
-                Recalculate Metrics
-              </button>
             </>
           )}
         </div>

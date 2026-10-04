@@ -21,6 +21,7 @@ function VehicleStatsPanel({ baseUrl, vehicleId }) {
   const [tagId, setTagId] = useState('')
   const [report, setReport] = useState(null)
   const [error, setError] = useState('')
+  const [drawerOpen, setDrawerOpen] = useState(false)
   useEffect(() => {
     let active = true
     fetchVehicleCatalog(baseUrl)
@@ -49,7 +50,38 @@ function VehicleStatsPanel({ baseUrl, vehicleId }) {
       setReport(await fetchVehicleStats(baseUrl, effectiveVehicleId, { from, to, groupBy, tagId: tagId || undefined }))
     } catch (err) { setError(err instanceof Error ? err.message : 'Statistics lookup failed') }
   }
-  return <section className="vehicle-stats-panel"><div className="vehicle-stats-header"><div><h3>Vehicle Statistics</h3><small>Statistics use the selected catalog vehicle; map device selection controls the live status card.</small></div><select value={groupBy} onChange={(event) => setGroupBy(event.target.value)}><option value="trip">Trip</option><option value="day">Day</option><option value="week">Week</option></select></div><div className="vehicle-stats-filters"><label>Vehicle<select value={effectiveVehicleId} onChange={(event) => { setSelectedVehicleId(event.target.value); setReport(null); setError('') }}><option value="">Select vehicle</option>{catalogVehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.displayName || vehicle.name || 'Unnamed vehicle'}</option>)}</select></label><label>From<input type="date" value={from} onChange={(event) => setFrom(event.target.value)} /></label><label>Through<input type="date" value={to} onChange={(event) => setTo(event.target.value)} /></label><label>Tag<select value={tagId} onChange={(event) => setTagId(event.target.value)}><option value="">All tags</option>{tags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name}</option>)}</select></label><button type="button" onClick={run}>Run</button></div>{error && <div className="trip-empty">{error}</div>}{report && <table className="operations-report-table"><thead><tr><th>Period</th><th>Trips</th><th>Distance</th><th>Duration</th><th>Max speed</th><th>Events</th></tr></thead><tbody>{report.rows.length === 0 ? <tr><td colSpan="6" className="vehicle-stats-empty">No records found for this vehicle, date range, and tag filter.</td></tr> : report.rows.map((row, index) => <tr key={index}><td>{formatPeriod(row.period, groupBy)}</td><td>{row.tripCount}</td><td>{(Number(row.distanceMeters || 0) / 1609.344).toFixed(1)} mi</td><td>{Math.round(row.durationSeconds / 60)} min</td><td>{row.maxSpeedMph.toFixed(1)} mph</td><td>{row.eventCount}</td></tr>)}</tbody></table>}</section>
+  const hasData = Boolean(report?.rows?.length)
+  return (
+    <section className={`vehicle-stats-panel ${drawerOpen ? 'is-open' : 'is-collapsed'}${hasData ? ' has-data' : ''}`}>
+      <button
+        type="button"
+        className="vehicle-stats-drawer-toggle"
+        onClick={() => setDrawerOpen((open) => !open)}
+        aria-expanded={drawerOpen}
+        aria-label={drawerOpen ? 'Hide vehicle statistics' : 'Show vehicle statistics'}
+        title={drawerOpen ? 'Hide vehicle statistics' : 'Show vehicle statistics'}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h16" /><path d="m7 15 3-4 3 2 5-7" /></svg>
+        <span>Stats</span>
+        <b aria-hidden="true">{drawerOpen ? '›' : '‹'}</b>
+      </button>
+      <div className="vehicle-stats-content">
+        <div className="vehicle-stats-header">
+          <div><h3>Vehicle Statistics</h3><small>Statistics use the selected catalog vehicle; map device selection controls the live status card.</small></div>
+          <select value={groupBy} onChange={(event) => setGroupBy(event.target.value)}><option value="trip">Trip</option><option value="day">Day</option><option value="week">Week</option></select>
+        </div>
+        <div className="vehicle-stats-filters">
+          <label>Vehicle<select value={effectiveVehicleId} onChange={(event) => { setSelectedVehicleId(event.target.value); setReport(null); setError('') }}><option value="">Select vehicle</option>{catalogVehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.displayName || vehicle.name || 'Unnamed vehicle'}</option>)}</select></label>
+          <label>From<input type="date" value={from} onChange={(event) => setFrom(event.target.value)} /></label>
+          <label>Through<input type="date" value={to} onChange={(event) => setTo(event.target.value)} /></label>
+          <label>Tag<select value={tagId} onChange={(event) => setTagId(event.target.value)}><option value="">All tags</option>{tags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name}</option>)}</select></label>
+          <button type="button" onClick={run}>Run</button>
+        </div>
+        {error && <div className="trip-empty">{error}</div>}
+        {report && <table className="operations-report-table"><thead><tr><th>Period</th><th>Trips</th><th>Distance</th><th>Duration</th><th>Max speed</th><th>Events</th></tr></thead><tbody>{report.rows.length === 0 ? <tr><td colSpan="6" className="vehicle-stats-empty">No records found for this vehicle, date range, and tag filter.</td></tr> : report.rows.map((row, index) => <tr key={index}><td>{formatPeriod(row.period, groupBy)}</td><td>{row.tripCount}</td><td>{(Number(row.distanceMeters || 0) / 1609.344).toFixed(1)} mi</td><td>{Math.round(row.durationSeconds / 60)} min</td><td>{row.maxSpeedMph.toFixed(1)} mph</td><td>{row.eventCount}</td></tr>)}</tbody></table>}
+      </div>
+    </section>
+  )
 }
 
 export default VehicleStatsPanel
