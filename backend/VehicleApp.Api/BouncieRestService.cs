@@ -11,12 +11,17 @@ public sealed class BouncieRestService
 {
     private static readonly Uri TokenUri = new("https://auth.bouncie.com/oauth/token");
     private static readonly Uri ApiBaseUri = new("https://api.bouncie.dev/v1/");
+    // Increment when the importer learns to preserve another Bouncie field.
+    // Completed windows from older versions are replayed once so existing,
+    // deduplicated trips gain the newly available data.
+    private const int ImportFormatVersion = 3;
     private readonly object gate = new();
     private readonly NpgsqlDataSource dataSource;
     private readonly ILogger<BouncieRestService> logger;
     private readonly byte[]? encryptionKey;
     private readonly HttpClient http = new() { Timeout = TimeSpan.FromSeconds(45) };
     private readonly SemaphoreSlim tokenRefreshGate = new(1, 1);
+    private readonly SemaphoreSlim connectionRestoreGate = new(1, 1);
     private readonly ConcurrentDictionary<string, PendingBouncieAuthorization> pendingAuthorizations = new();
     private BouncieConnection? connection;
     private bool hasStoredCredentials;
@@ -46,8 +51,12 @@ public sealed class BouncieRestService
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         if (encryptionKey is null) return;
+        await connectionRestoreGate.WaitAsync(cancellationToken);
         try
         {
+            lock (gate)
+                if (connection is not null)
+                    return;
             var stored = await LoadStoredCredentialsAsync(cancellationToken);
             if (stored is null) return;
             lock (gate) hasStoredCredentials = true;
@@ -64,6 +73,10 @@ public sealed class BouncieRestService
         {
             logger.LogWarning(ex, "Stored Bouncie credentials could not be restored; reconnect is required.");
             lock (gate) progress = BouncieSyncProgress.Disconnected("Stored Bouncie credentials could not be restored; reconnect in Settings.");
+        }
+        finally
+        {
+            connectionRestoreGate.Release();
         }
     }
 
@@ -105,7 +118,10 @@ public sealed class BouncieRestService
         // one-time authorization code without leaving a recoverable connection.
         await SaveStoredCredentialsAsync(newConnection, request.RedirectUri.Trim(), cancellationToken);
         var user = await GetJsonAsync(newConnection, "user", cancellationToken);
-        var vehicles = ParseVehicles(await GetJsonAsync(newConnection, "vehicles", cancellationToken));
+        var vehiclesPayload = await GetJsonAsync(newConnection, "vehicles", cancellationToken);
+        await SaveSourceSnapshotAsync("account", "current", user, cancellationToken);
+        await SaveSourceSnapshotAsync("vehicles", "connected", vehiclesPayload, cancellationToken);
+        var vehicles = ParseVehicles(vehiclesPayload);
         newConnection = newConnection with { UserLabel = StringValue(user, "name", "email", "id"), Vehicles = vehicles };
         await SaveStoredCredentialsAsync(newConnection, request.RedirectUri.Trim(), cancellationToken);
         lock (gate)
@@ -173,6 +189,17 @@ public sealed class BouncieRestService
         return new BouncieAuthorizationStart(authorizationUrl, expiresAt);
     }
 
+    public async Task<BouncieAuthorizationStart> BeginStoredAuthorizationAsync(CancellationToken cancellationToken)
+    {
+        EnsureEncryptionKey();
+        var stored = await LoadStoredCredentialsAsync(cancellationToken)
+            ?? throw new InvalidOperationException("No encrypted Bouncie connection is stored. Enter the client secret to connect for the first time.");
+        return BeginAuthorization(new BouncieAuthorizationStartRequest(
+            stored.ClientId,
+            Unprotect(stored.ClientSecretCiphertext),
+            stored.RedirectUri));
+    }
+
     public async Task<BouncieConnectionStatus> CompleteAuthorizationAsync(string state, string code, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(state) || !pendingAuthorizations.TryRemove(state, out var pending) || pending.ExpiresAtUtc <= DateTimeOffset.UtcNow)
@@ -230,7 +257,7 @@ public sealed class BouncieRestService
         await using var databaseConnection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var command = new NpgsqlCommand("delete from bouncie_credentials where id = 1", databaseConnection);
         await command.ExecuteNonQueryAsync(cancellationToken);
-        lock (gate) hasStoredCredentials = true;
+        lock (gate) hasStoredCredentials = false;
     }
 
     private void EnsureEncryptionKey()
@@ -287,7 +314,10 @@ public sealed class BouncieRestService
         if (string.IsNullOrWhiteSpace(accessToken)) throw new InvalidOperationException("Bouncie token refresh did not return an access token.");
         var restored = new BouncieConnection(clientId, clientSecret, rotatedRefreshToken, accessToken, DateTimeOffset.UtcNow.AddSeconds(expiresIn), null, []);
         var user = await GetJsonAsync(restored, "user", cancellationToken);
-        var vehicles = ParseVehicles(await GetJsonAsync(restored, "vehicles", cancellationToken));
+        var vehiclesPayload = await GetJsonAsync(restored, "vehicles", cancellationToken);
+        await SaveSourceSnapshotAsync("account", "current", user, cancellationToken);
+        await SaveSourceSnapshotAsync("vehicles", "connected", vehiclesPayload, cancellationToken);
+        var vehicles = ParseVehicles(vehiclesPayload);
         var complete = restored with { UserLabel = StringValue(user, "name", "email", "id"), Vehicles = vehicles };
         if (!string.Equals(rotatedRefreshToken, refreshToken, StringComparison.Ordinal))
             await SaveStoredCredentialsAsync(complete, redirectUri, cancellationToken);
@@ -323,6 +353,22 @@ public sealed class BouncieRestService
         command.Parameters.AddWithValue("refreshToken", Protect(value.RefreshToken));
         command.Parameters.AddWithValue("redirectUri", redirectUri);
         command.Parameters.AddWithValue("userLabel", (object?)value.UserLabel ?? DBNull.Value);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private async Task SaveSourceSnapshotAsync(string sourceType, string sourceKey, JsonElement payload, CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand("""
+            insert into bouncie_source_snapshots (source_type, source_key, payload, observed_at)
+            values (@sourceType, @sourceKey, @payload::jsonb, now())
+            on conflict (source_type, source_key) do update set
+              payload = excluded.payload,
+              observed_at = excluded.observed_at
+            """, connection);
+        command.Parameters.AddWithValue("sourceType", sourceType);
+        command.Parameters.AddWithValue("sourceKey", sourceKey);
+        command.Parameters.AddWithValue("payload", payload.GetRawText());
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -522,10 +568,11 @@ public sealed class BouncieRestService
     private async Task<bool> IsWindowCompletedAsync(string vehicleImei, DateTimeOffset from, DateTimeOffset through, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand("select exists (select 1 from bouncie_import_checkpoints where vehicle_imei = @imei and window_from = @from and window_through = @through)", connection);
+        await using var command = new NpgsqlCommand("select exists (select 1 from bouncie_import_checkpoints where vehicle_imei = @imei and window_from = @from and window_through = @through and importer_version >= @importerVersion)", connection);
         command.Parameters.AddWithValue("imei", vehicleImei);
         command.Parameters.AddWithValue("from", from.UtcDateTime);
         command.Parameters.AddWithValue("through", through.UtcDateTime);
+        command.Parameters.AddWithValue("importerVersion", ImportFormatVersion);
         return (bool)(await command.ExecuteScalarAsync(cancellationToken) ?? false);
     }
 
@@ -533,13 +580,14 @@ public sealed class BouncieRestService
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var command = new NpgsqlCommand("""
-            insert into bouncie_import_checkpoints (vehicle_imei, window_from, window_through, completed_at, imported_count, skipped_count, imported_events)
-            values (@imei, @from, @through, now(), @imported, @skipped, @events)
+            insert into bouncie_import_checkpoints (vehicle_imei, window_from, window_through, completed_at, imported_count, skipped_count, imported_events, importer_version)
+            values (@imei, @from, @through, now(), @imported, @skipped, @events, @importerVersion)
             on conflict (vehicle_imei, window_from, window_through) do update set
               completed_at = excluded.completed_at,
               imported_count = excluded.imported_count,
               skipped_count = excluded.skipped_count,
-              imported_events = excluded.imported_events
+              imported_events = excluded.imported_events,
+              importer_version = excluded.importer_version
             """, connection);
         command.Parameters.AddWithValue("imei", vehicleImei);
         command.Parameters.AddWithValue("from", from.UtcDateTime);
@@ -547,6 +595,7 @@ public sealed class BouncieRestService
         command.Parameters.AddWithValue("imported", result.Imported);
         command.Parameters.AddWithValue("skipped", result.Skipped);
         command.Parameters.AddWithValue("events", result.ImportedEvents);
+        command.Parameters.AddWithValue("importerVersion", ImportFormatVersion);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -671,6 +720,8 @@ public sealed class BouncieRestService
             var distanceMeters = NumberValue(trip, "distanceMeters") ?? (distance * 1609.344);
             var maxSpeed = NumberValue(trip, "maxSpeedMph", "maximumSpeed", "maxSpeed") ?? NumberValue(trip, "metrics", "maxSpeedMph", "maxSpeed");
             var average = NumberValue(trip, "averageSpeedMph", "avgSpeedMph", "averageSpeed") ?? NumberValue(trip, "metrics", "averageSpeedMph", "averageSpeed");
+            var idleSeconds = NumberValue(trip, "idleSeconds", "totalIdleDuration", "idleDuration");
+            var fuelUsed = NumberValue(trip, "fuelUsedGallons", "fuelUsed", "fuelConsumed");
             var sourceEvents = ParseEvents(trip, started.Value, start, maxSpeed);
             var ignition = NullableBooleanValue(trip, "ignition", "ignitionOn", "engineOn");
             var hasSourceEvent = ArrayElements(trip, "events", "tripEvents", "alerts").Any()
@@ -684,8 +735,33 @@ public sealed class BouncieRestService
             var startOdometer = NumberValue(trip, "startOdometer", "odometerStart");
             var endOdometer = NumberValue(trip, "endOdometer", "odometerEnd");
             var key = StringValue(trip, "transactionId", "tripId", "id") ?? string.Join('|', remote.Vin ?? remote.Imei, started.Value.ToString("O"), ended.Value.ToString("O"), startOdometer?.ToString(CultureInfo.InvariantCulture) ?? "", endOdometer?.ToString(CultureInfo.InvariantCulture) ?? "");
-            var routePoints = coordinates.Select((coordinate, index) => new BouncieRoutePoint(index, null, coordinate.Latitude, coordinate.Longitude, null, null)).ToList();
-            rows.Add(new BouncieImportRow(target.Id, target.TraccarDeviceId, key, started.Value, ended.Value, Math.Max(1, (int)Math.Round((ended.Value - started.Value).TotalSeconds)), distanceMeters / 1609.344, average, maxSpeed, NumberValue(trip, "fuelUsedGallons", "fuelUsed"), NumberValue(trip, "fuelEconomyMpg", "estimatedMpg", "mpg"), start?.Latitude, start?.Longitude, end?.Latitude, end?.Longitude, StringValue(trip, "startAddress", "originAddress"), StringValue(trip, "endAddress", "destinationAddress"), new Dictionary<string, string?> { ["source"] = "bouncie-rest-v1", ["rawPayload"] = trip.GetRawText() }, sourceEvents, routePoints));
+            // GeoJSON line strings only contain geometry.  When Bouncie returns
+            // point observations as well, retain their timestamp, speed, and
+            // source evidence instead of reducing every point to latitude and
+            // longitude.  That makes a later re-import an enrichment pass for
+            // existing history rather than a lossy one.
+            var routePoints = coordinates.Select((coordinate, index) => new BouncieRoutePoint(
+                index,
+                coordinate.OccurredAt,
+                coordinate.Latitude,
+                coordinate.Longitude,
+                coordinate.SpeedMph,
+                coordinate.RawEvidence)).ToList();
+            var sourceData = new Dictionary<string, string?>
+            {
+                ["source"] = "bouncie-rest-v1",
+                ["rawPayload"] = trip.GetRawText(),
+                ["transactionId"] = StringValue(trip, "transactionId"),
+                ["imei"] = StringValue(trip, "imei"),
+                ["timeZone"] = StringValue(trip, "timeZone"),
+                ["startOdometer"] = NumberText(trip, "startOdometer"),
+                ["endOdometer"] = NumberText(trip, "endOdometer"),
+                ["hardAccelerationCount"] = NumberText(trip, "hardAccelerationCount"),
+                ["hardBrakingCount"] = NumberText(trip, "hardBrakingCount"),
+                ["totalIdleDuration"] = NumberText(trip, "totalIdleDuration"),
+                ["fuelConsumed"] = NumberText(trip, "fuelConsumed")
+            };
+            rows.Add(new BouncieImportRow(target.Id, target.TraccarDeviceId, key, started.Value, ended.Value, Math.Max(1, (int)Math.Round((ended.Value - started.Value).TotalSeconds)), distanceMeters / 1609.344, average, maxSpeed, idleSeconds, fuelUsed, NumberValue(trip, "fuelEconomyMpg", "estimatedMpg", "mpg"), start?.Latitude, start?.Longitude, end?.Latitude, end?.Longitude, StringValue(trip, "startAddress", "originAddress"), StringValue(trip, "endAddress", "destinationAddress"), sourceData, sourceEvents, routePoints));
         }
         return rows;
     }
@@ -729,15 +805,97 @@ public sealed class BouncieRestService
     private static void WalkCoordinates(JsonElement element, List<Coordinate> output)
     {
         if (element.ValueKind == JsonValueKind.Object)
+        {
+            if (TryReadCoordinateObject(element, out var coordinate))
+            {
+                output.Add(coordinate);
+                return;
+            }
+
+            // A GeoJSON Point carries its observation values in properties,
+            // while the coordinate itself is under geometry.coordinates.
+            if (Property(element, "geometry", out var geometry)
+                && geometry.ValueKind == JsonValueKind.Object
+                && string.Equals(StringValue(geometry, "type"), "Point", StringComparison.OrdinalIgnoreCase)
+                && Property(geometry, "coordinates", out var pointCoordinates)
+                && TryReadCoordinateArray(pointCoordinates, out var latitude, out var longitude))
+            {
+                output.Add(CreateCoordinate(latitude, longitude, element));
+                return;
+            }
+
             foreach (var property in element.EnumerateObject()) WalkCoordinates(property.Value, output);
+        }
         else if (element.ValueKind == JsonValueKind.Array)
         {
-            var values = element.EnumerateArray().ToArray();
-            if (values.Length >= 2 && values[0].ValueKind == JsonValueKind.Number && values[1].ValueKind == JsonValueKind.Number && values[0].TryGetDouble(out var longitude) && values[1].TryGetDouble(out var latitude) && Math.Abs(latitude) <= 90 && Math.Abs(longitude) <= 180)
+            if (TryReadCoordinateArray(element, out var latitude, out var longitude))
                 output.Add(new Coordinate(latitude, longitude));
-            else foreach (var value in values) WalkCoordinates(value, output);
+            else foreach (var value in element.EnumerateArray()) WalkCoordinates(value, output);
         }
     }
+
+    private static bool TryReadCoordinateObject(JsonElement element, out Coordinate coordinate)
+    {
+        coordinate = default!;
+        var latitude = NumberValue(element, "latitude", "lat");
+        var longitude = NumberValue(element, "longitude", "lng", "lon");
+        if (!latitude.HasValue || !longitude.HasValue || Math.Abs(latitude.Value) > 90 || Math.Abs(longitude.Value) > 180) return false;
+        coordinate = CreateCoordinate(latitude.Value, longitude.Value, element);
+        return true;
+    }
+
+    private static bool TryReadCoordinateArray(JsonElement element, out double latitude, out double longitude)
+    {
+        latitude = 0;
+        longitude = 0;
+        if (element.ValueKind != JsonValueKind.Array) return false;
+        var values = element.EnumerateArray().ToArray();
+        return values.Length >= 2
+            && values[0].ValueKind == JsonValueKind.Number
+            && values[1].ValueKind == JsonValueKind.Number
+            && values[0].TryGetDouble(out longitude)
+            && values[1].TryGetDouble(out latitude)
+            && Math.Abs(latitude) <= 90
+            && Math.Abs(longitude) <= 180;
+    }
+
+    private static Coordinate CreateCoordinate(double latitude, double longitude, JsonElement source)
+    {
+        var properties = Property(source, "properties", out var nestedProperties) && nestedProperties.ValueKind == JsonValueKind.Object
+            ? nestedProperties
+            : source;
+        var occurredAt = DateValue(properties, "timestamp", "occurredAt", "recordedAt", "time", "dateTime");
+        var speedMph = ReadSpeedMph(properties);
+        Dictionary<string, object?>? evidence = null;
+        if (occurredAt.HasValue || speedMph.HasValue)
+        {
+            evidence = new Dictionary<string, object?>
+            {
+                ["source"] = "bouncie-rest-v1",
+                ["raw"] = source.GetRawText()
+            };
+            if (occurredAt.HasValue) evidence["occurredAt"] = occurredAt.Value.ToString("O");
+            if (speedMph.HasValue) evidence["speedMph"] = speedMph.Value;
+        }
+        return new Coordinate(latitude, longitude, occurredAt, speedMph, evidence);
+    }
+
+    private static double? ReadSpeedMph(JsonElement element)
+    {
+        var mph = NumberValue(element, "speedMph", "speedMPH", "speed_mph", "mph");
+        if (mph.HasValue) return mph;
+        var kph = NumberValue(element, "speedKph", "speedKmh", "speedKmH", "speed_kph", "speed_kmh");
+        if (kph.HasValue) return kph.Value / 1.609344;
+        var metersPerSecond = NumberValue(element, "speedMetersPerSecond", "speedMps", "speed_mps");
+        if (metersPerSecond.HasValue) return metersPerSecond.Value * 2.2369362920544;
+        // Bouncie's documented trip speed values are in mph. Preserve an
+        // unqualified speed if the response supplies one, with the complete
+        // provider value retained in raw evidence for future verification.
+        return NumberValue(element, "speed");
+    }
+
+    private static string? NumberText(JsonElement element, params string[] names)
+        => NumberValue(element, names)?.ToString(CultureInfo.InvariantCulture);
 
     private static Coordinate? ReadLocation(JsonElement element, params string[] names)
     {
@@ -828,7 +986,12 @@ public sealed class BouncieRestService
     private sealed record BouncieRemoteVehicle(string Imei, string? Vin, string? DisplayName, string? Make, string? Model, int? Year);
     private sealed record PendingBouncieAuthorization(string ClientId, string ClientSecret, string RedirectUri, DateTimeOffset ExpiresAtUtc);
     private sealed record CatalogVehicle(Guid Id, string? Vin, int? Year, string? Make, string? Model, int? TraccarDeviceId);
-    private sealed record Coordinate(double Latitude, double Longitude);
+    private sealed record Coordinate(
+        double Latitude,
+        double Longitude,
+        DateTimeOffset? OccurredAt = null,
+        double? SpeedMph = null,
+        Dictionary<string, object?>? RawEvidence = null);
 }
 
 public sealed record BouncieConnectRequest(string ClientId, string ClientSecret, string AuthorizationCode, string RedirectUri);

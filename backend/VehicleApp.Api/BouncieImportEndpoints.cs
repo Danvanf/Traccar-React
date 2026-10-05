@@ -58,17 +58,19 @@ public static class BouncieImportEndpoints
                 await using var enrich = new NpgsqlCommand("""
                     update trips set
                       max_speed_mph = coalesce(max_speed_mph, @maxSpeedMph),
+                      idle_seconds = coalesce(idle_seconds, @idleSeconds),
                       start_latitude = coalesce(start_latitude, @startLatitude),
                       start_longitude = coalesce(start_longitude, @startLongitude),
                       end_latitude = coalesce(end_latitude, @endLatitude),
                       end_longitude = coalesce(end_longitude, @endLongitude),
                       start_address = coalesce(start_address, @startAddress),
                       end_address = coalesce(end_address, @endAddress),
-                      external_metadata = case when external_metadata = '{}'::jsonb then @externalMetadata::jsonb else external_metadata end
+                      external_metadata = coalesce(external_metadata, '{}'::jsonb) || @externalMetadata::jsonb
                     where id = @tripId
                     """, connection, transaction);
                 enrich.Parameters.AddWithValue("tripId", tripId);
                 enrich.Parameters.AddWithValue("maxSpeedMph", (object?)row.MaxSpeedMph ?? DBNull.Value);
+                enrich.Parameters.AddWithValue("idleSeconds", (object?)row.IdleSeconds ?? DBNull.Value);
                 enrich.Parameters.AddWithValue("startLatitude", (object?)row.StartLatitude ?? DBNull.Value);
                 enrich.Parameters.AddWithValue("startLongitude", (object?)row.StartLongitude ?? DBNull.Value);
                 enrich.Parameters.AddWithValue("endLatitude", (object?)row.EndLatitude ?? DBNull.Value);
@@ -83,13 +85,13 @@ public static class BouncieImportEndpoints
                 await using var insert = new NpgsqlCommand("""
                     insert into trips (
                       vehicle_id, traccar_device_id, started_at, ended_at, duration_seconds,
-                      distance_meters, avg_speed_mph, max_speed_mph, fuel_used_gallons,
+                      distance_meters, avg_speed_mph, max_speed_mph, idle_seconds, fuel_used_gallons,
                       estimated_mpg, derivation_version, notes, start_latitude,
                       start_longitude, end_latitude, end_longitude, start_address, end_address,
                       external_metadata
                     ) values (
                       @vehicleId, @traccarDeviceId, @startedAt, @endedAt, @durationSeconds,
-                      @distanceMeters, @avgSpeedMph, @maxSpeedMph, @fuelUsedGallons,
+                      @distanceMeters, @avgSpeedMph, @maxSpeedMph, @idleSeconds, @fuelUsedGallons,
                       @estimatedMpg, 'bouncie-csv-v1', @notes, @startLatitude,
                       @startLongitude, @endLatitude, @endLongitude, @startAddress, @endAddress,
                       @externalMetadata::jsonb
@@ -103,6 +105,7 @@ public static class BouncieImportEndpoints
                 insert.Parameters.AddWithValue("distanceMeters", row.DistanceMiles * 1609.344);
                 insert.Parameters.AddWithValue("avgSpeedMph", (object?)row.AverageSpeedMph ?? DBNull.Value);
                 insert.Parameters.AddWithValue("maxSpeedMph", (object?)row.MaxSpeedMph ?? DBNull.Value);
+                insert.Parameters.AddWithValue("idleSeconds", (object?)row.IdleSeconds ?? DBNull.Value);
                 insert.Parameters.AddWithValue("fuelUsedGallons", (object?)row.FuelUsedGallons ?? DBNull.Value);
                 insert.Parameters.AddWithValue("estimatedMpg", (object?)row.FuelEconomyMpg ?? DBNull.Value);
                 insert.Parameters.AddWithValue("notes", "Imported from Bouncie trip export.");
@@ -154,7 +157,14 @@ public static class BouncieImportEndpoints
                 await using var routeInsert = new NpgsqlCommand("""
                     insert into trip_route_points (trip_id, point_index, occurred_at, latitude, longitude, speed_mph, raw_evidence)
                     values (@tripId, @pointIndex, @occurredAt, @latitude, @longitude, @speedMph, @rawEvidence::jsonb)
-                    on conflict (trip_id, point_index) do nothing
+                    on conflict (trip_id, point_index) do update set
+                      occurred_at = coalesce(trip_route_points.occurred_at, excluded.occurred_at),
+                      speed_mph = coalesce(trip_route_points.speed_mph, excluded.speed_mph),
+                      raw_evidence = case
+                        when trip_route_points.raw_evidence = '{}'::jsonb
+                          then excluded.raw_evidence
+                        else trip_route_points.raw_evidence
+                      end
                     """, connection, transaction);
                 routeInsert.Parameters.AddWithValue("tripId", tripId);
                 routeInsert.Parameters.AddWithValue("pointIndex", point.PointIndex);
@@ -185,6 +195,7 @@ public sealed record BouncieImportRow(
     double DistanceMiles,
     double? AverageSpeedMph,
     double? MaxSpeedMph,
+    double? IdleSeconds,
     double? FuelUsedGallons,
     double? FuelEconomyMpg,
     double? StartLatitude,

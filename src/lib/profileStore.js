@@ -19,6 +19,22 @@ export function loadProfileDefinitions() {
       ...DEFAULT_PROFILE_DEFINITIONS,
       ...parsed,
     }
+    // Preserve user edits while adding mappings introduced by newer builds.
+    // In particular, older saved profiles may contain io53 without its
+    // Celsius-to-Fahrenheit conversion, which makes the status card appear
+    // to report ambient air in the wrong units.
+    const defaultBuiltIn = DEFAULT_PROFILE_DEFINITIONS['buick-enclave-2010']
+    const savedBuiltIn = parsed['buick-enclave-2010']
+    if (defaultBuiltIn && savedBuiltIn) {
+      definitions['buick-enclave-2010'] = {
+        ...defaultBuiltIn,
+        ...savedBuiltIn,
+        attributeMap: {
+          ...defaultBuiltIn.attributeMap,
+          ...(savedBuiltIn.attributeMap || {}),
+        },
+      }
+    }
     const builtIn = definitions['buick-enclave-2010']
     if (builtIn?.attributeMap) {
       if (builtIn.attributeMap.io40?.conversion === 'gramsPerSecondToPoundsPerMinute') {
@@ -26,6 +42,12 @@ export function loadProfileDefinitions() {
       }
       if (!builtIn.attributeMap.io51?.conversion) {
         builtIn.attributeMap.io51 = { ...builtIn.attributeMap.io51, conversion: 'millivoltsToVolts' }
+      }
+      for (const key of ['io32', 'io39', 'io53', 'io58']) {
+        const mapping = builtIn.attributeMap[key]
+        if (mapping?.units === 'degF' && mapping.conversion !== 'cToF') {
+          builtIn.attributeMap[key] = { ...mapping, conversion: 'cToF' }
+        }
       }
     }
     return definitions

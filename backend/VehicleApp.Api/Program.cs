@@ -160,6 +160,13 @@ app.MapTripEventEndpoints();
 app.MapTripRoutePointEndpoints();
 app.MapTripEventThresholdEndpoints();
 app.MapVehicleStatsEndpoints();
+app.MapReportEndpoints();
+app.MapPlaceReportEndpoints();
+app.MapCompletenessReportEndpoints();
+app.MapEventReportEndpoints();
+app.MapUtilizationReportEndpoints();
+app.MapBusinessMileageReportEndpoints();
+app.MapSpeedBandReportEndpoints();
 app.MapOperationsReportEndpoints();
 app.MapStatusCardEndpoints();
 
@@ -2210,8 +2217,19 @@ static async Task EnsureEnrichmentSchemaAsync(IServiceProvider services)
                             primary key (vehicle_imei, window_from, window_through)
                         );
 
+                        alter table bouncie_import_checkpoints
+                        add column if not exists importer_version integer not null default 1;
+
                         create index if not exists ix_bouncie_import_checkpoints_completed
                         on bouncie_import_checkpoints (completed_at desc);
+
+                        create table if not exists bouncie_source_snapshots (
+                            source_type text not null,
+                            source_key text not null,
+                            payload jsonb not null,
+                            observed_at timestamptz not null default now(),
+                            primary key (source_type, source_key)
+                        );
 
                         create table if not exists trip_route_points (
                             trip_id uuid not null references trips(id) on delete cascade,
@@ -2469,6 +2487,14 @@ public sealed record ImportTripItemRequest
     public string? StartLabel { get; init; }
 
     public string? EndLabel { get; init; }
+
+    public double? StartLatitude { get; init; }
+
+    public double? StartLongitude { get; init; }
+
+    public double? EndLatitude { get; init; }
+
+    public double? EndLongitude { get; init; }
 
     public string? Notes { get; init; }
 }

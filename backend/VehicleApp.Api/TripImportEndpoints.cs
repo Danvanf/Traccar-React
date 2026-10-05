@@ -129,6 +129,23 @@ public static class TripImportEndpoints
                         return TypedResults.Problem(statusCode: StatusCodes.Status409Conflict,
                             title: "Trip import conflicts with saved history",
                             detail: "The trip overlaps saved history and could not be identified safely.");
+                    if (trip.StartLatitude.HasValue || trip.StartLongitude.HasValue || trip.EndLatitude.HasValue || trip.EndLongitude.HasValue)
+                    {
+                        await using var enrich = new NpgsqlCommand("""
+                            update trips
+                            set start_latitude = coalesce(start_latitude, @startLatitude),
+                                start_longitude = coalesce(start_longitude, @startLongitude),
+                                end_latitude = coalesce(end_latitude, @endLatitude),
+                                end_longitude = coalesce(end_longitude, @endLongitude)
+                            where id = @tripId
+                            """, connection, tx);
+                        enrich.Parameters.AddWithValue("tripId", saved.Id);
+                        enrich.Parameters.AddWithValue("startLatitude", (object?)trip.StartLatitude ?? DBNull.Value);
+                        enrich.Parameters.AddWithValue("startLongitude", (object?)trip.StartLongitude ?? DBNull.Value);
+                        enrich.Parameters.AddWithValue("endLatitude", (object?)trip.EndLatitude ?? DBNull.Value);
+                        enrich.Parameters.AddWithValue("endLongitude", (object?)trip.EndLongitude ?? DBNull.Value);
+                        await enrich.ExecuteNonQueryAsync(cancellationToken);
+                    }
                     results.Add(new(saved.Id, saved.VehicleId, saved.StartedAt, saved.EndedAt, "existing"));
                     skipped++;
                     continue; // Never overwrite metrics, notes, tags, or legacy source IDs on replay.
@@ -192,6 +209,10 @@ public static class TripImportEndpoints
                       end_traccar_position_id,
                       start_label,
                       end_label,
+                      start_latitude,
+                      start_longitude,
+                      end_latitude,
+                      end_longitude,
                       notes,
                       derivation_version
                     ) values (
@@ -210,6 +231,10 @@ public static class TripImportEndpoints
                       @endTraccarPositionId,
                       @startLabel,
                       @endLabel,
+                      @startLatitude,
+                      @startLongitude,
+                      @endLatitude,
+                      @endLongitude,
                       @notes,
                       @derivationVersion
                     )
@@ -231,6 +256,10 @@ public static class TripImportEndpoints
                 insertCommand.Parameters.AddWithValue("endTraccarPositionId", (object?)trip.EndTraccarPositionId ?? DBNull.Value);
                 insertCommand.Parameters.AddWithValue("startLabel", (object?)trip.StartLabel ?? DBNull.Value);
                 insertCommand.Parameters.AddWithValue("endLabel", (object?)trip.EndLabel ?? DBNull.Value);
+                insertCommand.Parameters.AddWithValue("startLatitude", (object?)trip.StartLatitude ?? DBNull.Value);
+                insertCommand.Parameters.AddWithValue("startLongitude", (object?)trip.StartLongitude ?? DBNull.Value);
+                insertCommand.Parameters.AddWithValue("endLatitude", (object?)trip.EndLatitude ?? DBNull.Value);
+                insertCommand.Parameters.AddWithValue("endLongitude", (object?)trip.EndLongitude ?? DBNull.Value);
                 insertCommand.Parameters.AddWithValue("notes", (object?)trip.Notes ?? DBNull.Value);
                 insertCommand.Parameters.AddWithValue("derivationVersion", (object?)request.DerivationVersion ?? DBNull.Value);
 

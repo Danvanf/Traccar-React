@@ -260,6 +260,17 @@ export async function beginBouncieAuthorization(baseUrl, request) {
   return response.json()
 }
 
+export async function beginStoredBouncieAuthorization(baseUrl) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/integrations/bouncie/reauthorize`
+  const response = await vehicleFetch(url, {
+    method: 'POST',
+    headers: { Accept: 'application/json' },
+  })
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API Bouncie reauthorization could not start', url)
+  return response.json()
+}
+
 export async function startBouncieImport(baseUrl, { from, through }) {
   const base = normalizeVehicleApiBase(baseUrl)
   const url = `${base}/api/integrations/bouncie/import`
@@ -760,6 +771,161 @@ export async function fetchVehicleStats(baseUrl, vehicleId, { from, to, groupBy 
   const url = `${base}/api/vehicles/${encodeURIComponent(vehicleId)}/stats?${params}`
   const response = await vehicleFetch(url)
   if (!response.ok) throw await toResponseError(response, 'Vehicle API statistics lookup failed', url)
+  return response.json()
+}
+
+export async function fetchUsageSummaryReport(baseUrl, { from, to, groupBy = 'trip', vehicleId, tagId, format, timeZone, units = 'imperial' } = {}) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const params = new URLSearchParams({ groupBy })
+  if (from) params.set('from', new Date(from).toISOString())
+  if (to) {
+    const end = /^\d{4}-\d{2}-\d{2}$/.test(to) ? `${to}T23:59:59.999` : to
+    params.set('to', new Date(end).toISOString())
+  }
+  if (vehicleId) params.set('vehicleId', vehicleId)
+  if (tagId) params.set('tagId', tagId)
+  if (format) params.set('format', format)
+  if (timeZone) params.set('timeZone', timeZone)
+  if (units) params.set('units', units)
+  const url = `${base}/api/reports/usage-summary?${params}`
+  const response = await vehicleFetch(url)
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API usage report failed', url)
+  return format === 'csv' ? response.blob() : response.json()
+}
+
+export async function fetchTripLogReport(baseUrl, options = {}) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const { from, to, vehicleId, tagId, format, timeZone, units = 'imperial' } = options
+  const params = new URLSearchParams()
+  if (from) params.set('from', new Date(from).toISOString())
+  if (to) {
+    const end = /^\d{4}-\d{2}-\d{2}$/.test(to) ? `${to}T23:59:59.999` : to
+    params.set('to', new Date(end).toISOString())
+  }
+  if (vehicleId) params.set('vehicleId', vehicleId)
+  if (tagId) params.set('tagId', tagId)
+  if (format) params.set('format', format)
+  if (timeZone) params.set('timeZone', timeZone)
+  if (units) params.set('units', units)
+  const url = `${base}/api/reports/trip-log?${params}`
+  const response = await vehicleFetch(url)
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API trip log failed', url)
+  return format === 'csv' ? response.blob() : response.json()
+}
+
+export async function fetchMonthlySummaryReport(baseUrl, options = {}) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const { from, to, vehicleId, tagId, format, timeZone, units = 'imperial' } = options
+  const params = new URLSearchParams()
+  if (from) params.set('from', new Date(from).toISOString())
+  if (to) {
+    const end = /^\d{4}-\d{2}-\d{2}$/.test(to) ? `${to}T23:59:59.999` : to
+    params.set('to', new Date(end).toISOString())
+  }
+  if (vehicleId) params.set('vehicleId', vehicleId)
+  if (tagId) params.set('tagId', tagId)
+  if (format) params.set('format', format)
+  if (timeZone) params.set('timeZone', timeZone)
+  if (units) params.set('units', units)
+  const url = `${base}/api/reports/monthly-summary?${params}`
+  const response = await vehicleFetch(url)
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API monthly summary failed', url)
+  return format === 'csv' ? response.blob() : response.json()
+}
+
+export async function fetchPlaceReport(baseUrl, options = {}) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const { from, to, vehicleId, tagId, format, units = 'imperial' } = options
+  const params = new URLSearchParams()
+  if (from) params.set('from', new Date(from).toISOString())
+  if (to) {
+    const end = /^\d{4}-\d{2}-\d{2}$/.test(to) ? `${to}T23:59:59.999` : to
+    params.set('to', new Date(end).toISOString())
+  }
+  if (vehicleId) params.set('vehicleId', vehicleId)
+  if (tagId) params.set('tagId', tagId)
+  if (format) params.set('format', format)
+  if (units) params.set('units', units)
+  const url = `${base}/api/reports/places?${params}`
+  const response = await vehicleFetch(url)
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API place report failed', url)
+  return format === 'csv' ? response.blob() : response.json()
+}
+
+export async function fetchDataCompletenessReport(baseUrl, options = {}) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const { from, to, vehicleId, tagId, format } = options
+  const params = new URLSearchParams()
+  if (from) params.set('from', new Date(from).toISOString())
+  if (to) {
+    const end = /^\d{4}-\d{2}-\d{2}$/.test(to) ? `${to}T23:59:59.999` : to
+    params.set('to', new Date(end).toISOString())
+  }
+  if (vehicleId) params.set('vehicleId', vehicleId)
+  if (tagId) params.set('tagId', tagId)
+  if (format) params.set('format', format)
+  const url = `${base}/api/reports/data-completeness?${params}`
+  const response = await vehicleFetch(url)
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API data completeness report failed', url)
+  return format === 'csv' ? response.blob() : response.json()
+}
+
+export async function fetchEventReport(baseUrl, options = {}) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const { from, to, vehicleId, tagId, format } = options
+  const params = new URLSearchParams()
+  if (from) params.set('from', new Date(from).toISOString())
+  if (to) { const end = /^\d{4}-\d{2}-\d{2}$/.test(to) ? `${to}T23:59:59.999` : to; params.set('to', new Date(end).toISOString()) }
+  if (vehicleId) params.set('vehicleId', vehicleId)
+  if (tagId) params.set('tagId', tagId)
+  if (format) params.set('format', format)
+  const url = `${base}/api/reports/events?${params}`
+  const response = await vehicleFetch(url)
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API events report failed', url)
+  return format === 'csv' ? response.blob() : response.json()
+}
+
+export async function fetchUtilizationReport(baseUrl, options = {}) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const { from, to, vehicleId, tagId, format, timeZone, groupBy = 'day', units = 'imperial' } = options
+  const params = new URLSearchParams()
+  if (from) params.set('from', new Date(from).toISOString())
+  if (to) { const end = /^\d{4}-\d{2}-\d{2}$/.test(to) ? `${to}T23:59:59.999` : to; params.set('to', new Date(end).toISOString()) }
+  if (vehicleId) params.set('vehicleId', vehicleId)
+  if (tagId) params.set('tagId', tagId)
+  if (format) params.set('format', format)
+  if (timeZone) params.set('timeZone', timeZone)
+  if (groupBy) params.set('groupBy', groupBy)
+  if (units) params.set('units', units)
+  const url = `${base}/api/reports/utilization?${params}`
+  const response = await vehicleFetch(url)
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API utilization report failed', url)
+  return format === 'csv' ? response.blob() : response.json()
+}
+
+export async function fetchBusinessMileageReport(baseUrl, options = {}) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const { from, to, vehicleId, tagId, format, units = 'imperial' } = options
+  const params = new URLSearchParams()
+  if (from) params.set('from', new Date(from).toISOString())
+  if (to) { const end = /^\d{4}-\d{2}-\d{2}$/.test(to) ? `${to}T23:59:59.999` : to; params.set('to', new Date(end).toISOString()) }
+  if (vehicleId) params.set('vehicleId', vehicleId)
+  if (tagId) params.set('tagId', tagId)
+  if (format) params.set('format', format)
+  if (units) params.set('units', units)
+  const url = `${base}/api/reports/business-mileage?${params}`
+  const response = await vehicleFetch(url)
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API business mileage report failed', url)
+  return format === 'csv' ? response.blob() : response.json()
+}
+
+export async function fetchSpeedBandReport(baseUrl, { from, to, vehicleId, tagId } = {}) {
+  const base = normalizeVehicleApiBase(baseUrl); const params = new URLSearchParams()
+  if (from) params.set('from', new Date(from).toISOString())
+  if (to) { const end = /^\d{4}-\d{2}-\d{2}$/.test(to) ? `${to}T23:59:59.999` : to; params.set('to', new Date(end).toISOString()) }
+  if (vehicleId) params.set('vehicleId', vehicleId); if (tagId) params.set('tagId', tagId)
+  const url = `${base}/api/reports/speed-bands?${params}`; const response = await vehicleFetch(url, { cache: 'no-store' })
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API speed bands report failed', url)
   return response.json()
 }
 

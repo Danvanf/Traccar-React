@@ -47,30 +47,48 @@ public static class BouncieRestEndpoints
         })
         .WithName("BeginBouncieAuthorization");
 
+        app.MapPost("/api/integrations/bouncie/reauthorize", async (BouncieRestService service, CancellationToken cancellationToken) =>
+        {
+            try
+            {
+                return Results.Ok(await service.BeginStoredAuthorizationAsync(cancellationToken));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status409Conflict, title: "Bouncie reauthorization could not start.");
+            }
+        })
+        .WithName("BeginStoredBouncieAuthorization");
+
         app.MapGet("/signin-bouncie", async (string? code, string? state, string? error, string? error_description, BouncieRestService service, CancellationToken cancellationToken) =>
         {
-            static IResult Page(string title, string message, bool close = false)
+            static IResult Page(string title, string message, bool close = false, bool? connected = null)
             {
                 var safeTitle = System.Net.WebUtility.HtmlEncode(title);
                 var safeMessage = System.Net.WebUtility.HtmlEncode(message);
-                var closeScript = close ? "<script>window.opener?.postMessage({type:'bouncie-oauth-complete'}, '*'); window.close();</script>" : "";
-                return Results.Content($"<!doctype html><html><head><meta charset='utf-8'><title>{safeTitle}</title></head><body style='font-family:system-ui;padding:2rem'><h1>{safeTitle}</h1><p>{safeMessage}</p>{closeScript}</body></html>", "text/html");
+                var notification = connected.HasValue
+                    ? System.Text.Json.JsonSerializer.Serialize(new { type = "bouncie-oauth-complete", connected, message })
+                    : "null";
+                var callbackScript = connected.HasValue
+                    ? $"<script>window.opener?.postMessage({notification}, '*');{(close ? "window.close();" : "")}</script>"
+                    : "";
+                return Results.Content($"<!doctype html><html><head><meta charset='utf-8'><title>{safeTitle}</title></head><body style='font-family:system-ui;padding:2rem'><h1>{safeTitle}</h1><p>{safeMessage}</p>{callbackScript}</body></html>", "text/html");
             }
             if (!string.IsNullOrWhiteSpace(error))
             {
                 var message = string.IsNullOrWhiteSpace(error_description) ? error : $"{error}: {error_description}";
                 service.RecordConnectionFailure($"Bouncie authorization was declined: {message}");
-                return Page("Bouncie authorization not completed", message);
+                return Page("Bouncie authorization not completed", message, connected: false);
             }
             try
             {
                 await service.CompleteAuthorizationAsync(state ?? "", code ?? "", cancellationToken);
-                return Page("Bouncie connected", "You can close this window and return to Traccar React.", true);
+                return Page("Bouncie connected", "You can close this window and return to Traccar React.", close: true, connected: true);
             }
             catch (Exception ex)
             {
                 service.RecordConnectionFailure(ex.Message);
-                return Page("Bouncie connection failed", ex.Message);
+                return Page("Bouncie connection failed", ex.Message, connected: false);
             }
         })
         .WithName("BouncieAuthorizationCallback");

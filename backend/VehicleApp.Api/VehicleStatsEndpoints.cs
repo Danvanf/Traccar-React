@@ -12,20 +12,30 @@ public static class VehicleStatsEndpoints
             // Group trips by identity, but return their start timestamp for display.
             var groupingBucket = grouping == "trip" ? "t.id" : $"date_trunc('{grouping}', t.started_at)";
             var periodExpression = grouping == "trip" ? "t.started_at" : groupingBucket;
+            var groupingClause = grouping == "trip" ? "t.id, t.started_at" : groupingBucket;
             await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
             await using var command = new NpgsqlCommand($"""
+                with filtered_trips as (
+                    select t.*
+                    from trips t
+                    where t.vehicle_id = @vehicleId and t.started_at >= @from and t.started_at <= @to
+                      and (not @authEnabled or @isAdmin or exists (select 1 from app_user_vehicle_access ua join app_users u on u.id = ua.user_id where ua.vehicle_id = t.vehicle_id and u.username = @username and u.active) or exists (select 1 from app_group_vehicle_access ga join app_group_memberships gm on gm.group_id = ga.group_id join app_users u on u.id = gm.user_id where ga.vehicle_id = t.vehicle_id and u.username = @username and u.active))
+                      and (cast(@tagId as uuid) is null or exists (select 1 from trip_tag_map tm where tm.trip_id = t.id and tm.tag_id = cast(@tagId as uuid)))
+                ), event_counts as (
+                    select e.trip_id, count(*)::int as event_count
+                    from trip_events e
+                    join filtered_trips ft on ft.id = e.trip_id
+                    group by e.trip_id
+                )
                 select {periodExpression} as period, count(*)::int as trip_count,
                        coalesce(sum(t.distance_meters), 0)::double precision as distance_meters,
                        coalesce(sum(t.duration_seconds), 0)::bigint as duration_seconds,
                        coalesce(avg(t.distance_meters), 0)::double precision as average_distance_meters,
                        coalesce(avg(t.duration_seconds), 0)::double precision as average_duration_seconds,
-                       coalesce(max(t.max_speed_mph), 0)::double precision as max_speed_mph,
-                       count(e.id)::int as event_count
-                from trips t left join trip_events e on e.trip_id = t.id
-                where t.vehicle_id = @vehicleId and t.started_at >= @from and t.started_at <= @to
-                  and (not @authEnabled or @isAdmin or exists (select 1 from app_user_vehicle_access ua join app_users u on u.id = ua.user_id where ua.vehicle_id = t.vehicle_id and u.username = @username and u.active) or exists (select 1 from app_group_vehicle_access ga join app_group_memberships gm on gm.group_id = ga.group_id join app_users u on u.id = gm.user_id where ga.vehicle_id = t.vehicle_id and u.username = @username and u.active))
-                  and (cast(@tagId as uuid) is null or exists (select 1 from trip_tag_map tm where tm.trip_id = t.id and tm.tag_id = cast(@tagId as uuid)))
-                group by {groupingBucket} order by period desc
+                       max(t.max_speed_mph)::double precision as max_speed_mph,
+                       coalesce(sum(ec.event_count), 0)::int as event_count
+                from filtered_trips t left join event_counts ec on ec.trip_id = t.id
+                group by {groupingClause} order by period desc
                 """, connection);
             command.Parameters.AddWithValue("vehicleId", vehicleId);
             command.Parameters.AddWithValue("from", start.UtcDateTime);
@@ -36,7 +46,7 @@ public static class VehicleStatsEndpoints
             command.Parameters.AddWithValue("username", context.User.Identity?.Name ?? string.Empty);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             var rows = new List<object>();
-            while (await reader.ReadAsync(cancellationToken)) rows.Add(new { period = reader.GetValue(0), tripCount = reader.GetInt32(1), distanceMeters = reader.GetDouble(2), durationSeconds = reader.GetInt64(3), averageDistanceMeters = reader.GetDouble(4), averageDurationSeconds = reader.GetDouble(5), maxSpeedMph = reader.GetDouble(6), eventCount = reader.GetInt32(7) });
+            while (await reader.ReadAsync(cancellationToken)) rows.Add(new { period = reader.GetValue(0), tripCount = reader.GetInt32(1), distanceMeters = reader.GetDouble(2), durationSeconds = reader.GetInt64(3), averageDistanceMeters = reader.GetDouble(4), averageDurationSeconds = reader.GetDouble(5), maxSpeedMph = reader.IsDBNull(6) ? (double?)null : reader.GetDouble(6), eventCount = reader.GetInt32(7) });
             return Results.Ok(new { vehicleId, from = start, to = end, groupBy = grouping, rows });
         });
     }

@@ -57,6 +57,7 @@ import {
   fetchBouncieStatus,
   fetchBouncieBackfillCoverage,
   beginBouncieAuthorization,
+  beginStoredBouncieAuthorization,
   startBouncieImport,
   cancelBouncieImport,
   forgetBouncieCredentials,
@@ -80,6 +81,8 @@ import {
 } from './lib/vehicleAppApi'
 
 const MAX_INT32 = 2147483647
+const METERS_PER_YARD = 0.9144
+const YARDS_PER_METER = 1 / METERS_PER_YARD
 const MAP_CONTENT_SHIFT_PX = 50
 
 function fitBoundsWithPanelOffset(map, bounds, padding) {
@@ -558,7 +561,7 @@ function App() {
   const [placeEditId, setPlaceEditId] = useState(null)
   const [placeLatitude, setPlaceLatitude] = useState('')
   const [placeLongitude, setPlaceLongitude] = useState('')
-  const [placeRadiusMeters, setPlaceRadiusMeters] = useState('75')
+  const [placeRadiusYards, setPlaceRadiusYards] = useState('75')
   const [placeNotes, setPlaceNotes] = useState('')
   const [tagVehicleId, setTagVehicleId] = useState(null)
   const [tagName, setTagName] = useState('')
@@ -697,11 +700,13 @@ function App() {
     const popup = window.open('', 'bouncie-oauth', 'popup,width=640,height=760')
     setBouncieBusy(true)
     try {
-      const authorization = await beginBouncieAuthorization(settings.vehicleApiBaseUrl, {
-        clientId: bouncieClientId,
-        clientSecret: bouncieClientSecret,
-        redirectUri: bouncieRedirectUri,
-      })
+      const authorization = bouncieStatus?.storedCredentials && !bouncieClientSecret
+        ? await beginStoredBouncieAuthorization(settings.vehicleApiBaseUrl)
+        : await beginBouncieAuthorization(settings.vehicleApiBaseUrl, {
+          clientId: bouncieClientId,
+          clientSecret: bouncieClientSecret,
+          redirectUri: bouncieRedirectUri,
+        })
       setBouncieAuthorizationUrl(authorization.authorizationUrl || '')
       if (popup && authorization.authorizationUrl) popup.location = authorization.authorizationUrl
       else if (!popup) setBouncieStatus((current) => ({ ...current, import: { ...current.import, state: 'running', message: 'Authorization URL ready below. Open it to connect Bouncie.' } }))
@@ -712,7 +717,29 @@ function App() {
     } finally {
       setBouncieBusy(false)
     }
-  }, [bouncieClientId, bouncieClientSecret, bouncieRedirectUri, settings.vehicleApiBaseUrl])
+  }, [bouncieClientId, bouncieClientSecret, bouncieRedirectUri, bouncieStatus?.storedCredentials, settings.vehicleApiBaseUrl])
+
+  useEffect(() => {
+    const handleBouncieAuthorizationComplete = (event) => {
+      if (event?.data?.type !== 'bouncie-oauth-complete') return
+      setBouncieAuthorizationUrl('')
+      if (event.data.connected === false) {
+        setBouncieStatus((current) => ({
+          ...current,
+          import: {
+            ...current.import,
+            state: 'failed',
+            message: event.data.message || 'Bouncie authorization did not complete.',
+          },
+        }))
+        return
+      }
+      refreshBouncieStatus()
+    }
+
+    window.addEventListener('message', handleBouncieAuthorizationComplete)
+    return () => window.removeEventListener('message', handleBouncieAuthorizationComplete)
+  }, [refreshBouncieStatus])
 
   const startBouncieSync = useCallback(async () => {
     setBouncieBusy(true)
@@ -1297,7 +1324,7 @@ function App() {
 
       const notesBlock = place.notes ? `<br/>${place.notes}` : ''
       circle.bindPopup(
-        `<strong>${place.name}</strong><br/>${vehicleName}<br/>Radius: ${radiusMeters}m${notesBlock}`,
+        `<strong>${place.name}</strong><br/>${vehicleName}<br/>Radius: ${Math.round(radiusMeters * YARDS_PER_METER)} yd${notesBlock}`,
       )
       circle.addTo(placeLayer)
     })
@@ -1862,7 +1889,7 @@ function App() {
   const saveNamedPlace = useCallback(async () => {
     const latitude = Number(placeLatitude)
     const longitude = Number(placeLongitude)
-    const radius = Number(placeRadiusMeters)
+    const radiusYards = Number(placeRadiusYards)
 
     if (!placeName.trim()) {
       setEnrichmentStatus('Named place requires a name.')
@@ -1874,13 +1901,13 @@ function App() {
       return
     }
 
-    if (!Number.isFinite(radius) || radius <= 0) {
+    if (!Number.isFinite(radiusYards) || radiusYards <= 0) {
       setEnrichmentStatus('Named place radius must be a positive number.')
       return
     }
 
     try {
-      const radiusMeters = Math.max(1, Math.round(radius))
+      const radiusMeters = Math.max(1, Math.round(radiusYards * METERS_PER_YARD))
 
       await upsertNamedPlace(settings.vehicleApiBaseUrl, {
         id: placeEditId,
@@ -1894,7 +1921,7 @@ function App() {
 
       const places = await fetchNamedPlaces(settings.vehicleApiBaseUrl)
       setNamedPlaces(places)
-      const roundingNote = radius < 1 ? ' Radius values below 1m are saved as 1m.' : ''
+      const roundingNote = radiusYards * METERS_PER_YARD < 1 ? ' Radius values below 1 yard are saved as 1 meter.' : ''
       const actionLabel = placeEditId ? 'Updated' : 'Saved'
       setEnrichmentStatus(`${actionLabel} named place ${placeName.trim()}. Named places total: ${places.length}.${roundingNote}`)
       setPlaceEditId(null)
@@ -1902,12 +1929,12 @@ function App() {
       setPlaceName('')
       setPlaceLatitude('')
       setPlaceLongitude('')
-      setPlaceRadiusMeters('75')
+      setPlaceRadiusYards('75')
       setPlaceNotes('')
     } catch (err) {
       setEnrichmentStatus(err instanceof Error ? err.message : 'Failed to save named place.')
     }
-  }, [placeEditId, placeLatitude, placeLongitude, placeName, placeNotes, placeRadiusMeters, placeVehicleId, settings.vehicleApiBaseUrl])
+  }, [placeEditId, placeLatitude, placeLongitude, placeName, placeNotes, placeRadiusYards, placeVehicleId, settings.vehicleApiBaseUrl])
 
   const beginEditNamedPlace = useCallback((place) => {
     if (!place?.id) {
@@ -1919,7 +1946,7 @@ function App() {
     setPlaceName(place.name || '')
     setPlaceLatitude(String(place.latitude ?? ''))
     setPlaceLongitude(String(place.longitude ?? ''))
-    setPlaceRadiusMeters(String(place.radiusMeters ?? 75))
+    setPlaceRadiusYards(String(Math.round((Number(place.radiusMeters) || METERS_PER_YARD * 75) * YARDS_PER_METER)))
     setPlaceNotes(place.notes || '')
     setEnrichmentStatus(`Editing named place ${place.name}. Update fields and click Save Named Place.`)
   }, [])
@@ -1930,7 +1957,7 @@ function App() {
     setPlaceName('')
     setPlaceLatitude('')
     setPlaceLongitude('')
-    setPlaceRadiusMeters('75')
+    setPlaceRadiusYards('75')
     setPlaceNotes('')
     setEnrichmentStatus('Named place edit canceled.')
   }, [])
@@ -2305,6 +2332,10 @@ function App() {
           endTraccarPositionId: trip.endTraccarPositionId,
           startLabel: labelForNamedPlace(trip.startLatitude, trip.startLongitude, namedPlaces, device.appVehicleId),
           endLabel: labelForNamedPlace(trip.endLatitude, trip.endLongitude, namedPlaces, device.appVehicleId),
+          startLatitude: trip.startLatitude ?? null,
+          startLongitude: trip.startLongitude ?? null,
+          endLatitude: trip.endLatitude ?? null,
+          endLongitude: trip.endLongitude ?? null,
           startedAt: trip.start.toISOString(),
           endedAt: trip.end.toISOString(),
           durationSeconds: Math.max(1, Math.round((trip.end - trip.start) / 1000)),
@@ -2564,6 +2595,10 @@ function App() {
               endTraccarPositionId: endPositionId,
               startLabel: labelForNamedPlace(trip.startLatitude, trip.startLongitude, namedPlaces, vehicleId),
               endLabel: labelForNamedPlace(trip.endLatitude, trip.endLongitude, namedPlaces, vehicleId),
+              startLatitude: trip.startLatitude ?? null,
+              startLongitude: trip.startLongitude ?? null,
+              endLatitude: trip.endLatitude ?? null,
+              endLongitude: trip.endLongitude ?? null,
               startedAt: trip.start.toISOString(),
               endedAt: trip.end.toISOString(),
               durationSeconds: Math.max(1, Math.round((trip.end - trip.start) / 1000)),
@@ -3389,7 +3424,7 @@ function App() {
           profile={statusDevice ? profileMap[deviceProfileById[statusDevice.id] || DEFAULT_PROFILE_ID] : null}
           cardFields={statusCardFieldsByVehicle[statusVehicleId] || DEFAULT_STATUS_CARD_FIELDS}
         />
-        <VehicleStatsPanel baseUrl={settings.vehicleApiBaseUrl} vehicleId={statusVehicleId || null} />
+        <VehicleStatsPanel baseUrl={settings.vehicleApiBaseUrl} vehicleId={statusVehicleId || null} traccarApi={apiFetch} />
         <div ref={mapElementRef} className="map-canvas" />
         <div
           className="speed-band-key"
@@ -3480,8 +3515,8 @@ function App() {
           setPlaceLatitude={setPlaceLatitude}
           placeLongitude={placeLongitude}
           setPlaceLongitude={setPlaceLongitude}
-          placeRadiusMeters={placeRadiusMeters}
-          setPlaceRadiusMeters={setPlaceRadiusMeters}
+          placeRadiusYards={placeRadiusYards}
+          setPlaceRadiusYards={setPlaceRadiusYards}
           placeNotes={placeNotes}
           setPlaceNotes={setPlaceNotes}
           saveNamedPlace={saveNamedPlace}

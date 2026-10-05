@@ -132,6 +132,9 @@ export const DEFAULT_PROFILE_DEFINITIONS = {
     name: 'Teltonika FM / OBD2 standard mapping',
     attributeMap: {
       battery: { label: 'Tracker Battery Voltage', units: 'V' },
+      axisX: { label: 'Accelerometer X-axis', units: 'mg' },
+      axisY: { label: 'Accelerometer Y-axis', units: 'mg' },
+      axisZ: { label: 'Accelerometer Z-axis', units: 'mg' },
       bleTemp1: { label: 'BLE Temperature #1', avlId: 25, units: 'degF', sentinelValues: [327.67], conversion: 'cToF' },
       distance: { label: 'Segment Distance', units: 'mi', conversion: 'metersToMiles' },
       event: { label: 'Event / Rule ID' },

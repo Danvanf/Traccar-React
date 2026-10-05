@@ -79,8 +79,8 @@ function SettingsModal({
   setPlaceLatitude,
   placeLongitude,
   setPlaceLongitude,
-  placeRadiusMeters,
-  setPlaceRadiusMeters,
+  placeRadiusYards,
+  setPlaceRadiusYards,
   placeNotes,
   setPlaceNotes,
   saveNamedPlace,
@@ -537,13 +537,13 @@ function SettingsModal({
             </div>
 
             <label>
-              Radius (m)
-              <input type="number" min="1" step="1" value={placeRadiusMeters} onChange={(event) => setPlaceRadiusMeters(event.target.value)} />
+              Radius (yards)
+              <input type="number" min="1" step="1" value={placeRadiusYards} onChange={(event) => setPlaceRadiusYards(event.target.value)} />
             </label>
           </div>
 
           <p className="profile-editor-help">
-            Multiple named places are supported. Radius is stored in meters (minimum 1m).
+            Multiple named places are supported. Radius is entered in yards and converted to meters for map use.
           </p>
 
           {placeEditId && (
@@ -587,7 +587,7 @@ function SettingsModal({
                         <td><strong>{place.name}</strong></td>
                         <td>{scopeLabel}</td>
                         <td>{place.latitude.toFixed(5)}, {place.longitude.toFixed(5)}</td>
-                        <td>{place.radiusMeters}m</td>
+                        <td>{Math.round((Number(place.radiusMeters) || 0) * 1.093613)} yd</td>
                         <td>
                           <button type="button" className="small secondary" onClick={() => beginEditNamedPlace(place)}>
                             Edit
@@ -707,17 +707,16 @@ function SettingsModal({
           </p>
           <div className="settings-grid">
             <label>OAuth Client ID<input type="text" value={bouncieClientId} onChange={(event) => setBouncieClientId(event.target.value)} autoComplete="off" /></label>
-            <label>Client Secret<input type="password" value={bouncieClientSecret} onChange={(event) => setBouncieClientSecret(event.target.value)} autoComplete="new-password" /></label>
+            <label>Client Secret<input type="password" value={bouncieClientSecret} onChange={(event) => setBouncieClientSecret(event.target.value)} autoComplete="new-password" placeholder={!bouncieStatus?.connected && bouncieStatus?.storedCredentials ? 'Only enter if changed in Bouncie' : undefined} /></label>
             <label>Redirect URL<input type="url" value={bouncieRedirectUri} onChange={(event) => setBouncieRedirectUri(event.target.value)} /></label>
           </div>
           <div className="actions two-up">
-            <button type="button" onClick={connectBouncie} disabled={bouncieBusy || !bouncieClientId || !bouncieClientSecret || !bouncieRedirectUri}>Connect with Bouncie</button>
+            <button type="button" onClick={connectBouncie} disabled={bouncieBusy || (!bouncieStatus?.storedCredentials && (!bouncieClientId || !bouncieClientSecret || !bouncieRedirectUri))}>{bouncieStatus?.storedCredentials && !bouncieStatus?.connected ? 'Reconnect with Bouncie' : 'Connect with Bouncie'}</button>
             <span className="profile-editor-status">{bouncieStatus?.connected ? `Connected${bouncieStatus.userLabel ? ` as ${bouncieStatus.userLabel}` : ''}` : 'Not connected'}</span>
           </div>
           {bouncieAuthorizationUrl && !bouncieStatus?.connected && <p className="profile-editor-help">If the popup was blocked, <a href={bouncieAuthorizationUrl} target="_blank" rel="noreferrer">open the Bouncie authorization window</a>.</p>}
           {bouncieStatus?.connected && <p className="profile-editor-help">The client secret is intentionally blank after a successful exchange. It is stored only by the API in encrypted form. To replace the connection, use “Forget Stored Bouncie Connection” and connect again.</p>}
-          {!bouncieStatus?.connected && bouncieStatus?.storedCredentials && <p className="profile-editor-help">Encrypted Bouncie credentials are stored by the API, but the connection could not be restored. Start Connect with the client secret again; Bouncie will handle the authorization callback in the opened window.</p>}
-          {!bouncieStatus?.connected && bouncieStatus?.storedCredentials && <button type="button" className="secondary" onClick={restoreBouncieConnection} disabled={bouncieBusy}>Restore Stored Connection</button>}
+          {!bouncieStatus?.connected && bouncieStatus?.storedCredentials && <p className="profile-editor-help">Bouncie rejected the stored refresh token. Reconnect opens a fresh consent exchange using the encrypted client secret already stored by the API. Enter a secret here only after changing it in Bouncie’s developer portal.</p>}
           {!bouncieStatus?.connected && !bouncieStatus?.storedCredentials && <p className="profile-editor-help">No encrypted Bouncie connection is stored yet. Enter the real client secret and connect; the authorization code is handled by the callback window.</p>}
           {Array.isArray(bouncieStatus?.vehicles) && bouncieStatus.vehicles.length > 0 && (
             <div className="profile-editor-help">

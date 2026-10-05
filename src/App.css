@@ -639,23 +639,28 @@ h2 {
 .vehicle-status-card details { margin-top:8px; }
 .vehicle-status-card pre { max-height:120px; overflow:auto; margin:6px 0 0; font-size:9px; }
 .vehicle-status-card small { display:block; margin-top:8px; color:#6b7280; }
-.vehicle-stats-panel { position:fixed; z-index:1200; bottom:14px; right:14px; width:min(720px, calc(100vw - 28px)); border-radius:10px; background:rgba(19,33,61,.96); color:var(--panel-text); border:1px solid var(--card-border); box-shadow:0 4px 16px rgba(0,0,0,.3); transition:transform 220ms ease; will-change:transform; }
-.vehicle-stats-panel.is-collapsed { transform:translateX(calc(100% - 42px)); }
-.vehicle-stats-panel.is-open { transform:translateX(0); }
-.vehicle-stats-content { max-height:min(280px, calc(100vh - 28px)); overflow:auto; padding:10px 10px 10px 50px; box-sizing:border-box; }
-.vehicle-stats-panel.is-collapsed .vehicle-stats-content { visibility:hidden; pointer-events:none; }
-.vehicle-stats-panel.has-data .vehicle-stats-content { max-height:min(336px, calc(100vh - 28px)); }
-.vehicle-stats-drawer-toggle { position:absolute; z-index:2; left:0; top:50%; width:41px; min-width:41px; height:92px; padding:6px 4px; transform:translateY(-50%); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; border:0; border-right:1px solid var(--card-border); border-radius:9px 0 0 9px; background:#2563eb; color:#fff; cursor:pointer; }
-.vehicle-stats-drawer-toggle:hover { background:#1d4ed8; }
-.vehicle-stats-drawer-toggle svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
-.vehicle-stats-drawer-toggle span { writing-mode:vertical-rl; transform:rotate(180deg); font-size:11px; font-weight:700; letter-spacing:.05em; }
-.vehicle-stats-drawer-toggle b { font-size:18px; line-height:12px; }
-.vehicle-stats-header,.vehicle-stats-filters { display:flex; align-items:end; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
-.vehicle-stats-header { justify-content:space-between; }
-.vehicle-stats-header h3 { margin:0; }
-.vehicle-stats-header small { display:block; margin-top:3px; color:var(--muted-text); }
-.vehicle-stats-filters label:first-child { flex:1 1 180px; }
-.vehicle-stats-empty { padding:12px; text-align:center; color:var(--muted-text); }
+.vehicle-stats-launcher { position:fixed; z-index:1200; right:14px; bottom:14px; min-width:76px; height:42px; padding:6px 12px; display:flex; align-items:center; justify-content:center; gap:7px; border:1px solid #1d4ed8; border-radius:9px; background:#2563eb; color:#fff; box-shadow:0 4px 16px rgba(0,0,0,.3); cursor:pointer; font:inherit; font-weight:700; }
+.vehicle-stats-launcher:hover { background:#1d4ed8; }
+.vehicle-stats-launcher svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.report-workspace-backdrop { z-index: 2500; }
+.report-workspace { width:min(1120px, calc(100vw - 32px)); max-height:min(86vh, 860px); overflow:auto; padding:16px; border:1px solid var(--card-border); border-radius:12px; background:var(--panel-bg, #13213d); color:var(--panel-text); box-shadow:0 18px 60px rgba(0,0,0,.45); }
+.report-workspace-filters { display:flex; align-items:end; flex-wrap:wrap; gap:10px; margin:12px 0; }
+.report-workspace-filters label { display:flex; flex-direction:column; gap:4px; min-width:130px; flex:1 1 150px; }
+.report-workspace-filters label:first-child { flex:2 1 220px; }
+.report-workspace-message { margin:8px 0; padding:9px 11px; border-radius:7px; background:rgba(239,71,111,.18); color:#ffd6df; }
+.report-color-swatch { display:inline-block; width:34px; height:16px; margin-right:6px; vertical-align:middle; border:1px solid rgba(255,255,255,.45); border-radius:3px; }
+.report-workspace code { color:inherit; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; }
+.report-summary-cards { display:grid; grid-template-columns:repeat(5, minmax(110px, 1fr)); gap:8px; margin:12px 0; }
+.report-summary-cards div { display:flex; flex-direction:column; gap:2px; padding:10px; border:1px solid var(--card-border); border-radius:8px; background:rgba(255,255,255,.06); }
+.report-summary-cards strong { font-size:18px; }
+.report-summary-cards span { color:var(--muted-text); font-size:12px; }
+.report-workspace-actions { display:flex; justify-content:space-between; align-items:center; gap:8px; margin:8px 0; color:var(--muted-text); }
+.report-workspace-export-buttons { display:flex; gap:6px; }
+.report-export-label { align-self:center; color:var(--panel-text); font-size:12px; font-weight:700; margin-right:2px; }
+.report-workspace-table-wrap { overflow:auto; }
+.report-location-cell { display:block; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+a.report-location-cell { color:#9bdcff; text-decoration:underline; }
+@media (max-width:700px) { .report-summary-cards { grid-template-columns:repeat(2, 1fr); } }
 
 .map-canvas {
   flex: 1;
