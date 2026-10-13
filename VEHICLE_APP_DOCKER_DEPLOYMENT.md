@@ -110,6 +110,20 @@ openssl rand -base64 32
 
 Changing that key makes previously encrypted Bouncie credentials unreadable. Do not put this file in Git, a Docker image, or a browser setting.
 
+Device protocol diagnostics are optional tooling for profile development and support in a test environment. Production installations do not need a Traccar diagnostic account or these environment variables to run the application. When using the tool, configure `TRACCAR_BASE_URL`, `TRACCAR_USERNAME`, and `TRACCAR_PASSWORD` only on the test API host, using a read-only Traccar account. The diagnostic endpoint is loopback-only and does not require a VehicleApp browser session. Run its PowerShell helper on the API host. For development outside Docker, use the reachable Traccar host URL (for example `http://limestone:8082`) instead of `http://traccar:8082`. The endpoint returns the Traccar version, device model/category, and at most 2,000 decoded telemetry samples from a requested 24-hour window. It excludes coordinates and device identifiers. It cannot return raw tracker packets or the tracker's AVL configuration.
+
+From PowerShell on the API host, capture a sample with the script (the API process must have all three `TRACCAR_*` settings):
+
+```powershell
+./scripts/capture_device_protocol_diagnostics.ps1 `
+  -DeviceId 5 `
+  -FromUtc '2026-10-08T20:45:00Z' `
+  -ThroughUtc '2026-10-08T21:15:00Z' `
+  -OutputPath "$env:TEMP/fmm003-device-5-diagnostics.json"
+```
+
+The script calls the local VehicleApp API, which authenticates to Traccar using its server-side configuration. It prints only the sanitized capture or the output file path, never the credentials.
+
 ## 5. Create the API compose file
 
 Create `~/vehicle-app/vehicle-app.compose.yml` and replace `traccar_default` if your inspected network has a different name:
@@ -251,6 +265,10 @@ location /vehicle-api/ {
 
 If Apache is already installed and serving your host, use Apache first to keep deployment simple.
 
+### Bundle and update device profile definitions
+
+Built-in device profile JSON files live in `device-profiles/` in the repository. The React build automatically includes every JSON definition in that folder; see [`docs/DEVICE_PROTOCOL_PROFILES.md`](docs/DEVICE_PROTOCOL_PROFILES.md) for the authoring format. Include new profile JSON files in the checkout before building the frontend. Deploying the resulting frontend makes a new profile available in Vehicle Catalog without a separate API build, profile-file copy, or database migration. Existing local/shared definitions with the same ID are preserved. A profile must still be assigned to the intended vehicle.
+
 Before production Bouncie use, the callback URL must be made configurable and registered with Bouncie. The current development callback is:
 
 ```text
@@ -315,3 +333,7 @@ For first-run operations, also review:
 Continue with the full settings walkthrough in:
 
 - `docs/SETTINGS_CONFIGURATION_GUIDE.md`
+
+## Telemetry share backup coverage
+
+Telemetry share definitions and cached graph snapshots live in the `telemetry_shares`, `telemetry_share_trips`, `telemetry_share_series`, `telemetry_share_points`, and `telemetry_share_audit` tables in `vehicle_app`. Normal PostgreSQL dumps include them automatically. Restore the database before starting the API so public links can resolve their snapshots. Raw share URLs are never stored, so a restored database preserves share definitions but cannot reconstruct a link token that was not retained by its owner.

@@ -63,13 +63,14 @@ Field details:
 	- Higher values show more trail context but increase rendering load.
 
 - `Movement Threshold (m)`:
-	- Purpose: minimum movement distance used in trip derivation logic to suppress jitter/noise.
-	- Lower values create more short trips from small movements/GPS drift.
-	- Higher values reduce false starts but may merge or skip very short trips.
+	- Purpose: minimum GPS segment distance used for route distance and as a fallback trip boundary when usable ignition data is absent.
+	- When at least two ignition readings are present and one is `on`, trips start at an ignition-on point and end at the first ignition-off point. GPS gaps and brief stops do not split an ignition-backed trip.
+	- Without enough ignition readings, the app falls back to movement segments and joins activity across gaps of up to 10 minutes.
+	- Higher values suppress more GPS jitter from route-distance totals and fallback trip detection.
 	- Typical starting value: `20` meters.
 	- Tuning guidance:
-		- many tiny stop/start trips: increase threshold.
-		- missing short real trips: decrease threshold.
+		- noisy GPS routes or fallback trips: increase threshold.
+		- missing short fallback trips: decrease threshold.
 
 - `Theme`:
 	- Purpose: UI appearance (`Auto`, `Light`, `Dark`).

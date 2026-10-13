@@ -9,6 +9,8 @@ export function formatDuration(ms) {
   return `${totalSec}s`
 }
 
-export function formatDistance(meters) {
-  return `${Math.round((Number(meters) || 0) / 1609.344)} mi`
+export function formatDistance(meters, unitSystem = 'imperial') {
+  return unitSystem === 'metric'
+    ? `${Math.round((Number(meters) || 0) / 1000)} km`
+    : `${Math.round((Number(meters) || 0) / 1609.344)} mi`
 }

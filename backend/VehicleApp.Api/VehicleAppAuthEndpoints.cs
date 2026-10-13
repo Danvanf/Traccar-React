@@ -3,9 +3,17 @@ using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 
-public sealed record VehicleAppAuthOptions(string? Username, string? Password)
+public sealed record VehicleAppAuthOptions(string? Username, string? Password, bool AllowUnauthenticatedDevelopment = false)
 {
-    public bool Enabled => !string.IsNullOrWhiteSpace(Username) && !string.IsNullOrEmpty(Password);
+    // User authentication is backed by app_users. Server environment credentials are
+    // optional bootstrap credentials, not a switch that turns user login on or off.
+    public bool Enabled => true;
+
+    public bool IsDevelopmentBypass(HttpContext context) =>
+        AllowUnauthenticatedDevelopment
+        && context.Connection.RemoteIpAddress is { } remoteIp
+        && (System.Net.IPAddress.IsLoopback(remoteIp)
+            || (remoteIp.IsIPv4MappedToIPv6 && System.Net.IPAddress.IsLoopback(remoteIp.MapToIPv4())));
 }
 
 public static class VehicleAppAuthEndpoints
@@ -42,8 +50,7 @@ public static class VehicleAppAuthEndpoints
             }
 
             var databaseMatches = databaseHash is not null && PasswordHashing.Verify(request.Password ?? string.Empty, databaseHash);
-            var environmentMatches = SecureEquals(request.Username, options.Username) && SecureEquals(request.Password, options.Password);
-            if (!databaseMatches && !environmentMatches)
+            if (!databaseMatches)
                 return Results.Unauthorized();
 
             role ??= "admin";
@@ -51,7 +58,7 @@ public static class VehicleAppAuthEndpoints
             var identity = new ClaimsIdentity(
                 new[]
                 {
-                    new Claim(ClaimTypes.Name, options.Username!),
+                    new Claim(ClaimTypes.Name, request.Username!),
                     new Claim(ClaimTypes.Role, role)
                 },
                 CookieAuthenticationDefaults.AuthenticationScheme);

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import PanelResizeHandle from './PanelResizeHandle'
 
 function monthLabel(dayKey) {
   const date = new Date(`${dayKey}T12:00:00`)
@@ -25,10 +26,46 @@ function HistoryNavigator({
   refreshHistory,
   loadMonth,
   onReportDays,
+  showTripsButton = false,
+  onShowTrips,
+  displayUnits = 'imperial',
+  floating = false,
+  referenceRef,
+  onFloat,
+  height,
+  onHeightChange,
+  onHeightCommit,
 }) {
+  const panelRef = useRef(null)
+  const setPanelElement = useCallback((node) => {
+    panelRef.current = node
+    referenceRef?.(node)
+  }, [referenceRef])
+  const resizeCallbacksRef = useRef({ height, onHeightChange, onHeightCommit })
+  resizeCallbacksRef.current = { height, onHeightChange, onHeightCommit }
   const [selectionMode, setSelectionMode] = useState(false)
   const [expandedYears, setExpandedYears] = useState({})
   const [expandedMonths, setExpandedMonths] = useState({})
+
+  useEffect(() => {
+    const node = panelRef.current
+    if (floating || !node || typeof ResizeObserver === 'undefined') return undefined
+    let timer
+    let lastHeight = resizeCallbacksRef.current.height
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0]
+      const borderBox = Array.isArray(entry?.borderBoxSize) ? entry.borderBoxSize[0] : entry?.borderBoxSize
+      const nextHeight = Math.round(borderBox?.blockSize || entry?.contentRect.height || 0)
+      if (nextHeight < 1 || nextHeight === lastHeight) return
+      lastHeight = nextHeight
+      resizeCallbacksRef.current.onHeightChange?.(nextHeight)
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => resizeCallbacksRef.current.onHeightCommit?.(lastHeight), 300)
+    })
+    observer.observe(node)
+    return () => { observer.disconnect(); window.clearTimeout(timer) }
+  }, [floating])
+  const panelStyle = floating ? { height: '100%', minHeight: 0, maxHeight: 'none', resize: 'none' } : (height ? { height: `${height}px` } : undefined)
 
   const dayGroups = useMemo(() => daySummaries.reduce((months, day) => {
     const month = day.dayKey.slice(0, 7)
@@ -97,7 +134,7 @@ function HistoryNavigator({
   }, [effectiveMonthKeys, yearGroups])
 
   if (effectiveMonthKeys.length === 0) {
-    return <section className="history-navigator"><div className="history-navigator-header"><h2>History</h2><button type="button" className="small secondary" onClick={refreshHistory}>Refresh</button></div><div className="history-empty">No activity in the current history window.</div></section>
+    return <section ref={setPanelElement} style={panelStyle} className={`history-navigator${floating ? ' floating-history-content' : ''}`}><div className={`history-navigator-header${floating ? ' floating-panel-handle' : ''}`}><h2>History</h2><div className="panel-header-actions"><button type="button" className="small secondary" onClick={refreshHistory}>Refresh</button>{!floating && <button type="button" className="small secondary" onClick={onFloat} title="Float History panel" aria-label="Float History">↗</button>}</div></div><div className="history-empty">No activity in the current history window.</div>{showTripsButton && <button type="button" className="small secondary history-show-trips-button" onClick={onShowTrips}>Show Trips</button>}<PanelResizeHandle panelRef={panelRef} floating={floating} onHeightChange={onHeightChange} onHeightCommit={onHeightCommit} /></section>
   }
 
   const renderMonth = (monthKey) => {
@@ -123,7 +160,7 @@ function HistoryNavigator({
           {days.length > 0 ? days.map((day) => (
             <button key={day.dayKey} type="button" className={`history-day ${selectedDayKeys.includes(day.dayKey) || selectedDayKey === day.dayKey ? 'active' : ''}`} onClick={(event) => setSelectedDayKey(day.dayKey, { ctrlKey: event.ctrlKey, metaKey: event.metaKey, shiftKey: event.shiftKey, toggle: selectionMode })}>
               <span className="history-day-date"><strong>{new Date(`${day.dayKey}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short' })}</strong><small>{new Date(`${day.dayKey}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</small></span>
-              <span className="history-day-summary"><span>{day.tripCount} trips, {Math.round((day.distanceM || 0) / 1609.344)} mi, {Math.round((day.durationSeconds || 0) / 60)} min</span><span>{Math.round(day.maxSpeedMph || 0)} mph, {Math.round(day.eventCount || 0)} events</span></span>
+              <span className="history-day-summary"><span>{day.tripCount} trips, {Math.round((day.distanceM || 0) / (displayUnits === 'metric' ? 1000 : 1609.344))} {displayUnits === 'metric' ? 'km' : 'mi'}, {Math.round((day.durationSeconds || 0) / 60)} min</span><span>{Math.round((day.maxSpeedMph || 0) * (displayUnits === 'metric' ? 1.609344 : 1))} {displayUnits === 'metric' ? 'km/h' : 'mph'}, {Math.round(day.eventCount || 0)} events</span></span>
             </button>
           )) : <div className="history-empty">{status === 'loading' ? 'Loading month...' : (status === 'empty' ? 'No activity in this month.' : 'Expand to load this month.')}</div>}
         </div>
@@ -132,10 +169,10 @@ function HistoryNavigator({
   }
 
   return (
-    <section className="history-navigator">
-      <div className="history-navigator-header">
+    <section ref={setPanelElement} style={panelStyle} className={`history-navigator${floating ? ' floating-history-content' : ''}`}>
+      <div className={`history-navigator-header${floating ? ' floating-panel-handle' : ''}`}>
         <div><h2>History</h2><p>Recent days</p></div>
-        <button type="button" className="small secondary" onClick={refreshHistory} title="Refresh history">↻</button>
+        <div className="panel-header-actions"><button type="button" className="small secondary" onClick={refreshHistory} title="Refresh history">↻</button>{!floating && <button type="button" className="small secondary" onClick={onFloat} title="Float History panel" aria-label="Float History">↗</button>}</div>
       </div>
         <div className="history-selection-tools">
         <button type="button" className={`small secondary ${selectionMode ? 'active' : ''}`} onClick={() => setSelectionMode((value) => !value)}>{selectionMode ? 'Done' : 'Select days'}</button>
@@ -164,6 +201,8 @@ function HistoryNavigator({
           })
           : effectiveMonthKeys.map((monthKey) => renderMonth(monthKey))}
       </div>
+      {showTripsButton && <button type="button" className="small secondary history-show-trips-button" onClick={onShowTrips}>Show Trips</button>}
+      <PanelResizeHandle panelRef={panelRef} floating={floating} onHeightChange={onHeightChange} onHeightCommit={onHeightCommit} />
     </section>
   )
 }

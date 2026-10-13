@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/remind-fmm003-profile.js",
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview",

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { formatDistance } from '../lib/format'
-import { formatEventMeasurement } from '../lib/tripEvents'
+import PanelResizeHandle from './PanelResizeHandle'
 
 function GraphIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 19V5M4 19h16" /><path d="m7 15 3-4 3 2 5-7" /></svg>
@@ -15,12 +15,11 @@ function TripPanel({
   focusTrip,
   selectedTrip,
   selectedTripMaxSpeedMph,
+  displayUnits = 'imperial',
   tripEditorLoading,
   tripEditorDisabled,
   tripEditorStatus,
   tripEditorTags,
-  selectedTripEvents = [],
-  focusTripEvent,
   availableTripTags,
   tagToAdd,
   setTagToAdd,
@@ -36,6 +35,9 @@ function TripPanel({
   onPositionChange,
   onPositionCommit,
   onHide,
+  panelHeight,
+  onPanelHeightChange,
+  onPanelHeightCommit,
 }) {
   const panelRef = useRef(null)
   const dragRef = useRef(null)
@@ -106,7 +108,7 @@ function TripPanel({
     return selectedDayKeys.includes(localKey) || localKey === selectedDayKey
   })
   return (
-    <div ref={setPanelRef} className="trip-panel trip-panel-flyout" style={style}>
+    <div ref={setPanelRef} className="trip-panel trip-panel-flyout" style={{ ...style, height: 'auto', maxHeight: panelHeight ? `${panelHeight}px` : '70vh' }}>
       <div
         className="trip-panel-heading trip-panel-drag-handle"
         title="Drag to move Trips panel"
@@ -128,7 +130,7 @@ function TripPanel({
                 <div className="trip-main">{deviceName}</div>
                 <div className="trip-meta">
                   <span>{trip.start.toLocaleString()} - {trip.end.toLocaleTimeString()}</span>
-                  <span>{Math.round((trip.end - trip.start) / 60000)} min | {formatDistance(trip.distance)} | {Math.round(trip.maxSpeedMph ?? 0)} mph | {Math.round(trip.eventCount ?? 0)} events</span>
+                  <span>{Math.round((trip.end - trip.start) / 60000)} min | {formatDistance(trip.distance, displayUnits)} | {Math.round((trip.maxSpeedMph ?? 0) * (displayUnits === 'metric' ? 1.609344 : 1))} {displayUnits === 'metric' ? 'km/h' : 'mph'} | {Math.round(trip.eventCount ?? 0)} events</span>
                 </div>
               </button>
               <button type="button" className="trip-graph-button" onClick={() => openTripGraph(trip)} title="Graph this trip" aria-label={`Graph trip for ${trip.start.toLocaleString()}`}><GraphIcon /></button>
@@ -140,22 +142,10 @@ function TripPanel({
 
       {selectedTrip && (
         <div className="trip-editor">
-          <div className="trip-editor-heading"><h3>Selected Trip</h3><button type="button" className="trip-graph-button" onClick={() => openTripGraph(selectedTrip)} title="Graph this trip" aria-label="Graph selected trip"><GraphIcon /></button></div>
           <div className="trip-editor-meta">
             {selectedTrip.start.toLocaleString()} - {selectedTrip.end.toLocaleTimeString()}
-            {Number.isFinite(selectedTripMaxSpeedMph) && ` · Max: ${selectedTripMaxSpeedMph.toFixed(1)} mph`}
+            {Number.isFinite(selectedTripMaxSpeedMph) && ` · Max: ${(selectedTripMaxSpeedMph * (displayUnits === 'metric' ? 1.609344 : 1)).toFixed(1)} ${displayUnits === 'metric' ? 'km/h' : 'mph'}`}
           </div>
-          {selectedTripEvents.length > 0 && (
-            <div className="trip-events-summary">
-              <strong>Detected events</strong>
-              {selectedTripEvents.map((event) => (
-                <button key={event.id} type="button" className="trip-event-link" onClick={() => focusTripEvent(event)}>
-                  {event.eventType.replaceAll('_', ' ')} · {event.source} · {new Date(event.occurredAt).toLocaleTimeString()}{event.measuredValue == null ? '' : ` · ${formatEventMeasurement(event)}`}
-                </button>
-              ))}
-            </div>
-          )}
-
           {tripEditorLoading && <div className="trip-empty">Loading trip metadata...</div>}
           {tripEditorStatus && <div className="trip-empty">{tripEditorStatus}</div>}
 
@@ -199,6 +189,7 @@ function TripPanel({
           )}
         </div>
       )}
+      <PanelResizeHandle panelRef={panelRef} minHeight={120} sizeMode="max-height" onHeightChange={onPanelHeightChange} onHeightCommit={onPanelHeightCommit} />
     </div>
   )
 }

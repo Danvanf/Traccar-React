@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { isTelemetryPlaceholderValue } from '../lib/telemetry'
-import { DEFAULT_STATUS_CARD_FIELDS } from '../lib/statusCardFields'
+import { DEFAULT_STATUS_CARD_FIELDS, STATUS_CARD_FIELDS, getStatusCardAttributeKeys, getStatusCardProfileKey, normalizeStatusCardFields } from '../lib/statusCardFields'
+import { translateAttribute } from '../lib/carProfiles'
 
 function VehicleStatusCard({
   device,
+  vehicleId,
   point,
   historyPoints = [],
   profile = null,
@@ -12,11 +14,12 @@ function VehicleStatusCard({
   position,
   onPositionChange,
   onPositionCommit,
+  collapsed = true,
+  onCollapsedChange,
 }) {
-  const [collapsed, setCollapsed] = useState(false)
   const panelRef = useRef(null)
   const dragRef = useRef(null)
-  const suppressClickRef = useRef(false)
+  const [copyStatus, setCopyStatus] = useState('')
 
   const clampPosition = useCallback((left, top) => {
     const width = panelRef.current?.offsetWidth || 280
@@ -71,7 +74,6 @@ function VehicleStatusCard({
     dragRef.current = null
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
     if (drag.moved) {
-      suppressClickRef.current = true
       onPositionCommit(drag.position)
     }
   }, [onPositionCommit])
@@ -87,7 +89,7 @@ function VehicleStatusCard({
 
   if (!device) {
     return (
-      <div ref={panelRef} className="vehicle-status-card" style={style}>
+      <div ref={panelRef} className="vehicle-status-card" data-vehicle-id={vehicleId || ''} style={style}>
         <div {...dragHandleProps}><strong>Vehicle Status</strong><span>No mapped vehicle</span></div>
         <div className="vehicle-status-diagnostic">
           No vehicle-mapped device is currently selected. Open Settings and verify Vehicle Catalog and Device Bindings.
@@ -104,50 +106,33 @@ function VehicleStatusCard({
     const numbers = historyValues.map(Number).filter(Number.isFinite)
     return numbers.length === 0 || numbers.some((number) => number !== 0 && !isTelemetryPlaceholderValue(key, number, profile))
   }))
-  const profileLabel = (key, fallback) => profile?.getAttributeInfo(key)?.label || fallback
-  const profileUnit = (key, fallback) => profile?.getAttributeInfo(key)?.units?.replace('degF', '°F') || fallback
-  const profileValue = (key, fallback) => profile ? profile.decodeAttributeValue(key, attrs[key] ?? fallback) : (attrs[key] ?? fallback)
-  const selectedFields = new Set(Array.isArray(cardFields) ? cardFields : DEFAULT_STATUS_CARD_FIELDS)
-  const values = [
-    ['fuelLevel', 'Fuel level', attrs.io48 ?? attrs.fuelLevel, '%'],
-    ['engineRpm', profileLabel('io36', 'Engine RPM'), profileValue('io36', attrs.rpm), 'rpm'],
-    ['power', 'Power', attrs.power ?? attrs.io66, 'V'],
-    ['coolant', profileLabel('io32', 'Coolant'), profileValue('io32', attrs.coolant), profileUnit('io32', '°F')],
-    ['engineRuntime', profileLabel('io42', 'Engine runtime'), profileValue('io42'), profileUnit('io42', 's')],
-    ['maf', profileLabel('io40', 'MAF'), profileValue('io40'), profileUnit('io40', 'g/s')],
-    ['intakeAir', profileLabel('io39', 'Intake air'), profileValue('io39'), profileUnit('io39', '°F')],
-    ['throttle', profileLabel('io41', 'Throttle'), profileValue('io41'), profileUnit('io41', '%')],
-    ['ignition', 'Ignition', attrs.ignition ?? attrs.io239, ''],
-    ['obdSpeed', profileLabel('io37', 'OBD speed'), profileValue('io37', attrs.obdSpeed), profileUnit('io37', 'mph')],
-    ['gnssSpeed', profileLabel('io24', 'GNSS speed'), profileValue('io24'), profileUnit('io24', 'mph')],
-    ['controlVoltage', profileLabel('io51', 'Control voltage'), profileValue('io51'), profileUnit('io51', 'V')],
-    ['satellites', profileLabel('sat', 'GNSS satellites'), profileValue('sat'), profileUnit('sat', 'count')],
-    ['gnssStatus', profileLabel('io69', 'GNSS status'), profileValue('io69'), profileUnit('io69', '1 = fix OK')],
-    ['signalStrength', profileLabel('rssi', 'GSM signal'), profileValue('rssi'), profileUnit('rssi', '0–5')],
-    ['trackerBatteryLevel', profileLabel('io113', 'Tracker battery level'), profileValue('io113'), profileUnit('io113', '%')],
-    ['batteryVoltage', profileLabel('battery', 'Tracker battery voltage'), profileValue('battery'), profileUnit('battery', 'V')],
-    ['batteryCurrent', profileLabel('io68', 'Tracker battery current'), profileValue('io68'), profileUnit('io68', 'A')],
-    ['fuelUsed', profileLabel('io12', 'Fuel used (trip)'), profileValue('io12'), profileUnit('io12', 'gal')],
-    ['fuelRate', profileLabel('io13', 'Fuel rate'), profileValue('io13'), profileUnit('io13', 'gal/hr')],
-    ['barometricPressure', profileLabel('io50', 'Barometric pressure'), profileValue('io50'), profileUnit('io50', 'kPa')],
-    ['absoluteLoad', profileLabel('io52', 'Absolute load'), profileValue('io52'), profileUnit('io52', '%')],
-    ['timingAdvance', profileLabel('io38', 'Timing advance'), profileValue('io38'), profileUnit('io38', 'deg')],
-    ['ambientAir', profileLabel('io53', 'Ambient air temperature'), profileValue('io53'), profileUnit('io53', '°F')],
-    ['motion', 'Motion', attrs.motion, ''],
-    ['pdop', profileLabel('pdop', 'GNSS PDOP'), profileValue('pdop'), ''],
-    ['hdop', profileLabel('hdop', 'GNSS HDOP'), profileValue('hdop'), ''],
-    ['operator', profileLabel('operator', 'GSM operator'), profileValue('operator'), ''],
-    ['fuelRailPressure', profileLabel('io45', 'Fuel rail pressure'), profileValue('io45'), profileUnit('io45', 'kPa')],
-    ['accelerometerX', 'Accelerometer X', attrs.axisX, 'mg'],
-    ['accelerometerY', 'Accelerometer Y', attrs.axisY, 'mg'],
-    ['accelerometerZ', 'Accelerometer Z', attrs.axisZ, 'mg'],
-    ['segmentDistance', profileLabel('distance', 'Segment distance'), profileValue('distance'), profileUnit('distance', 'mi')],
-  ]
+  const rawKeyForStatusField = (field) => getStatusCardAttributeKeys(profile, field).find((key) => attrs[key] !== undefined) || null
+  const selectedFields = new Set(normalizeStatusCardFields(cardFields))
+  const profileValue = (field, key) => {
+    if (!key) return ''
+    const raw = attrs[key]
+    const translated = translateAttribute(profile, getStatusCardProfileKey(profile, field, key), raw)
+    return ['missing', 'sentinel', 'invalid'].includes(translated.status) ? '' : translated.value
+  }
+  const formatProfileValue = (value) => {
+    if (typeof value === 'boolean') return String(value)
+    const numeric = Number(value)
+    return value !== '' && Number.isFinite(numeric)
+      ? numeric.toLocaleString(undefined, { maximumFractionDigits: 2 })
+      : value
+  }
+  const values = STATUS_CARD_FIELDS.map((field) => {
+    const key = rawKeyForStatusField(field)
+    if (!key) return null
+    const translated = translateAttribute(profile, getStatusCardProfileKey(profile, field, key), attrs[key])
+    return [field, translated.label, profileValue(field, key), translated.unit.replace('degF', '°F')]
+  }).filter(Boolean)
   const isKnown = (value) => value !== undefined && value !== null && value !== ''
   const visibleValues = values.filter(([key, , value]) => selectedFields.has(key) && isKnown(value))
   const known = visibleValues
   const ageMinutes = point ? Math.max(0, Math.round((Date.now() - point.timestamp.getTime()) / 60000)) : null
-  const ignition = attrs.ignition ?? attrs.io239
+  const ignition = attrs[rawKeyForStatusField('ignition')]
+  const motion = attrs[rawKeyForStatusField('motion')]
   const compactTimestamp = point ? point.timestamp.toLocaleString(undefined, {
     month: 'numeric',
     day: 'numeric',
@@ -157,14 +142,16 @@ function VehicleStatusCard({
     hour12: true,
   }) : ''
   const connection = !point ? 'No data loaded' : ageMinutes <= 15 ? 'Recent data' : ageMinutes <= 60 ? 'Stale data' : compactTimestamp
-  const active = ignition === true || ignition === 'true' || attrs.motion === true || attrs.motion === 'true'
-  const currentRpm = attrs.io36 ?? attrs.rpm
-  const lastRpmPoint = [...historyPoints].reverse().find((candidate) => {
-    const candidateRpm = candidate.attributes?.io36 ?? candidate.attributes?.rpm
-    return candidateRpm !== undefined && candidateRpm !== null && candidateRpm !== ''
-  })
+  const active = ignition === true || ignition === 'true' || motion === true || motion === 'true'
+  const rpmKeys = getStatusCardAttributeKeys(profile, 'engineRpm')
+  const rpmValueFrom = (candidate) => rpmKeys.map((key) => candidate?.attributes?.[key]).find((value) => value !== undefined && value !== null && value !== '')
+  const currentRpm = rpmValueFrom(point)
+  const lastRpmPoint = [...historyPoints]
+    .filter((candidate) => !point || candidate.timestamp <= point.timestamp)
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .find((candidate) => rpmValueFrom(candidate) !== undefined)
   const rpmGapMinutes = point && lastRpmPoint ? Math.max(0, (point.timestamp - lastRpmPoint.timestamp) / 60000) : null
-  const rpmWarning = active && (currentRpm === undefined || currentRpm === null || currentRpm === '') && (!lastRpmPoint || rpmGapMinutes >= 5)
+  const rpmWarning = selectedFields.has('engineRpm') && active && (currentRpm === undefined || currentRpm === null || currentRpm === '') && (!lastRpmPoint || rpmGapMinutes >= 5)
   const engineState = ignition === true || ignition === 'true' ? 'Running' : ignition === false || ignition === 'false' ? 'Off' : null
   const compactValue = (value, unit) => {
     if (!isKnown(value)) return `— ${unit}`
@@ -172,35 +159,32 @@ function VehicleStatusCard({
     const formatted = Number.isFinite(numeric) ? numeric.toLocaleString(undefined, { maximumFractionDigits: 1 }) : value
     return `${formatted} ${unit}`
   }
-  const compactTelemetry = [
-    compactValue(profileValue('io36', attrs.rpm), 'rpm'),
-    compactValue(profileValue('io41'), profileUnit('io41', '%')),
-    compactValue(profileValue('io40'), profileUnit('io40', 'g/s')),
-  ]
-  const toggleCollapsed = () => setCollapsed((value) => !value)
-  const handleCardClick = (event) => {
-    if (suppressClickRef.current) {
-      suppressClickRef.current = false
-      return
+  const compactTelemetry = ['engineRpm', 'throttle', 'maf'].map((field) => {
+    if (!selectedFields.has(field)) return null
+    const row = values.find(([rowField]) => rowField === field)
+    return compactValue(row?.[2], row?.[3] || '')
+  }).filter((value) => value !== null)
+  const copyOtherFields = async (event) => {
+    event.stopPropagation()
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(displayAttrs, null, 2))
+      setCopyStatus('Copied')
+    } catch {
+      setCopyStatus('Copy failed')
     }
-    if (event.target.closest('button, details, summary, input, select, textarea, a')) return
-    toggleCollapsed()
+    window.setTimeout(() => setCopyStatus(''), 1800)
   }
-  return <div ref={panelRef} className={`vehicle-status-card${collapsed ? ' is-collapsed' : ''}`} style={style} onClick={handleCardClick} onKeyDown={(event) => {
-    if ((event.key === 'Enter' || event.key === ' ') && event.target === event.currentTarget) {
-      event.preventDefault()
-      toggleCollapsed()
-    }
-  }} role="button" tabIndex={0} title={collapsed ? 'Click to expand vehicle status' : 'Click to collapse vehicle status'}>
+  const toggleCollapsed = () => onCollapsedChange?.(!collapsed)
+  return <div ref={panelRef} className={`vehicle-status-card${collapsed ? ' is-collapsed' : ''}`} data-vehicle-id={vehicleId || ''} data-selected-status-fields={[...selectedFields].join(' ')} style={style}>
     <div {...dragHandleProps}>
       <strong>{device.name}</strong>
       <span>{connection}</span>
       <button type="button" className="vehicle-status-toggle" onClick={toggleCollapsed} aria-expanded={!collapsed} title={collapsed ? 'Expand vehicle status' : 'Collapse vehicle status'}>{collapsed ? '＋' : '−'}</button>
     </div>
-    {collapsed ? <div className="vehicle-status-compact-values" aria-label="RPM, throttle position, and mass air flow">{compactTelemetry.map((value, index) => <span key={index}>{value}</span>)}</div> : <>
-      {visibleValues.length > 0 || (selectedFields.has('ignition') && engineState) ? <div className="vehicle-status-grid">{visibleValues.map(([, label, value, unit, convert]) => { const displayValue = convert ? Number(convert(value)).toFixed(1) : value; return <div key={label}><span>{label}</span><strong>{`${displayValue} ${unit}`}</strong></div> })}{selectedFields.has('ignition') && engineState && <div><span>Engine state</span><strong>{engineState}</strong></div>}</div> : null}
+      {collapsed ? <div className="vehicle-status-compact-values" aria-label="Selected telemetry values">{compactTelemetry.map((value, index) => <span key={index}>{value}</span>)}</div> : <>
+      {visibleValues.length > 0 || (selectedFields.has('ignition') && engineState) ? <div className="vehicle-status-grid">{visibleValues.map(([, label, value, unit]) => <div key={label}><span>{label}</span><strong>{`${formatProfileValue(value)} ${unit}`}</strong></div>)}{selectedFields.has('ignition') && engineState && <div><span>Engine state</span><strong>{engineState}</strong></div>}</div> : null}
       {rpmWarning && <div className="vehicle-status-diagnostic">RPM has not been reported for {lastRpmPoint ? `${Math.round(rpmGapMinutes)} minutes` : 'the loaded history'} while the device appears active; unchanged RPM values are otherwise treated as valid.</div>}
-      <details><summary>Other fields ({Object.keys(displayAttrs).length})</summary><pre>{JSON.stringify(displayAttrs, null, 2)}</pre></details>
+      <div className="vehicle-status-other-fields"><details><summary>Other fields ({Object.keys(displayAttrs).length})</summary><pre>{JSON.stringify(displayAttrs, null, 2)}</pre></details><button type="button" className="vehicle-status-copy" onClick={copyOtherFields} aria-label="Copy other fields to clipboard" title={copyStatus || 'Copy other fields to clipboard'}><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5" y="3" width="8" height="10" rx="1"/><path d="M3 11H2V2h8v1"/></svg><span className="vehicle-status-copy-feedback" aria-live="polite">{copyStatus}</span></button></div>
       <small>{point ? `Point: ${point.timestamp.toLocaleString()} · ${ageMinutes} min old` : 'No point loaded'} · {known.length} known values</small>
     </>}
   </div>

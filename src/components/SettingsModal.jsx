@@ -1,8 +1,27 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { DEFAULT_SPEED_BANDS } from '../lib/speedBands'
-import { DEFAULT_STATUS_CARD_FIELDS, STATUS_CARD_FIELDS } from '../lib/statusCardFields'
-import { fetchVehicleSpeedBands, saveVehicleSpeedBands as persistVehicleSpeedBands } from '../lib/vehicleAppApi'
+import { DEFAULT_MAP_POPUP_FIELDS, DEFAULT_STATUS_CARD_FIELDS, STATUS_CARD_FIELDS, normalizeStatusCardFields } from '../lib/statusCardFields'
+import { fetchVehicleEmailSender, fetchVehicleSpeedBands, saveVehicleEmailSender, saveVehicleSpeedBands as persistVehicleSpeedBands } from '../lib/vehicleAppApi'
 import AdminAccessPanel from './AdminAccessPanel'
+import EmailAlertsSettings from './EmailAlertsSettings'
+import SmsTestSettings from './SmsTestSettings'
+import SmsAlertsSettings from './SmsAlertsSettings'
+import { getMappingPropertyDifferences, getProfileMappingDifferences } from '../lib/profileImport'
+import { addSettingsFieldTips } from '../lib/settingsFieldTips'
+
+function formatProfileDifferenceValue(value) {
+  if (value === undefined) return '—'
+  if (value && typeof value === 'object') return JSON.stringify(value)
+  return String(value)
+}
+
+function BundlePidCheckbox({ checked, indeterminate, onChange, label }) {
+  const inputRef = useRef(null)
+  useEffect(() => {
+    if (inputRef.current) inputRef.current.indeterminate = indeterminate
+  }, [indeterminate])
+  return <input ref={inputRef} className="profile-bundle-diff-select" type="checkbox" aria-label={label} aria-checked={indeterminate ? 'mixed' : checked} checked={checked} onChange={onChange} />
+}
 
 function SettingsModal({
   isPickingLocation,
@@ -12,6 +31,10 @@ function SettingsModal({
   closeModal,
   refreshDevices,
   profileOptions,
+  bundledProfileOptions = [],
+  onDiscoverBundledProfiles,
+  updateCurrentProfileFromBundle,
+  createProfileFromBundle,
   selectedProfileId,
   setSelectedProfileId,
   profileName,
@@ -19,6 +42,10 @@ function SettingsModal({
   profileAttributesJson,
   setProfileAttributesJson,
   profileEditorStatus,
+  profileStorageNotice,
+  profileStorageCanSave = true,
+  profileSyncStatus,
+  onOpenProfileMappingEditor,
   saveProfileEdits,
   createProfileFromEditor,
   deleteSelectedProfile,
@@ -47,6 +74,9 @@ function SettingsModal({
   vehicleEditorStatus,
   saveVehicle,
   statusCardFieldsByVehicle,
+  onPreviewStatusCardFields,
+  mapPopupFieldsByVehicle,
+  onPreviewMapPopupFields,
   saveStatusCardFields,
   filterBindingsToSelectedDevice,
   setFilterBindingsToSelectedDevice,
@@ -81,6 +111,10 @@ function SettingsModal({
   setPlaceLongitude,
   placeRadiusYards,
   setPlaceRadiusYards,
+  placeType,
+  setPlaceType,
+  placeTrackName,
+  setPlaceTrackName,
   placeNotes,
   setPlaceNotes,
   saveNamedPlace,
@@ -111,17 +145,86 @@ function SettingsModal({
   connectBouncie,
   startBouncieImport,
   cancelBouncieImport,
+  continueBouncieImport,
   forgetBouncieCredentials,
   restoreBouncieConnection,
   vehicleApiBaseUrl,
   vehicleAuth,
 }) {
+  const modalRef = useRef(null)
   const [speedBandVehicleId, setSpeedBandVehicleId] = useState(vehicleEditId || bindingVehicles[0]?.id || '')
   const [speedBands, setSpeedBands] = useState(DEFAULT_SPEED_BANDS)
   const [speedBandCopySourceId, setSpeedBandCopySourceId] = useState('')
   const [speedBandStatus, setSpeedBandStatus] = useState('')
   const [cardFields, setCardFields] = useState(DEFAULT_STATUS_CARD_FIELDS)
+  const [mapPopupFields, setMapPopupFields] = useState(DEFAULT_MAP_POPUP_FIELDS)
   const [cardFieldsStatus, setCardFieldsStatus] = useState('')
+  const [vehicleEmailSender, setVehicleEmailSender] = useState('')
+  const [vehicleEmailSenderStatus, setVehicleEmailSenderStatus] = useState('')
+  const [bundledProfileDialogOpen, setBundledProfileDialogOpen] = useState(false)
+  const [bundledProfilesFound, setBundledProfilesFound] = useState([])
+  const [bundledProfileStep, setBundledProfileStep] = useState('list')
+  const [selectedBundledProfile, setSelectedBundledProfile] = useState(null)
+  const [bundledProfileDiffs, setBundledProfileDiffs] = useState([])
+  const [selectedBundledProperties, setSelectedBundledProperties] = useState({})
+  const selectedStatusProfile = profileOptions.find((profile) => profile.id === vehicleProfileId)
+  const statusCardFieldOptions = STATUS_CARD_FIELDS.map((field) => {
+    const mapping = Object.entries(selectedStatusProfile?.attributeMap || {}).find(([, info]) => info?.statusCardField === field)
+    return mapping ? [field, mapping[1].label || field] : null
+  }).filter(Boolean)
+  const trackNameSuggestions = [...new Map((namedPlaces || [])
+    .map((place) => String(place.trackName || '').trim())
+    .filter(Boolean)
+    .map((name) => [name.toLocaleLowerCase(), name])).values()]
+    .sort((a, b) => a.localeCompare(b))
+  useEffect(() => {
+    const root = modalRef.current
+    if (!root) return undefined
+    addSettingsFieldTips(root)
+    const observer = new MutationObserver(() => addSettingsFieldTips(root))
+    observer.observe(root, { childList: true, characterData: true, subtree: true })
+    return () => observer.disconnect()
+  }, [])
+  const openBundledProfileSearch = () => {
+    const found = (onDiscoverBundledProfiles?.() || bundledProfileOptions)
+      .filter((profile) => profile && typeof profile.id === 'string' && profile.attributeMap && typeof profile.attributeMap === 'object')
+      .sort((a, b) => String(a.name || a.id).localeCompare(String(b.name || b.id)))
+    setBundledProfilesFound(found)
+    setSelectedBundledProfile(null)
+    setBundledProfileStep('list')
+    setBundledProfileDialogOpen(true)
+  }
+  const showBundledProfileActions = (profile) => {
+    setSelectedBundledProfile(profile)
+    setBundledProfileStep('actions')
+  }
+  const compareBundledProfileWithCurrent = () => {
+    if (!selectedBundledProfile) return
+    const current = profileOptions.find((profile) => profile.id === selectedProfileId)
+    const differences = getProfileMappingDifferences(current?.attributeMap || {}, selectedBundledProfile.attributeMap || {})
+    setBundledProfileDiffs(differences)
+    setSelectedBundledProperties(Object.fromEntries(differences.map((item) => [
+      item.key,
+      getMappingPropertyDifferences(item.current, item.source).map((property) => property.property),
+    ])))
+    setBundledProfileStep('diff')
+  }
+  const applyBundledProfileChanges = () => {
+    if (!selectedBundledProfile || !selectedPropertyChangeCount) return
+    updateCurrentProfileFromBundle?.(selectedBundledProfile, selectedBundledProperties)
+    setBundledProfileDialogOpen(false)
+  }
+  const makeBundledProfileCopy = () => {
+    if (!selectedBundledProfile) return
+    createProfileFromBundle?.(selectedBundledProfile)
+    setBundledProfileDialogOpen(false)
+  }
+  const totalPropertyChangeCount = bundledProfileDiffs.reduce((total, difference) => total + getMappingPropertyDifferences(difference.current, difference.source).length, 0)
+  const selectedPropertyChangeCount = Object.values(selectedBundledProperties).reduce((total, properties) => total + properties.length, 0)
+  const selectAllBundledProperties = (select) => setSelectedBundledProperties(Object.fromEntries(bundledProfileDiffs.map((difference) => [
+    difference.key,
+    select ? getMappingPropertyDifferences(difference.current, difference.source).map((item) => item.property) : [],
+  ])))
   useEffect(() => {
     const panels = Array.from(document.querySelectorAll('.settings-modal .profile-editor'))
     panels.forEach((panel) => {
@@ -143,6 +246,12 @@ function SettingsModal({
       const vehiclePanel = panels.find((panel) => panel.querySelector('h4')?.textContent.trim() === 'Vehicle Catalog')
       vehiclePanel?.classList.remove('settings-panel-collapsed')
       localStorage.removeItem('openVehicleCatalogPanel')
+    }
+    if (localStorage.getItem('openDeviceProtocolProfilePanel') === 'true') {
+      const profilePanel = panels.find((panel) => panel.querySelector('h4')?.textContent.trim() === 'Device Protocol Profile Editor')
+      profilePanel?.classList.remove('settings-panel-collapsed')
+      profilePanel?.scrollIntoView({ block: 'center' })
+      localStorage.removeItem('openDeviceProtocolProfilePanel')
     }
     return () => panels.forEach((panel) => { panel.dataset.collapsibleReady = '' })
   }, [])
@@ -174,9 +283,22 @@ function SettingsModal({
     return () => { active = false }
   }, [speedBandVehicleId, vehicleApiBaseUrl])
   useEffect(() => {
-    setCardFields(statusCardFieldsByVehicle?.[vehicleEditId] || DEFAULT_STATUS_CARD_FIELDS)
+      setCardFields(normalizeStatusCardFields(statusCardFieldsByVehicle?.[vehicleEditId] || DEFAULT_STATUS_CARD_FIELDS))
     setCardFieldsStatus('')
   }, [statusCardFieldsByVehicle, vehicleEditId])
+  useEffect(() => {
+    setMapPopupFields(normalizeStatusCardFields(mapPopupFieldsByVehicle?.[vehicleEditId] || DEFAULT_MAP_POPUP_FIELDS))
+  }, [mapPopupFieldsByVehicle, vehicleEditId])
+  useEffect(() => {
+    setVehicleEmailSender('')
+    setVehicleEmailSenderStatus('')
+    if (vehicleAuth?.role !== 'admin' || !vehicleEditId || !vehicleApiBaseUrl) return undefined
+    let active = true
+    fetchVehicleEmailSender(vehicleApiBaseUrl, vehicleEditId)
+      .then((value) => { if (active) setVehicleEmailSender(value.senderUserId || '') })
+      .catch((error) => { if (active) setVehicleEmailSenderStatus(error.message) })
+    return () => { active = false }
+  }, [vehicleAuth?.role, vehicleApiBaseUrl, vehicleEditId])
   const saveSpeedBands = async () => {
     if (!speedBandVehicleId) return
     try {
@@ -210,14 +332,37 @@ function SettingsModal({
       setSpeedBandStatus(error.message || 'Unable to copy speed bands.')
     }
   }
-  const toggleCardField = (field) => setCardFields((current) => current.includes(field) ? current.filter((item) => item !== field) : [...current, field])
+  const toggleCardField = (field) => {
+    const nextFields = cardFields.includes(field)
+      ? cardFields.filter((item) => item !== field)
+      : [...cardFields, field]
+    setCardFields(nextFields)
+    if (vehicleEditId) onPreviewStatusCardFields?.(vehicleEditId, nextFields)
+  }
+  const toggleMapPopupField = (field) => {
+    const nextFields = mapPopupFields.includes(field)
+      ? mapPopupFields.filter((item) => item !== field)
+      : [...mapPopupFields, field]
+    setMapPopupFields(nextFields)
+    if (vehicleEditId) onPreviewMapPopupFields?.(vehicleEditId, nextFields)
+  }
   const saveCardFields = async () => {
     if (!vehicleEditId) return
     try {
-      await saveStatusCardFields(vehicleEditId, cardFields)
-      setCardFieldsStatus('Status card fields saved for this vehicle.')
+      await saveStatusCardFields(vehicleEditId, cardFields, mapPopupFields)
+      setCardFieldsStatus('Status card and map popup fields saved for this vehicle.')
     } catch (error) {
       setCardFieldsStatus(error instanceof Error ? error.message : 'Unable to save status card fields.')
+    }
+  }
+  const saveVehicleEmailSenderSetting = async () => {
+    if (!vehicleEditId || !vehicleApiBaseUrl) return
+    try {
+      const result = await saveVehicleEmailSender(vehicleApiBaseUrl, vehicleEditId, vehicleEmailSender.trim())
+      setVehicleEmailSender(result.senderUserId || '')
+      setVehicleEmailSenderStatus(result.senderUserId ? 'Vehicle sender mailbox saved.' : 'Vehicle override cleared; the default sender will be used.')
+    } catch (error) {
+      setVehicleEmailSenderStatus(error.message || 'Unable to save vehicle sender mailbox.')
     }
   }
   const updateSpeedBand = (index, changes) => setSpeedBands((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...changes } : item))
@@ -242,8 +387,12 @@ function SettingsModal({
     const start = index === 0 ? 0 : speedBands[index - 1].upperMph
     return <div className="speed-band-editor-grid" key={index}>
       <span className="speed-band-start">{start ?? 0}</span>
-      <input className="speed-band-limit" type="number" min={start + 1} value={band.upperMph ?? ''} disabled={index === speedBands.length - 1} onChange={(event) => updateSpeedBand(index, { upperMph: Number(event.target.value) || null })} />
-      <input className="speed-band-color" type="color" value={band.color} onChange={(event) => updateSpeedBand(index, { color: event.target.value })} />
+      <span className="settings-field-tip-host" data-field-tip={`Upper speed limit in mph for this color band. The final band has no upper limit.`}>
+        <input className="speed-band-limit" aria-label={`Upper speed limit for band starting at ${start ?? 0} mph`} aria-description="Upper speed limit in mph for this color band. The final band has no upper limit." type="number" min={start + 1} value={band.upperMph ?? ''} disabled={index === speedBands.length - 1} onChange={(event) => updateSpeedBand(index, { upperMph: Number(event.target.value) || null })} />
+      </span>
+      <span className="settings-field-tip-host" data-field-tip="Color used for speeds in this band on the map and reports.">
+        <input className="speed-band-color" aria-label={`Color for speed band starting at ${start ?? 0} mph`} aria-description="Color used for speeds in this band on the map and reports." type="color" value={band.color} onChange={(event) => updateSpeedBand(index, { color: event.target.value })} />
+      </span>
       <button type="button" className="small danger" onClick={() => deleteSpeedBand(index)} disabled={speedBands.length <= 1}>Delete</button>
     </div>
   }
@@ -258,7 +407,7 @@ function SettingsModal({
 
   return (
     <div className="settings-backdrop" style={isPickingLocation ? { display: 'none' } : undefined} onClick={closeModal}>
-      <section className="settings-modal" onClick={(event) => {
+      <section ref={modalRef} className="settings-modal" onClick={(event) => {
         event.stopPropagation()
         const heading = event.target.closest('.profile-editor > h4')
         if (heading) heading.parentElement.classList.toggle('settings-panel-collapsed')
@@ -330,6 +479,8 @@ function SettingsModal({
           Username (email)
           <input
             type="text"
+            name="traccar-api-username"
+            autoComplete="off"
             value={settings.username}
             onChange={(event) => updateSetting('username', event.target.value)}
           />
@@ -338,6 +489,8 @@ function SettingsModal({
           Password
           <input
             type="password"
+            name="traccar-api-password"
+            autoComplete="off"
             value={settings.password}
             onChange={(event) => updateSetting('password', event.target.value)}
           />
@@ -373,6 +526,13 @@ function SettingsModal({
             />
           </label>
           <label>
+            Display Units
+            <select value={settings.displayUnits || 'imperial'} onChange={(event) => updateSetting('displayUnits', event.target.value)}>
+              <option value="imperial">Imperial</option>
+              <option value="metric">Metric</option>
+            </select>
+          </label>
+          <label>
             Theme
             <select value={settings.theme} onChange={(event) => updateSetting('theme', event.target.value)}>
               <option value="auto">Auto</option>
@@ -393,6 +553,11 @@ function SettingsModal({
         </div>
 
         </div>
+        <hr className="settings-divider" />
+
+        <EmailAlertsSettings baseUrl={vehicleApiBaseUrl} vehicleAuth={vehicleAuth} vehicles={bindingVehicles} />
+        <SmsAlertsSettings baseUrl={vehicleApiBaseUrl} vehicleAuth={vehicleAuth} vehicles={bindingVehicles} />
+        {vehicleAuth?.role === 'admin' && <SmsTestSettings baseUrl={vehicleApiBaseUrl} vehicles={bindingVehicles} />}
         <hr className="settings-divider" />
 
         <div className="profile-editor">
@@ -428,12 +593,26 @@ function SettingsModal({
             </label>
           </div>
           <label>Notes<textarea rows={3} value={vehicleNotes} onChange={(event) => setVehicleNotes(event.target.value)} /></label>
+          {vehicleEditId && vehicleAuth?.role === 'admin' && <div className="profile-editor-subsection">
+            <h5>Email sender for this vehicle</h5>
+            <p className="profile-editor-help">Leave blank to use the default mailbox in Email Alerts settings. The Graph app must be permitted to send from this mailbox.</p>
+            <label>Sender mailbox<input type="email" autoComplete="off" value={vehicleEmailSender} onChange={(event) => setVehicleEmailSender(event.target.value)} placeholder="Use default sender" /></label>
+            {vehicleEmailSenderStatus && <div className="profile-editor-status">{vehicleEmailSenderStatus}</div>}
+            <div className="actions"><button type="button" className="secondary" onClick={saveVehicleEmailSenderSetting}>Save Vehicle Sender</button></div>
+          </div>}
           {vehicleEditorStatus && <div className="profile-editor-status">{vehicleEditorStatus}</div>}
           <div className="actions"><button type="button" onClick={saveVehicle}>Save Vehicle</button></div>
           {vehicleEditId && <>
-            <p className="profile-editor-help">Choose which available telemetry fields appear in the live status card. Fields with no current value remain hidden.</p>
-            <div className="status-card-field-grid">
-              {STATUS_CARD_FIELDS.map(([field, label]) => <label key={field} className="checkbox-row"><input type="checkbox" checked={cardFields.includes(field)} onChange={() => toggleCardField(field)} />{label}</label>)}
+            <p className="profile-editor-help">The checkbox controls the Vehicle Status card. The switch controls map point popups; enabling it will show the corresponding field in the map point popups.</p>
+            <div className="status-card-field-grid" data-vehicle-id={vehicleEditId}>
+               {statusCardFieldOptions.map(([field, label]) => <div key={field} className="status-card-field-option">
+                 <label className="checkbox-row"><input type="checkbox" aria-checked={cardFields.includes(field)} checked={cardFields.includes(field)} onChange={() => toggleCardField(field)} />{label}</label>
+                 <label className="status-card-popup-switch" title={`Show ${label} on map point popups`}>
+                   <input type="checkbox" role="switch" aria-label={`Show ${label} on map point popups`} aria-checked={mapPopupFields.includes(field)} checked={mapPopupFields.includes(field)} onChange={() => toggleMapPopupField(field)} />
+                   <span className="status-card-popup-switch-track" aria-hidden="true" />
+                 </label>
+               </div>)}
+               {statusCardFieldOptions.length === 0 && <span className="profile-editor-help">Choose a device profile with status fields to configure this card.</span>}
             </div>
             {cardFieldsStatus && <div className="profile-editor-status">{cardFieldsStatus}</div>}
             <div className="actions"><button type="button" className="secondary" onClick={saveCardFields}>Save Status Card Fields</button></div>
@@ -540,10 +719,41 @@ function SettingsModal({
               Radius (yards)
               <input type="number" min="1" step="1" value={placeRadiusYards} onChange={(event) => setPlaceRadiusYards(event.target.value)} />
             </label>
+
+            <label>
+              Track role
+              <select value={placeType} onChange={(event) => setPlaceType(event.target.value)}>
+                <option value="general">General place</option>
+                <option value="track_start">Track start</option>
+                <option value="track_finish">Track finish</option>
+                <option value="track_start_finish">Track start / finish</option>
+                <option value="track_split">Track split / timing point</option>
+                <option value="drag_start">Drag start</option>
+                <option value="drag_finish">Drag finish</option>
+                <option value="track_other">Other track location</option>
+              </select>
+            </label>
+
+            <label>
+              Track or course name
+              <input
+                type="text"
+                list="named-place-track-name-options"
+                name="track-course-name"
+                autoComplete="off"
+                value={placeTrackName}
+                onChange={(event) => setPlaceTrackName(event.target.value)}
+                placeholder="Optional venue or circuit"
+                aria-describedby="named-place-track-name-help"
+              />
+              <datalist id="named-place-track-name-options">
+                {trackNameSuggestions.map((name) => <option key={name} value={name} />)}
+              </datalist>
+            </label>
           </div>
 
-          <p className="profile-editor-help">
-            Multiple named places are supported. Radius is entered in yards and converted to meters for map use.
+          <p id="named-place-track-name-help" className="profile-editor-help">
+            Multiple named places are supported. Radius is entered in yards and converted to meters for map use. Track names suggest existing saved tracks, and new names are allowed.
           </p>
 
           {placeEditId && (
@@ -572,6 +782,8 @@ function SettingsModal({
                     <th>Scope</th>
                     <th>Location</th>
                     <th>Radius</th>
+                    <th>Role</th>
+                    <th>Track</th>
                     <th>Action</th>
                   </tr>
                 </thead>
@@ -588,6 +800,8 @@ function SettingsModal({
                         <td>{scopeLabel}</td>
                         <td>{place.latitude.toFixed(5)}, {place.longitude.toFixed(5)}</td>
                         <td>{Math.round((Number(place.radiusMeters) || 0) * 1.093613)} yd</td>
+                        <td>{String(place.placeType || 'general').replaceAll('_', ' ')}</td>
+                        <td>{place.trackName || '—'}</td>
                         <td>
                           <button type="button" className="small secondary" onClick={() => beginEditNamedPlace(place)}>
                             Edit
@@ -669,16 +883,21 @@ function SettingsModal({
 
           <label>
             Selected Profile
-            <select value={selectedProfileId} onChange={(event) => setSelectedProfileId(event.target.value)}>
+            <select value={selectedProfileId} onChange={(event) => setSelectedProfileId(event.target.value)} disabled={!profileStorageCanSave}>
               {profileOptions.map((profile) => (
                 <option key={profile.id} value={profile.id}>{profile.name}</option>
               ))}
             </select>
           </label>
 
+          <div className="profile-bundle-row">
+            <button type="button" className="secondary" onClick={openBundledProfileSearch} disabled={!profileStorageCanSave}>Find Available Device Profiles</button>
+            <span className="profile-editor-help">Checks the JSON definitions shipped in <code>device-profiles</code>.</span>
+          </div>
+
           <label>
             Profile Name
-            <input type="text" value={profileName} onChange={(event) => setProfileName(event.target.value)} />
+            <input type="text" value={profileName} onChange={(event) => setProfileName(event.target.value)} disabled={!profileStorageCanSave} />
           </label>
 
           <label>
@@ -687,17 +906,143 @@ function SettingsModal({
               value={profileAttributesJson}
               onChange={(event) => setProfileAttributesJson(event.target.value)}
               rows={10}
+              disabled={!profileStorageCanSave}
             />
           </label>
-          <p className="profile-editor-help">Each field may define a label, source units, an AVL ID, sentinel values, and a supported conversion such as <code>kmhToMph</code>, <code>cToF</code>, or <code>millivoltsToVolts</code>.</p>
+          <div className="profile-mapping-open-row">
+            <button id="open-device-protocol-profile-editor" type="button" className="secondary" onClick={onOpenProfileMappingEditor}>Open Visual Field Mapping Editor</button>
+          </div>
+          <p className="profile-editor-help">Each field may define its label and display units, source/canonical units, <code>canonicalScale</code> and optional <code>canonicalOffset</code> (raw × scale + offset), AVL ID, semantic <code>quantity</code>, optional <code>statusCardField</code>, sentinels, precision, and a legacy conversion. Canonical mappings convert to the user's Imperial or Metric preference. Reports and the status card use the assigned profile's labels and units. AVL 12/13 remain raw until their meaning is confirmed. Only set source/canonical units when confirmed against Traccar data.</p>
 
+          {profileStorageNotice && <div className="profile-editor-status" role="status">{profileStorageNotice}</div>}
+          {profileSyncStatus && <div className="profile-editor-status" role="status">{profileSyncStatus}</div>}
           {profileEditorStatus && <div className="profile-editor-status">{profileEditorStatus}</div>}
 
           <div className="actions three-up">
-            <button type="button" onClick={saveProfileEdits}>Save Profile</button>
-            <button type="button" className="secondary" onClick={createProfileFromEditor}>Create New Profile</button>
-            <button type="button" className="danger" onClick={deleteSelectedProfile}>Delete Profile</button>
+            <button type="button" onClick={saveProfileEdits} disabled={!profileStorageCanSave}>Save Profile</button>
+            <button type="button" className="secondary" onClick={createProfileFromEditor} disabled={!profileStorageCanSave}>Create New Profile</button>
+            <button type="button" className="danger" onClick={deleteSelectedProfile} disabled={!profileStorageCanSave}>Delete Profile</button>
           </div>
+
+          {bundledProfileDialogOpen && (
+            <div className="profile-bundle-backdrop">
+              <section className="profile-bundle-dialog" role="dialog" aria-modal="true" aria-labelledby="profile-bundle-title">
+                <header className="profile-bundle-header">
+                  <div>
+                    <p className="profile-editor-help">Packaged device definitions</p>
+                    <h3 id="profile-bundle-title">{bundledProfileStep === 'list' ? 'Available Device Profiles' : bundledProfileStep === 'actions' ? 'Use Device Profile' : 'Review Profile Differences'}</h3>
+                  </div>
+                  <button type="button" className="secondary" onClick={() => setBundledProfileDialogOpen(false)}>Close</button>
+                </header>
+
+                {bundledProfileStep === 'list' && (
+                  <>
+                    <p className="profile-editor-help">Choose a definition included with the app. The current profile will only change after you review and apply selected fields.</p>
+                    {bundledProfilesFound.length ? (
+                      <ul className="profile-bundle-list">
+                        {bundledProfilesFound.map((profile) => (
+                          <li key={profile.id}>
+                            <div><strong>{profile.name || profile.id}</strong><code>{profile.id}</code><span>{Object.keys(profile.attributeMap || {}).length} mapped fields</span></div>
+                            <button type="button" onClick={() => showBundledProfileActions(profile)}>Choose</button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : <p className="profile-editor-status">No packaged device profiles were found in <code>device-profiles</code>.</p>}
+                  </>
+                )}
+
+                {bundledProfileStep === 'actions' && selectedBundledProfile && (
+                  <>
+                    <p className="profile-editor-help">Definition: <strong>{selectedBundledProfile.name || selectedBundledProfile.id}</strong> ({selectedBundledProfile.id})</p>
+                    <p className="profile-editor-help">Current profile: <strong>{profileOptions.find((profile) => profile.id === selectedProfileId)?.name || 'None selected'}</strong></p>
+                    <div className="profile-bundle-actions">
+                      <button type="button" onClick={compareBundledProfileWithCurrent} disabled={!profileStorageCanSave || !selectedProfileId}>Update Current Profile</button>
+                      <button type="button" className="secondary" onClick={makeBundledProfileCopy} disabled={!profileStorageCanSave}>Create New Profile</button>
+                      <button type="button" className="secondary" onClick={() => setBundledProfileStep('list')}>Back to Profiles</button>
+                    </div>
+                    <p className="profile-editor-help">Updating compares each field independently. You choose which additions, changes, and removals to apply.</p>
+                  </>
+                )}
+
+                {bundledProfileStep === 'diff' && selectedBundledProfile && (
+                  <>
+                    <p className="profile-editor-help">Select properties within each PID. A checked property copies or removes only that property; unchecked properties are preserved.</p>
+                    <div className="profile-bundle-selection-tools">
+                      <span>{selectedPropertyChangeCount} of {totalPropertyChangeCount} mapping changes selected</span>
+                      <div>
+                        <button type="button" className="small secondary" onClick={() => selectAllBundledProperties(true)}>Select All</button>
+                        <button type="button" className="small secondary" onClick={() => selectAllBundledProperties(false)}>Select None</button>
+                      </div>
+                    </div>
+                    {bundledProfileDiffs.length ? (
+                      <div className="profile-bundle-diffs">
+                        {bundledProfileDiffs.map((difference) => {
+                          const propertyDiffs = getMappingPropertyDifferences(difference.current, difference.source)
+                          const selectedProperties = selectedBundledProperties[difference.key] || []
+                          const selectedCount = propertyDiffs.filter((item) => selectedProperties.includes(item.property)).length
+                          const allSelected = propertyDiffs.length > 0 && selectedCount === propertyDiffs.length
+                          const partlySelected = selectedCount > 0 && !allSelected
+                          return (
+                            <article key={difference.key} className="profile-bundle-diff">
+                              <div className="profile-bundle-diff-identity">
+                                <label className="profile-bundle-diff-identity-line">
+                                  <BundlePidCheckbox
+                                    label={`Select all changed properties for ${difference.key}`}
+                                    checked={allSelected}
+                                    indeterminate={partlySelected}
+                                    onChange={(event) => setSelectedBundledProperties((current) => ({
+                                      ...current,
+                                      [difference.key]: event.target.checked ? propertyDiffs.map((item) => item.property) : [],
+                                    }))}
+                                  />
+                                  <strong className="profile-bundle-diff-key">{difference.key}</strong>
+                                  <span className="profile-bundle-diff-label">{difference.source?.label || difference.current?.label || 'Unlabeled field'}</span>
+                                </label>
+                                <span className={`profile-bundle-diff-kind ${difference.change}`}>{difference.change}</span>
+                              </div>
+                              <div className="profile-bundle-diff-properties">
+                                {propertyDiffs.map((item) => {
+                                  const before = formatProfileDifferenceValue(item.current)
+                                  const after = formatProfileDifferenceValue(item.source)
+                                  return (
+                                    <label className="profile-bundle-diff-property" key={item.property} title={`${item.property}: ${before} → ${after}`}>
+                                      <strong className="profile-bundle-diff-property-name">{item.property}</strong>
+                                      <code>{before}</code>
+                                      <span aria-hidden="true">→</span>
+                                      <input
+                                        type="checkbox"
+                                        aria-label={`Apply ${item.property} change for ${difference.key}`}
+                                        checked={selectedProperties.includes(item.property)}
+                                        onChange={(event) => setSelectedBundledProperties((current) => {
+                                          const properties = current[difference.key] || []
+                                          return {
+                                            ...current,
+                                            [difference.key]: event.target.checked
+                                              ? [...properties, item.property]
+                                              : properties.filter((property) => property !== item.property),
+                                          }
+                                        })}
+                                      />
+                                      <code>{after}</code>
+                                    </label>
+                                  )
+                                })}
+                              </div>
+                            </article>
+                          )
+                        })}
+                      </div>
+                    ) : <p className="profile-editor-status">The selected profile already matches this packaged definition.</p>}
+                    <div className="profile-bundle-actions">
+                      <button type="button" onClick={applyBundledProfileChanges} disabled={!profileStorageCanSave || !selectedPropertyChangeCount}>Apply Selected Changes</button>
+                      <button type="button" className="secondary" onClick={() => setBundledProfileStep('actions')}>Back</button>
+                      <button type="button" className="secondary" onClick={() => setBundledProfileDialogOpen(false)}>Cancel</button>
+                    </div>
+                  </>
+                )}
+              </section>
+            </div>
+          )}
         </div>
 
         <div className="profile-editor">
@@ -731,14 +1076,23 @@ function SettingsModal({
             <label>Import Through<input type="date" value={bouncieImportThrough} onChange={(event) => setBouncieImportThrough(event.target.value)} /></label>
           </div>
           <div className="actions two-up">
-            <button type="button" onClick={startBouncieImport} disabled={bouncieBusy || !bouncieStatus?.connected || bouncieStatus?.import?.state === 'running'}>Import Bouncie Data</button>
+            <button type="button" onClick={startBouncieImport} disabled={bouncieBusy || !bouncieStatus?.connected || ['running', 'awaiting_confirmation'].includes(bouncieStatus?.import?.state)}>Import Bouncie Data</button>
             <button type="button" className="secondary" onClick={cancelBouncieImport} disabled={bouncieBusy || bouncieStatus?.import?.state !== 'running'}>Cancel Import</button>
           </div>
+          {bouncieStatus?.import?.state === 'awaiting_confirmation' && (
+            <div className="profile-editor-status" role="alert">
+              <strong>Continue this import?</strong> {bouncieStatus.import.message}
+              <div className="actions two-up">
+                <button type="button" onClick={continueBouncieImport} disabled={bouncieBusy}>Continue requested range</button>
+                <button type="button" className="secondary" onClick={cancelBouncieImport} disabled={bouncieBusy}>Stop and retry empty dates later</button>
+              </div>
+            </div>
+          )}
           <button type="button" className="small danger" onClick={forgetBouncieCredentials} disabled={bouncieBusy || !bouncieStatus?.connected}>Forget Stored Bouncie Connection</button>
           {bouncieStatus?.import && (
             <div className="profile-editor-status">
-              <strong>{bouncieStatus.import.state === 'running' ? 'Import in progress' : bouncieStatus.import.state}</strong>: {bouncieStatus.import.message}
-              {bouncieStatus.import.totalWindows > 0 && <span> ({bouncieStatus.import.completedWindows}/{bouncieStatus.import.totalWindows} windows, {bouncieStatus.import.imported || 0} trips imported, {bouncieStatus.import.skipped || 0} already present{bouncieStatus.import.failedWindows ? `, ${bouncieStatus.import.failedWindows} failed` : ''})</span>}
+              <strong>{bouncieStatus.import.state === 'running' ? 'Import in progress' : bouncieStatus.import.state === 'awaiting_confirmation' ? 'Import paused' : bouncieStatus.import.state}</strong>{bouncieStatus.import.state !== 'awaiting_confirmation' && `: ${bouncieStatus.import.message}`}
+              {bouncieStatus.import.totalWindows > 0 && <span> ({bouncieStatus.import.completedWindows}/{bouncieStatus.import.totalWindows} windows checked, {bouncieStatus.import.imported || 0} trips imported, {bouncieStatus.import.skipped || 0} already present{bouncieStatus.import.failedWindows ? `, ${bouncieStatus.import.failedWindows} failed` : ''})</span>}
             </div>
           )}
           {Array.isArray(bouncieCoverage) && bouncieCoverage.length > 0 && (

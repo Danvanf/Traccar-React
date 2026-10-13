@@ -1,7 +1,7 @@
 # Traccar React Migration
 
-Modern React + Vite frontend with a .NET backend for trip analysis, telemetry, and import workflows.
-Traccar-focused telemetry tooling for a full self-hosted vehicle history. Includes Bouncie trip-history import downloading all trip data points. 
+
+Traccar-focused telemetry tooling for a full self-hosted vehicle history. Includes Bouncie trip-history import downloading all trip data points. Modern React + Vite frontend with a .NET backend for trip analysis, telemetry, and import workflows.
 
 ## Who This Is For
 
@@ -10,6 +10,9 @@ Traccar-focused telemetry tooling for a full self-hosted vehicle history. Includ
 - Self-hosters who want to own their data and avoid monthly platform lock-in.
 - Bouncie users who just want to be able to export their trip data points
 - People interested in what their vehicles do graphing ODB2 data over time.
+- Current Traccar, OwnTracks, Dawarich, FleetStack or even Home Assistant asset tracking users.
+- Racers who need data. Track start/finish lines can be defined, then telemetry export data marks runs or laps.
+- Anyone who wants to know more about their car.
 
 ## License
 
@@ -72,6 +75,45 @@ npm run dev
 ```
 
 Default API base in the app is `/api`.
+
+Vehicle App users authenticate with accounts managed in **Settings > Users and Groups**; those usernames and password hashes are stored in `app_users`. Authentication is independent of server bootstrap credentials, so it remains enabled even when no auth credentials are present in environment variables. The optional `VehicleApp:Auth:Username` and `VehicleApp:Auth:Password` values are for provisioning a first administrator on a new database, not for normal user sign-in.
+
+For local AI/development access, `backend/VehicleApp.Api/appsettings.Development.json` can set `VehicleApp:Auth:AllowUnauthenticatedDevelopment` to `true`. This grants a development admin identity to loopback API requests without a user cookie, while `/auth/status` still reports the actual browser login state so the frontend prompts for and displays a named user. The option is ignored outside `Development`; do not enable it in production.
+
+## Vehicle App API Environment Variables
+
+The `scripts/api-environment.sample.ps1` and `scripts/api-environment.sample.sh` files are separate PowerShell and Bash templates for configuring the API process. **Each sample lists all supported API environment variables, grouped by purpose, with comments for optional or provider-specific settings.** Values are examples or blank placeholders; review and replace them for the installation. Email and SMS are disabled in the samples to avoid enabling outbound messages accidentally. Keep credentials and encryption keys private, and do not commit populated copies.
+
+Source the matching file in the same terminal session used to start the API. PowerShell:
+
+```powershell
+. .\scripts\api-environment.sample.ps1
+dotnet run --project .\backend\VehicleApp.Api\VehicleApp.Api.csproj
+```
+
+Bash:
+
+```bash
+source ./scripts/api-environment.sample.sh
+dotnet run --project ./backend/VehicleApp.Api/VehicleApp.Api.csproj
+```
+
+The primary names use ASP.NET Core's `__` separator for configuration sections (for example, `VehicleApp__Sms__Provider`). A few legacy fallback names are included as commented alternatives. The credential key ring uses `VehicleApp__CredentialEncryption__ActiveKeyId` and `VehicleApp__CredentialEncryption__Keys__<key-id>`; each key value must be Base64 for exactly 32 random bytes. Generate one with `[Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))` in PowerShell or `openssl rand -base64 32` in Bash. Store backups of these keys separately from PostgreSQL. Losing a key makes credentials encrypted with it unrecoverable. Keep old key IDs available through re-encryption and backup-retention periods.
+
+### Rotate the provider credential key
+
+1. Generate a new random 32-byte key and securely back it up. Give it a new key ID; do not overwrite the old key's value.
+2. Configure both keys in the API environment (`...Keys__<old-id>` and `...Keys__<new-id>`) and set `...ActiveKeyId` to the new ID. Restart the API so new credentials use the new key while existing credentials remain readable.
+3. As an administrator, send an authenticated `POST` to `/api/admin/provider-accounts/rotate-credentials`. The endpoint re-encrypts stored provider secrets in batches, advances the affected account revisions and records an audit entry. It can be run again safely if interrupted; the response reports how many secret records it rotated.
+4. Confirm provider account readiness in Settings. Keep the old key configured until all provider secrets have been rotated and database backups encrypted with that key are outside the retention period. Then remove the old key and restart the API.
+
+If rotation reports that a credential could not be decrypted, the current batch is rolled back. Keep the old key configured and restore the correct key value. If that key is lost, the affected provider secret must be replaced in Settings; do not remove the key that still decrypts other records.
+
+The Graph sender mailbox is configured through the app's Settings rather than an environment variable; this lets it vary independently from API credentials. Provider accounts saved in the database take priority over provider environment settings. Environment provider credentials remain a compatibility fallback when there is no database default account. `VITE_*` variables configure the frontend build or development proxy, so they are not included in these API samples.
+
+Administrators can manage Microsoft Graph accounts under Settings > Email Alerts and Twilio accounts under Settings > SMS Test, including per-vehicle account overrides. The API encrypts provider secrets before storing them in PostgreSQL; the browser only sees whether each secret is configured. “Check Graph Credentials” requests an OAuth token from Microsoft Entra but does not verify Graph `Mail.Send` permission or the sender mailbox. “Check Connection” for Twilio verifies its API credentials. Test sends remain separate deliberate actions. New email and automatic SMS alerts retain the selected account when they enter the queue; email alerts also retain the sender mailbox. Changing defaults does not redirect alerts already queued. Keep the configured key ring with the database backups needed to restore these accounts.
+
+Existing Bouncie credentials encrypted with `VehicleApp__Bouncie__EncryptionKey` remain readable during migration. Once the shared credential key ring is configured, API startup migrates those records to the shared format. Keep the legacy Bouncie key configured until migration has succeeded and any backups that need it have expired. New Bouncie credentials use the shared key ring.
 
 ## Proxy Target
 

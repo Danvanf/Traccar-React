@@ -1,0 +1,615 @@
+{
+  "id": "teltonika-fmc003-experimental",
+  "name": "Teltonika FMC003 (experimental; catalog 03.29+ and configured AVL)",
+  "schemaVersion": 14,
+  "attributeMap": {
+    "power": {
+      "label": "External Voltage",
+      "avlId": 66,
+      "units": "V",
+      "sourceUnit": "V",
+      "canonicalUnit": "V",
+      "canonicalScale": 1,
+      "quantity": "external_supply_voltage"
+    },
+    "battery": {
+      "label": "Battery Voltage",
+      "avlId": 67,
+      "units": "V",
+      "sourceUnit": "V",
+      "canonicalUnit": "V",
+      "canonicalScale": 1,
+      "quantity": "tracker_battery_voltage"
+    },
+    "batteryCurrent": {
+      "label": "Battery Current",
+      "avlId": 68,
+      "units": "A",
+      "sourceUnit": "A",
+      "canonicalUnit": "A",
+      "canonicalScale": 1,
+      "quantity": "tracker_battery_current"
+    },
+    "batteryLevel": {
+      "label": "Battery Level",
+      "avlId": 113,
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "battery_level"
+    },
+    "ignition": {
+      "label": "Ignition",
+      "avlId": 239
+    },
+    "motion": {
+      "label": "Movement",
+      "avlId": 240
+    },
+    "axisX": {
+      "label": "Axis X",
+      "avlId": 17,
+      "units": "mG",
+      "sourceUnit": "mG",
+      "canonicalUnit": "mG",
+      "canonicalScale": 1,
+      "quantity": "acceleration"
+    },
+    "axisY": {
+      "label": "Axis Y",
+      "avlId": 18,
+      "units": "mG",
+      "sourceUnit": "mG",
+      "canonicalUnit": "mG",
+      "canonicalScale": 1,
+      "quantity": "acceleration"
+    },
+    "axisZ": {
+      "label": "Axis Z",
+      "avlId": 19,
+      "units": "mG",
+      "sourceUnit": "mG",
+      "canonicalUnit": "mG",
+      "canonicalScale": 1,
+      "quantity": "acceleration"
+    },
+    "rssi": {
+      "label": "GSM Signal",
+      "avlId": 21
+    },
+    "hdop": {
+      "label": "HDOP",
+      "avlId": 182,
+      "quantity": "gnss_dilution_of_precision"
+    },
+    "pdop": {
+      "label": "PDOP",
+      "avlId": 181,
+      "quantity": "gnss_dilution_of_precision"
+    },
+    "tripOdometer": {
+      "label": "Trip Odometer",
+      "avlId": 199,
+      "units": "mi",
+      "sourceUnit": "m",
+      "canonicalUnit": "m",
+      "canonicalScale": 1,
+      "quantity": "distance"
+    },
+    "odometer": {
+      "label": "Total Odometer",
+      "avlId": 16,
+      "units": "mi",
+      "sourceUnit": "m",
+      "canonicalUnit": "m",
+      "canonicalScale": 1,
+      "quantity": "distance"
+    },
+    "operator": {
+      "label": "GSM Operator",
+      "avlId": 241,
+      "valueType": "identifier"
+    },
+    "dataMode": {
+      "label": "Data Mode",
+      "avlId": 80
+    },
+    "sleepMode": {
+      "label": "Sleep Mode",
+      "avlId": 200
+    },
+    "faultCount": {
+      "label": "Number of DTC",
+      "avlId": 30,
+      "units": "count",
+      "sourceUnit": "count",
+      "canonicalUnit": "count",
+      "canonicalScale": 1,
+      "quantity": "diagnostic_code_count"
+    },
+    "coolantTemp": {
+      "label": "Engine Coolant Temperature",
+      "avlId": 32,
+      "units": "°F",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "quantity": "engine_coolant_temperature"
+    },
+    "rpm": {
+      "label": "Engine RPM",
+      "avlId": 36,
+      "units": "rpm",
+      "sourceUnit": "rpm",
+      "canonicalUnit": "rpm",
+      "canonicalScale": 1,
+      "quantity": "rotational_speed"
+    },
+    "milDistance": {
+      "label": "Distance Traveled With MIL On",
+      "avlId": 43,
+      "units": "mi",
+      "sourceUnit": "km",
+      "canonicalUnit": "km",
+      "canonicalScale": 1,
+      "quantity": "distance"
+    },
+    "hybridBatteryLevel": {
+      "label": "Hybrid Battery Pack Remaining Life",
+      "avlId": 57,
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percentage"
+    },
+    "io33": {
+      "label": "Short Term Fuel Trim",
+      "avlId": 33,
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percentage",
+      "sourceGroup": "obd"
+    },
+    "io34": {
+      "label": "Fuel Pressure",
+      "avlId": 34,
+      "units": "psi",
+      "sourceUnit": "kPa",
+      "canonicalUnit": "kPa",
+      "canonicalScale": 1,
+      "quantity": "fuel_pressure",
+      "sourceGroup": "obd"
+    },
+    "io37": {
+      "label": "Vehicle Speed",
+      "avlId": 37,
+      "units": "mph",
+      "sourceUnit": "km/h",
+      "canonicalUnit": "km/h",
+      "canonicalScale": 1,
+      "quantity": "obd_speed",
+      "sourceGroup": "obd"
+    },
+    "io38": {
+      "label": "Timing Advance",
+      "avlId": 38,
+      "units": "degree",
+      "sourceUnit": "degree",
+      "canonicalUnit": "degree",
+      "canonicalScale": 1,
+      "quantity": "angle",
+      "sourceGroup": "obd"
+    },
+    "io39": {
+      "label": "Intake Air Temperature",
+      "avlId": 39,
+      "units": "°F",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "quantity": "temperature",
+      "sourceGroup": "obd"
+    },
+    "io40": {
+      "label": "MAF",
+      "avlId": 40,
+      "units": "g/s",
+      "sourceUnit": "wire count",
+      "canonicalUnit": "g/s",
+      "canonicalScale": 0.01,
+      "quantity": "mass_flow",
+      "sourceGroup": "obd"
+    },
+    "io41": {
+      "label": "Throttle Position",
+      "avlId": 41,
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percentage",
+      "sourceGroup": "obd"
+    },
+    "io42": {
+      "label": "Run Time Since Engine Start",
+      "avlId": 42,
+      "units": "s",
+      "sourceUnit": "s",
+      "canonicalUnit": "s",
+      "canonicalScale": 1,
+      "quantity": "duration",
+      "sourceGroup": "obd"
+    },
+    "io44": {
+      "label": "Relative Fuel Rail Pressure",
+      "avlId": 44,
+      "units": "psi",
+      "sourceUnit": "wire count",
+      "canonicalUnit": "kPa",
+      "canonicalScale": 0.1,
+      "quantity": "fuel_pressure",
+      "sourceGroup": "obd"
+    },
+    "io45": {
+      "label": "Fuel Rail Pressure",
+      "avlId": 45,
+      "units": "psi",
+      "sourceUnit": "wire count",
+      "canonicalUnit": "kPa",
+      "canonicalScale": 10,
+      "quantity": "fuel_pressure",
+      "sourceGroup": "obd"
+    },
+    "io46": {
+      "label": "Commanded EGR",
+      "avlId": 46,
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percentage",
+      "sourceGroup": "obd"
+    },
+    "io47": {
+      "label": "EGR Error",
+      "avlId": 47,
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percentage",
+      "sourceGroup": "obd"
+    },
+    "io48": {
+      "label": "Fuel Level",
+      "avlId": 48,
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percentage",
+      "sourceGroup": "obd"
+    },
+    "io49": {
+      "label": "Distance Since Codes Cleared",
+      "avlId": 49,
+      "units": "mi",
+      "sourceUnit": "km",
+      "canonicalUnit": "km",
+      "canonicalScale": 1,
+      "quantity": "distance",
+      "sourceGroup": "obd"
+    },
+    "io50": {
+      "label": "Barometric Pressure",
+      "avlId": 50,
+      "units": "inHg",
+      "sourceUnit": "kPa",
+      "canonicalUnit": "kPa",
+      "canonicalScale": 1,
+      "quantity": "barometric_pressure",
+      "sourceGroup": "obd"
+    },
+    "io51": {
+      "label": "Control Module Voltage",
+      "avlId": 51,
+      "units": "V",
+      "sourceUnit": "wire count",
+      "canonicalUnit": "V",
+      "canonicalScale": 0.001,
+      "quantity": "control_module_voltage",
+      "sourceGroup": "obd"
+    },
+    "io52": {
+      "label": "Absolute Load Value",
+      "avlId": 52,
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percentage",
+      "sourceGroup": "obd"
+    },
+    "io53": {
+      "label": "Ambient Air Temperature",
+      "avlId": 53,
+      "units": "°F",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "quantity": "temperature",
+      "sourceGroup": "obd"
+    },
+    "io54": {
+      "label": "Time Run With MIL On",
+      "avlId": 54,
+      "units": "min",
+      "sourceUnit": "min",
+      "canonicalUnit": "min",
+      "canonicalScale": 1,
+      "quantity": "duration",
+      "sourceGroup": "obd"
+    },
+    "io55": {
+      "label": "Time Since Codes Cleared",
+      "avlId": 55,
+      "units": "min",
+      "sourceUnit": "min",
+      "canonicalUnit": "min",
+      "canonicalScale": 1,
+      "quantity": "duration",
+      "sourceGroup": "obd"
+    },
+    "io56": {
+      "label": "Absolute Fuel Rail Pressure",
+      "avlId": 56,
+      "units": "psi",
+      "sourceUnit": "wire count",
+      "canonicalUnit": "kPa",
+      "canonicalScale": 10,
+      "quantity": "fuel_pressure",
+      "sourceGroup": "obd"
+    },
+    "io58": {
+      "label": "Engine Oil Temperature",
+      "avlId": 58,
+      "units": "°F",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "quantity": "temperature",
+      "sourceGroup": "obd"
+    },
+    "io59": {
+      "label": "Fuel Injection Timing",
+      "avlId": 59,
+      "units": "degree",
+      "sourceUnit": "wire count",
+      "canonicalUnit": "degree",
+      "canonicalScale": 0.01,
+      "quantity": "angle",
+      "sourceGroup": "obd"
+    },
+    "io60": {
+      "label": "Engine Fuel Rate",
+      "avlId": 60,
+      "units": "gal/h",
+      "sourceUnit": "wire count",
+      "canonicalUnit": "L/h",
+      "canonicalScale": 0.01,
+      "quantity": "fuel_flow",
+      "sourceGroup": "obd"
+    },
+    "io281": {
+      "label": "OBD Fault Codes",
+      "avlId": 281,
+      "sourceGroup": "obd"
+    },
+    "io542": {
+      "label": "Intake Manifold Absolute Pressure",
+      "avlId": 542,
+      "units": "psi",
+      "sourceUnit": "kPa",
+      "canonicalUnit": "kPa",
+      "canonicalScale": 1,
+      "quantity": "manifold_pressure",
+      "sourceGroup": "obd"
+    },
+    "io759": {
+      "label": "Fuel Type",
+      "avlId": 759,
+      "sourceGroup": "obd"
+    },
+    "io237": {
+      "label": "Network Type",
+      "avlId": 237
+    },
+    "io250": {
+      "label": "Trip Status",
+      "avlId": 250
+    },
+    "io402": {
+      "label": "Distance Until Service",
+      "avlId": 402,
+      "units": "mi",
+      "sourceUnit": "km",
+      "canonicalUnit": "km",
+      "canonicalScale": 1,
+      "quantity": "distance",
+      "sourceGroup": "obd"
+    },
+    "io411": {
+      "label": "OEM Battery Charge Level",
+      "avlId": 411,
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percentage",
+      "sourceGroup": "obd"
+    },
+    "bleTemp1": {
+      "label": "BLE Temperature #1",
+      "avlId": 25,
+      "units": "°F",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "quantity": "temperature"
+    },
+    "bleTemp2": {
+      "label": "BLE Temperature #2",
+      "avlId": 26,
+      "units": "°F",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "quantity": "temperature"
+    },
+    "bleTemp3": {
+      "label": "BLE Temperature #3",
+      "avlId": 27,
+      "units": "°F",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "quantity": "temperature"
+    },
+    "bleTemp4": {
+      "label": "BLE Temperature #4",
+      "avlId": 28,
+      "units": "°F",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "quantity": "temperature"
+    },
+    "distance": {
+      "label": "Traccar Segment Distance",
+      "units": "mi",
+      "sourceUnit": "m",
+      "canonicalUnit": "m",
+      "canonicalScale": 1,
+      "quantity": "distance"
+    },
+    "totalDistance": {
+      "label": "Traccar Total Distance",
+      "units": "mi",
+      "sourceUnit": "m",
+      "canonicalUnit": "m",
+      "canonicalScale": 1,
+      "quantity": "distance"
+    },
+    "vin": {
+      "label": "Vehicle Identification Number",
+      "valueType": "identifier"
+    },
+    "event": {
+      "label": "Traccar Event / Rule ID"
+    },
+    "priority": {
+      "label": "AVL Packet Priority"
+    },
+    "sat": {
+      "label": "GNSS Satellite Count",
+      "units": "count"
+    },
+    "cid4g": {
+      "label": "UMTS/LTE Cell ID",
+      "avlId": 636
+    },
+    "io69": {
+      "label": "GNSS Status",
+      "avlId": 69
+    },
+    "io29": {
+      "label": "BLE Sensor Battery #1",
+      "avlId": 29,
+      "units": "%"
+    },
+    "io20": {
+      "label": "BLE Sensor Battery #2",
+      "avlId": 20,
+      "units": "%"
+    },
+    "io22": {
+      "label": "BLE Sensor Battery #3",
+      "avlId": 22,
+      "units": "%"
+    },
+    "io23": {
+      "label": "BLE Sensor Battery #4",
+      "avlId": 23,
+      "units": "%"
+    },
+    "io256": {
+      "label": "OBD VIN (verify reporting format)",
+      "avlId": 256,
+      "valueType": "identifier"
+    },
+    "iccid": {
+      "label": "SIM ICCID",
+      "avlId": 11,
+      "valueType": "identifier"
+    },
+    "driverUniqueId": {
+      "label": "Driver Identifier",
+      "avlId": 78,
+      "valueType": "identifier"
+    },
+    "io389": {
+      "label": "OEM Total Mileage (AVL 389; vehicle dependent)",
+      "avlId": 389,
+      "units": "mi",
+      "sourceUnit": "km",
+      "canonicalUnit": "m",
+      "canonicalScale": 1000,
+      "quantity": "distance"
+    },
+    "io410": {
+      "label": "OEM Battery Charging State",
+      "avlId": 410
+    },
+    "io755": {
+      "label": "OEM Remaining Range",
+      "avlId": 755,
+      "units": "mi",
+      "sourceUnit": "km",
+      "canonicalUnit": "m",
+      "canonicalScale": 1000,
+      "quantity": "distance"
+    },
+    "io1151": {
+      "label": "OEM Battery State of Health",
+      "avlId": 1151,
+      "units": "%"
+    },
+    "io1152": {
+      "label": "OEM Battery Temperature",
+      "avlId": 1152,
+      "units": "°F",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "quantity": "temperature"
+    },
+    "io1443": {
+      "label": "OEM Distance Since Refuel",
+      "avlId": 1443,
+      "units": "mi",
+      "sourceUnit": "km",
+      "canonicalUnit": "m",
+      "canonicalScale": 1000,
+      "quantity": "distance"
+    },
+    "io1181": {
+      "label": "ELD Engine Idle Hours",
+      "avlId": 1181,
+      "units": "h"
+    }
+  }
+}

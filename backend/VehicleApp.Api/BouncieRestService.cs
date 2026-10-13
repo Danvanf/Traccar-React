@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -9,15 +10,20 @@ using Npgsql;
 
 public sealed class BouncieRestService
 {
+    private static readonly Guid SharedCredentialAccountId = Guid.Parse("e381646f-0bb8-4f32-bf28-f5ed7a2b1b72");
+    private const string ClientSecretPurpose = "bouncie_client_secret";
+    private const string RefreshTokenPurpose = "bouncie_refresh_token";
     private static readonly Uri TokenUri = new("https://auth.bouncie.com/oauth/token");
     private static readonly Uri ApiBaseUri = new("https://api.bouncie.dev/v1/");
     // Increment when the importer learns to preserve another Bouncie field.
     // Completed windows from older versions are replayed once so existing,
     // deduplicated trips gain the newly available data.
     private const int ImportFormatVersion = 3;
+    private static readonly DateTimeOffset EarliestAvailableTrip = new(2020, 5, 21, 0, 0, 0, TimeSpan.Zero);
     private readonly object gate = new();
     private readonly NpgsqlDataSource dataSource;
     private readonly ILogger<BouncieRestService> logger;
+    private readonly CredentialProtectionService credentialProtection;
     private readonly byte[]? encryptionKey;
     private readonly HttpClient http = new() { Timeout = TimeSpan.FromSeconds(45) };
     private readonly SemaphoreSlim tokenRefreshGate = new(1, 1);
@@ -27,11 +33,13 @@ public sealed class BouncieRestService
     private bool hasStoredCredentials;
     private BouncieSyncProgress progress = BouncieSyncProgress.Disconnected();
     private CancellationTokenSource? syncCancellation;
+    private TaskCompletionSource<bool>? emptyResponseDecision;
 
-    public BouncieRestService(NpgsqlDataSource dataSource, ILogger<BouncieRestService> logger, IConfiguration configuration)
+    public BouncieRestService(NpgsqlDataSource dataSource, ILogger<BouncieRestService> logger, IConfiguration configuration, CredentialProtectionService credentialProtection)
     {
         this.dataSource = dataSource;
         this.logger = logger;
+        this.credentialProtection = credentialProtection;
         var encodedKey = configuration["VehicleApp:Bouncie:EncryptionKey"]
             ?? Environment.GetEnvironmentVariable("VEHICLE_APP_BOUNCIE_ENCRYPTION_KEY");
         if (!string.IsNullOrWhiteSpace(encodedKey))
@@ -50,24 +58,33 @@ public sealed class BouncieRestService
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
-        if (encryptionKey is null) return;
+        if (encryptionKey is null && !credentialProtection.HasConfiguration) return;
         await connectionRestoreGate.WaitAsync(cancellationToken);
         try
         {
+            EnsureEncryptionKey();
             lock (gate)
                 if (connection is not null)
                     return;
             var stored = await LoadStoredCredentialsAsync(cancellationToken);
             if (stored is null) return;
             lock (gate) hasStoredCredentials = true;
-            var clientSecret = Unprotect(stored.ClientSecretCiphertext);
-            var refreshToken = Unprotect(stored.RefreshTokenCiphertext);
+            var clientSecret = Unprotect(stored.ClientSecretCiphertext, ClientSecretPurpose);
+            var refreshToken = Unprotect(stored.RefreshTokenCiphertext, RefreshTokenPurpose);
+            if (credentialProtection.CanProtect)
+                await MigrateLegacyCredentialsAsync(stored, clientSecret, refreshToken, cancellationToken);
             var restored = await RefreshConnectionAsync(stored.ClientId, clientSecret, refreshToken, stored.RedirectUri, cancellationToken);
             lock (gate)
             {
                 connection = restored with { UserLabel = stored.UserLabel ?? restored.UserLabel };
                 progress = BouncieSyncProgress.Connected(restored.Vehicles.Count);
             }
+        }
+        catch (CredentialProtectionException)
+        {
+            const string message = "Saved Bouncie credentials cannot be decrypted with the configured key; reconnect Bouncie in Settings if needed.";
+            logger.LogWarning("{Message}", message);
+            lock (gate) progress = BouncieSyncProgress.Disconnected(message);
         }
         catch (Exception ex)
         {
@@ -146,6 +163,50 @@ public sealed class BouncieRestService
         }
     }
 
+    public async Task<BouncieTripsProbeResult> ProbeTripsAsync(string imei, DateTimeOffset from, DateTimeOffset through, CancellationToken cancellationToken)
+    {
+        BouncieConnection current;
+        lock (gate)
+        {
+            current = connection ?? throw new InvalidOperationException("Bouncie is not connected in this API process.");
+            if (!current.Vehicles.Any(vehicle => string.Equals(vehicle.Imei, imei, StringComparison.Ordinal)))
+                throw new ArgumentException("The IMEI is not part of the saved Bouncie connection.");
+        }
+
+        if (from >= through || through - from > TimeSpan.FromDays(7))
+            throw new ArgumentException("Choose a date range of 7 days or less.");
+
+        var results = new List<BouncieTripsProbeVariant>();
+        foreach (var (format, includeGps) in new (string? Format, bool? IncludeGps)[]
+        {
+            ("geojson", null),
+            ("polyline", null),
+            ("geojson", true),
+            (null, null)
+        })
+        {
+            var endpoint = BuildTripsPath(imei, from, through, format);
+            if (includeGps.HasValue) endpoint += $"&includeGps={includeGps.Value.ToString().ToLowerInvariant()}";
+            try
+            {
+                var payload = await GetJsonAsync(current, endpoint, cancellationToken);
+                var trips = payload.ValueKind == JsonValueKind.Array
+                    ? payload.EnumerateArray().ToArray()
+                    : ArrayElements(payload, "trips", "data", "results").ToArray();
+                var keys = trips.Length > 0 && trips[0].ValueKind == JsonValueKind.Object
+                    ? trips[0].EnumerateObject().Select(property => property.Name).ToArray()
+                    : [];
+                results.Add(new BouncieTripsProbeVariant(format ?? "omitted", includeGps, "ok", payload.ValueKind.ToString(), trips.Length, keys, null));
+            }
+            catch (BouncieApiException ex)
+            {
+                results.Add(new BouncieTripsProbeVariant(format ?? "omitted", includeGps, "http_error", null, 0, [], $"HTTP {(int)ex.StatusCode} {ex.ReasonPhrase}"));
+            }
+        }
+
+        return new BouncieTripsProbeResult(imei, from, through, results);
+    }
+
     public async Task<IReadOnlyList<BouncieBackfillCoverage>> GetBackfillCoverageAsync(DateTimeOffset? from, DateTimeOffset? through, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -154,6 +215,7 @@ public sealed class BouncieRestService
             from bouncie_import_checkpoints
             where (cast(@from as timestamptz) is null or window_through > cast(@from as timestamptz))
               and (cast(@through as timestamptz) is null or window_from < cast(@through as timestamptz))
+              and (imported_count > 0 or skipped_count > 0 or imported_events > 0)
             group by vehicle_imei
             order by vehicle_imei
             """, connection);
@@ -196,7 +258,7 @@ public sealed class BouncieRestService
             ?? throw new InvalidOperationException("No encrypted Bouncie connection is stored. Enter the client secret to connect for the first time.");
         return BeginAuthorization(new BouncieAuthorizationStartRequest(
             stored.ClientId,
-            Unprotect(stored.ClientSecretCiphertext),
+            Unprotect(stored.ClientSecretCiphertext, ClientSecretPurpose),
             stored.RedirectUri));
     }
 
@@ -229,7 +291,7 @@ public sealed class BouncieRestService
         lock (gate)
         {
             if (connection is null) throw new InvalidOperationException("Connect to Bouncie before starting an import.");
-            if (progress.State == "running") throw new InvalidOperationException("A Bouncie import is already running.");
+            if (progress.State is "running" or "awaiting_confirmation") throw new InvalidOperationException("A Bouncie import is already running.");
             syncCancellation?.Dispose();
             syncCancellation = new CancellationTokenSource();
             var jobId = Guid.NewGuid();
@@ -243,6 +305,12 @@ public sealed class BouncieRestService
     public void CancelImport()
     {
         lock (gate) syncCancellation?.Cancel();
+    }
+
+    public bool ContinueImport()
+    {
+        lock (gate)
+            return progress.State == "awaiting_confirmation" && emptyResponseDecision?.TrySetResult(true) == true;
     }
 
     public async Task ForgetAsync(CancellationToken cancellationToken = default)
@@ -262,8 +330,10 @@ public sealed class BouncieRestService
 
     private void EnsureEncryptionKey()
     {
-        if (encryptionKey is null)
-            throw new InvalidOperationException("Bouncie credential encryption is not configured. Set VEHICLE_APP_BOUNCIE_ENCRYPTION_KEY to a base64-encoded 32-byte key before connecting.");
+        if (credentialProtection.HasConfiguration && !credentialProtection.CanProtect)
+            throw new InvalidOperationException(credentialProtection.ConfigurationError ?? "The shared credential encryption key ring is invalid.");
+        if (!credentialProtection.CanProtect && encryptionKey is null)
+            throw new InvalidOperationException("Credential encryption is not configured. Set the shared VehicleApp:CredentialEncryption key ring before saving credentials. The legacy Bouncie key is supported only for existing installations during migration.");
     }
 
     private static string FormatDetail(string? detail) => string.IsNullOrWhiteSpace(detail) ? "." : $" Bouncie response: {detail}.";
@@ -349,11 +419,38 @@ public sealed class BouncieRestService
               updated_at = now()
             """, connection);
         command.Parameters.AddWithValue("clientId", value.ClientId);
-        command.Parameters.AddWithValue("clientSecret", Protect(value.ClientSecret));
-        command.Parameters.AddWithValue("refreshToken", Protect(value.RefreshToken));
+        command.Parameters.AddWithValue("clientSecret", ProtectClientSecret(value.ClientSecret));
+        command.Parameters.AddWithValue("refreshToken", ProtectRefreshToken(value.RefreshToken));
         command.Parameters.AddWithValue("redirectUri", redirectUri);
         command.Parameters.AddWithValue("userLabel", (object?)value.UserLabel ?? DBNull.Value);
         await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private async Task MigrateLegacyCredentialsAsync(StoredBouncieCredentials stored, string clientSecret, string refreshToken, CancellationToken cancellationToken)
+    {
+        if (stored.ClientSecretCiphertext.StartsWith("v1.", StringComparison.Ordinal)
+            && stored.RefreshTokenCiphertext.StartsWith("v1.", StringComparison.Ordinal)) return;
+        var clientSecretCiphertext = ProtectClientSecret(clientSecret);
+        var refreshTokenCiphertext = ProtectRefreshToken(refreshToken);
+        try
+        {
+            await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+            await using var command = new NpgsqlCommand("""
+                update bouncie_credentials
+                set client_secret_ciphertext = @clientSecret, refresh_token_ciphertext = @refreshToken, updated_at = now()
+                where id = 1 and client_secret_ciphertext = @oldClientSecret and refresh_token_ciphertext = @oldRefreshToken
+                """, connection);
+            command.Parameters.AddWithValue("clientSecret", clientSecretCiphertext);
+            command.Parameters.AddWithValue("refreshToken", refreshTokenCiphertext);
+            command.Parameters.AddWithValue("oldClientSecret", stored.ClientSecretCiphertext);
+            command.Parameters.AddWithValue("oldRefreshToken", stored.RefreshTokenCiphertext);
+            var migrated = await command.ExecuteNonQueryAsync(cancellationToken);
+            if (migrated > 0) logger.LogInformation("Migrated stored Bouncie credentials to the shared credential key ring.");
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning(exception, "Bouncie credentials remain in the legacy encryption format; the legacy key must remain configured until migration succeeds.");
+        }
     }
 
     private async Task SaveSourceSnapshotAsync(string sourceType, string sourceKey, JsonElement payload, CancellationToken cancellationToken)
@@ -372,9 +469,15 @@ public sealed class BouncieRestService
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    private string Protect(string plaintext)
+    private string ProtectClientSecret(string plaintext) => Protect(plaintext, ClientSecretPurpose);
+
+    private string ProtectRefreshToken(string plaintext) => Protect(plaintext, RefreshTokenPurpose);
+
+    private string Protect(string plaintext, string purpose)
     {
         EnsureEncryptionKey();
+        if (credentialProtection.CanProtect)
+            return credentialProtection.Protect(SharedCredentialAccountId, purpose, plaintext);
         var plaintextBytes = Encoding.UTF8.GetBytes(plaintext);
         var nonce = RandomNumberGenerator.GetBytes(12);
         var tag = new byte[16];
@@ -391,9 +494,12 @@ public sealed class BouncieRestService
         return Convert.ToBase64String(envelope);
     }
 
-    private string Unprotect(string encoded)
+    private string Unprotect(string encoded, string purpose)
     {
-        EnsureEncryptionKey();
+        if (encoded.StartsWith("v1.", StringComparison.Ordinal))
+            return credentialProtection.Unprotect(SharedCredentialAccountId, purpose, encoded);
+        if (encryptionKey is null)
+            throw new InvalidOperationException("The legacy Bouncie encryption key is required to read credentials that have not yet been migrated.");
         var envelope = Convert.FromBase64String(encoded);
         if (envelope.Length < 29 || envelope[0] != 1) throw new InvalidOperationException("Stored Bouncie credential encryption envelope is invalid.");
         var nonce = envelope.AsSpan(1, 12).ToArray();
@@ -410,13 +516,30 @@ public sealed class BouncieRestService
 
     private async Task RunImportAsync(Guid jobId, DateTimeOffset from, DateTimeOffset through, CancellationToken cancellationToken)
     {
+        var consecutiveEmptyResponses = 0;
+        var nextEmptyPromptAt = 4;
         try
         {
             var catalog = await LoadCatalogVehiclesAsync(cancellationToken);
             BouncieConnection active;
-            lock (gate) active = connection ?? throw new InvalidOperationException("Bouncie connection is no longer available.");
+            bool credentialsStored;
+            lock (gate)
+            {
+                active = connection ?? throw new InvalidOperationException("Bouncie connection is no longer available.");
+                credentialsStored = hasStoredCredentials;
+            }
+            if (through <= EarliestAvailableTrip)
+            {
+                SetProgress(jobId, state: "completed", message: $"No trips are available from Bouncie before {EarliestAvailableTrip:yyyy-MM-dd}; no requests were sent.");
+                return;
+            }
+            var requestedFrom = from;
+            if (from < EarliestAvailableTrip) from = EarliestAvailableTrip;
+            var rangeNote = requestedFrom < from
+                ? $" Bouncie does not provide trips before {EarliestAvailableTrip:yyyy-MM-dd}; the import starts at that date."
+                : string.Empty;
             var windows = SplitWindows(from, through).ToArray();
-            SetProgress(jobId, state: "running", message: "Preparing the rate-limited Bouncie import.", totalWindows: windows.Length * active.Vehicles.Count);
+            SetProgress(jobId, state: "running", message: $"Preparing the rate-limited Bouncie import.{rangeNote}", totalWindows: windows.Length * active.Vehicles.Count);
 
             foreach (var remote in active.Vehicles)
             {
@@ -459,9 +582,10 @@ public sealed class BouncieRestService
                     }
                     catch (Exception ex)
                     {
-                        logger.LogWarning(ex, "Bouncie window failed for {Vehicle} {From:o}..{Through:o}; continuing with later windows.", remote.DisplayName ?? remote.Imei, window.From, window.Through);
-                        SetProgress(jobId, completedWindows: 1, failedWindows: 1, message: $"Window failed for {remote.DisplayName ?? remote.Imei}: {ex.Message}");
-                        continue;
+                        var failure = DescribeImportFailure(ex, active, credentialsStored);
+                        logger.LogWarning("Bouncie import stopped after a request failure: {Failure}", failure);
+                        SetProgress(jobId, state: "failed", completedWindows: 1, failedWindows: 1, message: $"{failure}{rangeNote} Later windows were skipped. Check the Bouncie service and account access; reconnect if needed, then retry the import.");
+                        return;
                     }
                     var rows = ParseTripRows(payload, remote, target, window.From, window.Through);
                     logger.LogInformation("Bouncie trips response for {Vehicle}: {PayloadShape}; {ParsedCount} trip row(s) remained inside the requested window.", remote.DisplayName ?? remote.Imei, DescribePayload(payload), rows.Count);
@@ -473,10 +597,11 @@ public sealed class BouncieRestService
                     }
                     else
                     {
-                        logger.LogInformation("Bouncie returned no trips for {Vehicle} in requested window {From:o}..{Through:o}.", remote.DisplayName ?? remote.Imei, window.From, window.Through);
+                        logger.LogWarning("Bouncie import parsed 0 trips for {Vehicle} in requested window {From:o}..{Through:o}; response shape: {PayloadShape}. A nonempty response may indicate a payload or date parsing mismatch.", remote.DisplayName ?? remote.Imei, window.From, window.Through, DescribePayload(payload));
                     }
                     if (rows.Count > 0)
                     {
+                        consecutiveEmptyResponses = 0;
                         BouncieImportResult result;
                         try
                         {
@@ -497,11 +622,20 @@ public sealed class BouncieRestService
                     }
                     else
                     {
-                        await MarkWindowCompletedAsync(remote.Imei, window.From, window.Through, new BouncieImportResult(0, 0, 0), cancellationToken);
+                        consecutiveEmptyResponses++;
                         SetProgress(jobId, message: $"No trips returned for {remote.DisplayName ?? remote.Imei} through {window.Through:yyyy-MM-dd}.");
                     }
 
                     SetProgress(jobId, completedWindows: 1);
+                    if (rows.Count == 0 && consecutiveEmptyResponses >= nextEmptyPromptAt)
+                    {
+                        var promptedAt = nextEmptyPromptAt;
+                        if (!await WaitForEmptyResponseDecisionAsync(jobId, consecutiveEmptyResponses, through, cancellationToken))
+                            throw new OperationCanceledException(cancellationToken);
+                        consecutiveEmptyResponses = 0;
+                        nextEmptyPromptAt = Math.Min(nextEmptyPromptAt * 2, 256);
+                        SetProgress(jobId, state: "running", message: $"Continuing the requested range after {promptedAt} consecutive empty responses.");
+                    }
                     // Keep requests deliberately sparse. Bouncie trip windows are
                     // limited to one week, so a year is roughly 53 sequential calls.
                     await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
@@ -514,17 +648,44 @@ public sealed class BouncieRestService
                 jobId,
                 state: "completed",
                 message: failedWindows > 0
-                    ? $"Bouncie import completed with {failedWindows} failed window(s); rerun the same range to retry them."
-                    : "Bouncie import completed.");
+                    ? $"Bouncie import completed with {failedWindows} failed window(s); rerun the same range to retry them.{rangeNote}"
+                    : $"Bouncie import completed.{rangeNote}");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            SetProgress(jobId, state: "canceled", message: "Bouncie import canceled; completed batches were preserved.");
+            SetProgress(jobId, state: "canceled", message: "Bouncie import canceled; imported batches were preserved. Empty windows remain available to retry.");
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Bouncie REST import failed for job {JobId}", jobId);
             SetProgress(jobId, state: "failed", message: ex.Message);
+        }
+    }
+
+    private async Task<bool> WaitForEmptyResponseDecisionAsync(Guid jobId, int emptyCount, DateTimeOffset through, CancellationToken cancellationToken)
+    {
+        TaskCompletionSource<bool> decision;
+        lock (gate)
+        {
+            if (progress.JobId != jobId) return false;
+            decision = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            emptyResponseDecision = decision;
+            progress = progress with
+            {
+                State = "awaiting_confirmation",
+                Message = $"{emptyCount} consecutive requested windows returned no trips. Continue importing through {through:yyyy-MM-dd}? Empty windows remain available to retry later.",
+                UpdatedAtUtc = DateTimeOffset.UtcNow
+            };
+        }
+
+        try
+        {
+            return await decision.Task.WaitAsync(cancellationToken);
+        }
+        finally
+        {
+            lock (gate)
+                if (ReferenceEquals(emptyResponseDecision, decision)) emptyResponseDecision = null;
         }
     }
 
@@ -540,8 +701,7 @@ public sealed class BouncieRestService
         if (!response.IsSuccessStatusCode)
         {
             var detail = await ReadSafeErrorAsync(response, cancellationToken);
-            logger.LogWarning("Bouncie API request {Endpoint} failed with HTTP {Status}: {Detail}", endpoint, (int)response.StatusCode, detail);
-            throw new InvalidOperationException($"Bouncie API request failed for {endpoint}: HTTP {(int)response.StatusCode} {response.ReasonPhrase}{FormatDetail(detail)}");
+            throw new BouncieApiException(response.StatusCode, response.ReasonPhrase, detail);
         }
         using var document = await response.Content.ReadFromJsonAsync<JsonDocument>(cancellationToken: cancellationToken)
             ?? throw new InvalidOperationException($"Bouncie API returned an empty response for {endpoint}.");
@@ -556,19 +716,54 @@ public sealed class BouncieRestService
             {
                 return await GetJsonAsync(current, endpoint, cancellationToken);
             }
-            catch (InvalidOperationException ex) when (attempt < 2 && (ex.Message.Contains("HTTP 429", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("HTTP 5", StringComparison.OrdinalIgnoreCase)))
+            catch (BouncieApiException ex) when (attempt < 2 && (ex.StatusCode == HttpStatusCode.TooManyRequests || (int)ex.StatusCode >= 500)
+            )
             {
                 var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt + 1));
                 logger.LogWarning("Retrying Bouncie request {Endpoint} after transient failure (attempt {Attempt}/3).", endpoint, attempt + 1);
                 await Task.Delay(delay, cancellationToken);
             }
+            catch (HttpRequestException) when (attempt < 2)
+            {
+                var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt + 1));
+                logger.LogWarning("Retrying Bouncie request {Endpoint} after a network failure (attempt {Attempt}/3).", endpoint, attempt + 1);
+                await Task.Delay(delay, cancellationToken);
+            }
+            catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested && attempt < 2)
+            {
+                var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt + 1));
+                logger.LogWarning("Retrying Bouncie request {Endpoint} after a timeout (attempt {Attempt}/3).", endpoint, attempt + 1);
+                await Task.Delay(delay, cancellationToken);
+            }
         }
+    }
+
+    private string DescribeImportFailure(Exception exception, BouncieConnection active, bool credentialsStored)
+    {
+        var failure = exception switch
+        {
+            BouncieApiException api => $"Bouncie returned HTTP {(int)api.StatusCode} {api.ReasonPhrase}{FormatDetail(api.Detail)}",
+            HttpRequestException => "Bouncie could not be reached after retries.",
+            TaskCanceledException => "Bouncie requests timed out after retries.",
+            _ => $"Bouncie request failed: {exception.Message}"
+        };
+        BouncieConnection? current;
+        bool stored;
+        lock (gate)
+        {
+            current = connection;
+            stored = hasStoredCredentials;
+        }
+        current ??= active;
+        var account = string.IsNullOrWhiteSpace(current.UserLabel) ? "account label unavailable" : $"account {current.UserLabel}";
+        var expiry = current.ExpiresAtUtc.ToUniversalTime().ToString("yyyy-MM-dd HH:mm 'UTC'", CultureInfo.InvariantCulture);
+        return $"{failure} Connection status: connected; encrypted credentials stored: {(stored || credentialsStored ? "yes" : "no")}; {account}; access token expires {expiry}; {current.Vehicles.Count} vehicle(s) listed by Bouncie.";
     }
 
     private async Task<bool> IsWindowCompletedAsync(string vehicleImei, DateTimeOffset from, DateTimeOffset through, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand("select exists (select 1 from bouncie_import_checkpoints where vehicle_imei = @imei and window_from = @from and window_through = @through and importer_version >= @importerVersion)", connection);
+        await using var command = new NpgsqlCommand("select exists (select 1 from bouncie_import_checkpoints where vehicle_imei = @imei and window_from = @from and window_through = @through and importer_version >= @importerVersion and (imported_count > 0 or skipped_count > 0 or imported_events > 0))", connection);
         command.Parameters.AddWithValue("imei", vehicleImei);
         command.Parameters.AddWithValue("from", from.UtcDateTime);
         command.Parameters.AddWithValue("through", through.UtcDateTime);
@@ -680,10 +875,11 @@ public sealed class BouncieRestService
         }
     }
 
-    private static string BuildTripsPath(string imei, DateTimeOffset from, DateTimeOffset through)
+    private static string BuildTripsPath(string imei, DateTimeOffset from, DateTimeOffset through, string? gpsFormat = "geojson")
     {
         static string ApiTime(DateTimeOffset value) => Uri.EscapeDataString(value.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture));
-        return $"trips?imei={Uri.EscapeDataString(imei)}&includeGps=true&gpsFormat=geojson&startsAfter={ApiTime(from)}&endsBefore={ApiTime(through)}";
+        var format = gpsFormat is null ? "" : $"&gpsFormat={Uri.EscapeDataString(gpsFormat)}";
+        return $"trips?imei={Uri.EscapeDataString(imei)}{format}&startsAfter={ApiTime(from)}&endsBefore={ApiTime(through)}";
     }
 
     private static CatalogVehicle? FindCatalogVehicle(BouncieRemoteVehicle remote, IReadOnlyList<CatalogVehicle> catalog)
@@ -974,6 +1170,14 @@ public sealed class BouncieRestService
         return null;
     }
 
+    private sealed class BouncieApiException(HttpStatusCode statusCode, string? reasonPhrase, string? detail)
+        : InvalidOperationException($"Bouncie returned HTTP {(int)statusCode} {reasonPhrase}{FormatDetail(detail)}")
+    {
+        public HttpStatusCode StatusCode { get; } = statusCode;
+        public string ReasonPhrase { get; } = reasonPhrase ?? "Unknown status";
+        public string? Detail { get; } = detail;
+    }
+
     private sealed record BouncieConnection(
         string ClientId,
         string ClientSecret,
@@ -999,6 +1203,8 @@ public sealed record BouncieAuthorizationStartRequest(string ClientId, string Cl
 public sealed record BouncieAuthorizationStart(string AuthorizationUrl, DateTimeOffset ExpiresAtUtc);
 public sealed record BouncieBackfillCoverage(string VehicleImei, int CompletedWindows, DateTimeOffset FirstWindowFrom, DateTimeOffset LastWindowThrough, DateTimeOffset LastCompletedAt);
 public sealed record BouncieImportRangeRequest(DateTimeOffset From, DateTimeOffset Through);
+public sealed record BouncieTripsProbeResult(string VehicleImei, DateTimeOffset From, DateTimeOffset Through, IReadOnlyList<BouncieTripsProbeVariant> Variants);
+public sealed record BouncieTripsProbeVariant(string GpsFormat, bool? IncludeGps, string Status, string? PayloadKind, int TripCount, IReadOnlyList<string> FirstTripFields, string? Error);
 public sealed record BouncieRemoteVehicleStatus(string Imei, string? Vin, string? DisplayName);
 public sealed record BouncieUnmatchedVehicle(string Imei, string? Vin, string? DisplayName, string? Make, string? Model, int? Year, string Reason);
 public sealed record BouncieConnectionStatus(bool Connected, bool StoredCredentials, string? UserLabel, DateTimeOffset? TokenExpiresAtUtc, IReadOnlyList<BouncieRemoteVehicleStatus> Vehicles, BouncieSyncProgress Import);

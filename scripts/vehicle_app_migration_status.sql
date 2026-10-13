@@ -41,6 +41,16 @@ from (
   select 'trip_external_identities', 'table', to_regclass(format('%I.%I', current_schema(), 'trip_external_identities')) is not null
   union all
   select 'trip_route_points', 'table', to_regclass(format('%I.%I', current_schema(), 'trip_route_points')) is not null
+  union all
+  select 'telemetry_shares', 'table', to_regclass(format('%I.%I', current_schema(), 'telemetry_shares')) is not null
+  union all
+  select 'telemetry_share_trips', 'table', to_regclass(format('%I.%I', current_schema(), 'telemetry_share_trips')) is not null
+  union all
+  select 'telemetry_share_series', 'table', to_regclass(format('%I.%I', current_schema(), 'telemetry_share_series')) is not null
+  union all
+  select 'telemetry_share_points', 'table', to_regclass(format('%I.%I', current_schema(), 'telemetry_share_points')) is not null
+  union all
+  select 'telemetry_share_audit', 'table', to_regclass(format('%I.%I', current_schema(), 'telemetry_share_audit')) is not null
 ) status
 order by object_type, object_name;
 

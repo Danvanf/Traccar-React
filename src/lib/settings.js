@@ -9,6 +9,7 @@ export const DEFAULT_SETTINGS = {
   pollIntervalMs: 5000,
   realtimeHours: 3,
   movementThresholdM: 20,
+  displayUnits: 'imperial',
   theme: 'auto',
 }
 

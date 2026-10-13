@@ -1,0 +1,110 @@
+{
+  "id": "queclink-gv55-experimental",
+  "name": "Queclink GV55 (experimental; @Track text V1.05)",
+  "schemaVersion": 14,
+  "attributeMap": {
+    "power": {
+      "label": "External Supply Voltage",
+      "units": "V",
+      "sourceUnit": "V",
+      "canonicalUnit": "V",
+      "canonicalScale": 1,
+      "quantity": "external_supply_voltage"
+    },
+    "battery": {
+      "label": "Backup Battery Voltage",
+      "units": "V",
+      "sourceUnit": "V",
+      "canonicalUnit": "V",
+      "canonicalScale": 1,
+      "quantity": "backup_voltage"
+    },
+    "charge": {
+      "label": "Backup Battery Charging"
+    },
+    "ignition": {
+      "label": "Ignition State (from motion code)"
+    },
+    "motion": {
+      "label": "Movement State (from motion code)"
+    },
+    "iccid": {
+      "label": "SIM ICCID",
+      "valueType": "identifier"
+    },
+    "rssi": {
+      "label": "Cellular CSQ RSSI",
+      "sentinelValues": [
+        99
+      ]
+    },
+    "odometer": {
+      "label": "Device Mileage",
+      "units": "mi",
+      "sourceUnit": "m",
+      "canonicalUnit": "m",
+      "canonicalScale": 1,
+      "quantity": "distance"
+    },
+    "hours": {
+      "label": "Engine-On Hour Meter",
+      "units": "ms"
+    },
+    "hdop": {
+      "label": "GPS Accuracy / HDOP"
+    },
+    "input": {
+      "label": "Digital Input Bitmask"
+    },
+    "output": {
+      "label": "Digital Output Bitmask"
+    },
+    "in1": {
+      "label": "Decoded Input 1"
+    },
+    "out1": {
+      "label": "Decoded Output 1"
+    },
+    "out2": {
+      "label": "Decoded Output 2"
+    },
+    "event": {
+      "label": "Report Event Code"
+    },
+    "alarm": {
+      "label": "Traccar Alarm"
+    },
+    "result": {
+      "label": "Device Command Response",
+      "valueType": "text"
+    },
+    "deviceType": {
+      "label": "Device Type",
+      "valueType": "text"
+    },
+    "versionFw": {
+      "label": "Firmware Version Code",
+      "valueType": "text"
+    },
+    "versionHw": {
+      "label": "Hardware Version Code",
+      "valueType": "text"
+    },
+    "distance": {
+      "label": "Traccar Segment Distance",
+      "units": "mi",
+      "sourceUnit": "m",
+      "canonicalUnit": "m",
+      "canonicalScale": 1,
+      "quantity": "distance"
+    },
+    "totalDistance": {
+      "label": "Traccar Total Distance",
+      "units": "mi",
+      "sourceUnit": "m",
+      "canonicalUnit": "m",
+      "canonicalScale": 1,
+      "quantity": "distance"
+    }
+  }
+}

@@ -89,12 +89,17 @@ CREATE TABLE IF NOT EXISTS named_places (
   latitude double precision NOT NULL,
   longitude double precision NOT NULL,
   radius_meters integer NOT NULL DEFAULT 75,
+  place_type text NOT NULL DEFAULT 'general',
+  track_name text,
   notes text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS ix_named_places_vehicle
 ON named_places (vehicle_id, name);
+
+ALTER TABLE named_places ADD COLUMN IF NOT EXISTS place_type text NOT NULL DEFAULT 'general';
+ALTER TABLE named_places ADD COLUMN IF NOT EXISTS track_name text;
 
 -- Fuel log.
 CREATE TABLE IF NOT EXISTS fuel_fills (
@@ -180,10 +185,14 @@ CREATE TABLE IF NOT EXISTS telemetry_profiles (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   profile_key text NOT NULL UNIQUE,
   display_name text NOT NULL,
+  schema_version integer NOT NULL DEFAULT 1,
   translation_json jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE telemetry_profiles
+  ADD COLUMN IF NOT EXISTS schema_version integer NOT NULL DEFAULT 1;
 
 CREATE TABLE IF NOT EXISTS telemetry_profile_assignments (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

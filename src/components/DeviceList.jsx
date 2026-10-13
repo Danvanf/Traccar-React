@@ -1,5 +1,3 @@
-import { useState } from 'react'
-
 function DeviceList({
   devices,
   deviceVisibility,
@@ -7,14 +5,15 @@ function DeviceList({
   deviceColors,
   selectedDeviceId,
   onSelectDevice,
+  expanded,
+  onExpandedChange,
 }) {
-  const [expanded, setExpanded] = useState(true)
   const selectedDevices = devices.filter((device) => deviceVisibility[device.id] !== false)
   const selectionLabel = selectedDevices.length < 3
     ? (selectedDevices.length === 0 ? 'none selected' : `${selectedDevices.map((device) => device.name).join(', ')} selected`)
     : `${selectedDevices.length} selected`
   return (
-    <details className="device-list" open={expanded} onToggle={(event) => setExpanded(event.currentTarget.open)}>
+    <details className="device-list" open={expanded} onToggle={(event) => onExpandedChange(event.currentTarget.open)}>
       <summary>Devices ({devices.length}, {selectionLabel})</summary>
       <ul>
         {devices.map((device) => (

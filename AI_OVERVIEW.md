@@ -1,59 +1,29 @@
-# Traccar React Architecture and Status
+# Traccar React: AI handoff
 
-This document is the public-facing architecture and status summary.
+## Stack and boundaries
 
-The internal implementation handoff/history has been moved to:
-- private internal notes (excluded from the public repository)
+- `src/`: React 19 + Vite 8 single-page UI; Leaflet maps. `src/App.jsx` coordinates live/history views, imports, telemetry, settings, and reports. API clients: `src/lib/traccarApi.js` and `src/lib/vehicleAppApi.js`.
+- `backend/VehicleApp.Api/`: ASP.NET Core 9 minimal API with Npgsql/PostgreSQL. Endpoint files group trips, events, reports, Bouncie, users, and telemetry shares. No ORM. `scripts/` holds SQL migrations, audits, and health checks.
+- Dev routes: `/api` proxies to Traccar; `/vehicle-api` rewrites to the VehicleApp API (`vite.config.js`). Defaults and browser settings are in `src/lib/settings.js`. Production URLs must reach both services.
+- PostgreSQL has **two databases**: `traccar` owns raw tracker positions, devices, and other Traccar records (`tc_*` tables); `vehicle_app` owns derived trips and app metadata. Traccar IDs in `vehicle_app` are soft references, not cross-database foreign keys. VehicleApp connects only to `vehicle_app`; the browser queries Traccar's REST API for raw positions.
 
-## Scope
+## Data sources and workflows
 
-Traccar React is a React + Vite frontend with a .NET API and PostgreSQL-backed enrichment storage for trips, tags, notes, events, and imports.
+| Source | Access | Use |
+| --- | --- | --- |
+| Traccar REST (`/devices`, `/positions`, `/server`, `/session`) | Browser via `/api`; credentials/session handled by `traccarApi.js` | Live devices and positions, time-range history, raw telemetry, maps, CSV export. The device list can instead use the VehicleApp catalog, with Traccar fallback. |
+| Traccar PostgreSQL (`traccar`) | Traccar server; optional SQL audits in `scripts/` | Raw telemetry source of truth. Do not treat saved app trips as raw position records. |
+| VehicleApp REST (`/api/*` behind `/vehicle-api`) | Browser via `vehicleAppApi.js`; cookie auth when enabled | Vehicle catalog and effective-date device bindings; saved trips, day/history summaries, route points, recalculation, tags/notes, named places, driving events/thresholds, DTCs, preferences, user/group access, reports. Optional test/development tooling: `/api/device-protocol-diagnostics/{deviceId}` captures Traccar version, model/category, and decoded telemetry for a bounded 24-hour sample. It uses server-side Traccar read-only credentials and is loopback-only, so run `scripts/capture_device_protocol_diagnostics.ps1` on the test API host. It is not required by production installations. The capture omits coordinates and unique device IDs; raw tracker packets are unavailable. `/health` checks DB connectivity; OpenAPI is mapped in development. |
+| VehicleApp PostgreSQL (`vehicle_app`) | .NET API via `ConnectionStrings:VehicleApp` | `vehicles`, `vehicle_device_bindings`, `trips`, route points, external identities, tags/notes, places, trip events, DTC catalog/events, Bouncie credentials/checkpoints/source snapshots, users/groups/access, preferences, telemetry share snapshots. Schema SQL is in `scripts/`. |
+| Bouncie REST/OAuth or CSV | Bouncie integration endpoints or browser CSV import | Backfills historical trips into `vehicle_app`, including available routes, telemetry, and events. OAuth import tracks coverage/checkpoints; external identities make retries safe. CSV has only fields present in the file. |
+| Browser local storage | `settings.js`, profile stores, UI preferences | API settings and some display/profile preferences; not authoritative trip history. |
 
-## Current System Shape
+Flow: tracker -> Traccar -> live/history UI. For durable trip history, assign a Traccar device to a vehicle with an effective-date binding, then import/derive trips into `vehicle_app`; repeat imports skip existing identities. Recalculation keeps saved trip identity and metadata. The UI joins saved trip data with Traccar positions for route, telemetry graphs, event overlays, and export. Bouncie imports provide an alternate historical source. Optional VehicleApp sign-in uses `/auth/*`; admin controls configuration and access. Telemetry shares copy selected series/points into share tables and expose token-scoped public read/export endpoints.
 
-- Frontend: React + Vite + Leaflet map UI.
-- Backend: ASP.NET Core minimal API in `backend/VehicleApp.Api`.
-- Databases:
-  - Traccar database (raw telemetry source of truth).
-  - `vehicle_app` database (application-owned derived/enrichment data).
+Telemetry graph export has four outputs: a native-sample telemetry CSV, telemetry metadata JSON, and (when named track places produce events) a track-timing CSV plus track metadata JSON. Track metadata includes route distance in meters and miles for observed start/finish, drag, and split segments when continuous GPS is available; unavailable distances are `null`. GPS is joined during export by trip and nearest timestamp; missing values remain blank and are marked in `quality_json`, and samples are not interpolated. Track place roles drive timing boundaries (`track_start`, `track_finish`, `track_start_finish`, `track_split`, `drag_start`, `drag_finish`). The shared builders are in `src/lib/csvExport.js`; if one export changes, check the other builders and `TelemetryGraphViewer.exportGraphTelemetry` for consistent GPS and session behavior.
 
-## Key Implemented Capabilities
+## Reports
 
-- Saved trip identity and replay-safe import behavior.
-- Device-binding-aware trip assignment with effective-date support.
-- Trip recalculation endpoint that preserves metadata identity.
-- Named places, trip tags, and trip notes CRUD API support.
-- DTC enrichment pipeline and monitoring scripts.
-- Day summaries, event detection, and route/event overlays.
-- Optional single-user authenticated API session (`/auth/login`).
+`src/components/reports/ReportsWorkspace.jsx` offers Usage Summary, Trip Log, Monthly Summary, Named Places, Data Completeness, Driving Events, Utilization Calendar, Business Mileage, Speed Bands, Vehicle Health, and Tracker Health; export is JSON, CSV, or print/save PDF. The saved-data reports use VehicleApp `/api/reports/*`. Speed Bands starts with VehicleApp trip windows, then reads Traccar point speeds; Vehicle/Tracker Health similarly use live Traccar telemetry. Admin-only `/api/admin/reports/{daily|growth|maintenance|retention-preview}` reads `vehicle_app` operational metrics. Related SQL: `scripts/phase6_*_health.sql` and `scripts/vehicle_app_*audit.sql`.
 
-## Operational Artifacts
-
-- Health and diagnostics scripts in `scripts/`.
-- Retention and growth runbooks:
-  - private internal retention runbook
-  - `scripts/phase6_daily_health.sql`
-  - `scripts/phase6_growth_health.sql`
-  - `scripts/phase6_maintenance_health.sql`
-- Backup/restore runbook:
-  - private internal backup/restore runbook
-- Docker deployment guidance:
-  - `VEHICLE_APP_DOCKER_DEPLOYMENT.md`
-
-## Public vs Private Documentation
-
-- Public-oriented docs:
-  - `README.md`
-  - `Traccar_PostgreSQL_Backend_Architecture_Update.md`
-  - `docs/TELTONIKA_FMB003_DATA_CATALOG.md`
-- Internal/handoff docs:
-  - local internal handoff notes (excluded from this public tree)
-
-## Public Readiness Review
-
-See the markdown-only review and recommended split policy in:
-- `docs/PUBLIC_REPO_READINESS_REVIEW_2026-10-01.md`
-
-## Maintenance Note
-
-Keep environment-specific hosts, ports, and credentials in local environment variables and deployment files, not in committed public-facing docs.
+Start points: `README.md` (run/test), `VEHICLE_APP_DOCKER_DEPLOYMENT.md` (deployment), `docs/TELTONIKA_FMB003_DATA_CATALOG.md` (device fields), and the API endpoint files for exact contracts. Keep hosts, credentials, and production data out of this handoff.

@@ -137,11 +137,14 @@ export function collapseTripEvents(events, gapSeconds = 30) {
   })
 }
 
-export function formatEventMeasurement(event) {
+export function formatEventMeasurement(event, unitSystem = 'imperial') {
   const value = Number(event?.measuredValue)
   if (!Number.isFinite(value)) return ''
   if (event.eventType === 'hard_acceleration' || event.eventType === 'hard_braking') {
-    return `${Math.abs(value * 2.236936).toFixed(1)} mph/s`
+    return unitSystem === 'metric'
+      ? `${Math.abs(value * 3.6).toFixed(1)} km/h/s`
+      : `${Math.abs(value * 2.236936).toFixed(1)} mph/s`
   }
+  if (unitSystem === 'metric' && event.unit === 'mph') return `${(value * 1.609344).toFixed(1)} km/h`
   return `${value.toFixed(2)} ${event.unit || ''}`.trim()
 }

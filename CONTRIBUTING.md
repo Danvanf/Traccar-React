@@ -30,6 +30,10 @@ See `LICENSE` and `LICENSING.md` for details.
 
 For API development, use the .NET project in `backend/VehicleApp.Api` and keep connection strings and credentials in local environment variables.
 
+For device profile investigations, `GET /api/device-protocol-diagnostics/{deviceId}` reads Traccar's version, device model/category, and decoded telemetry samples. Configure `TRACCAR_BASE_URL`, `TRACCAR_USERNAME`, and `TRACCAR_PASSWORD` on the API host using a read-only Traccar account. This endpoint is loopback-only and does not use the VehicleApp cookie session; run the provided command-line helper on the API host. The request accepts `fromUtc` and `throughUtc` query parameters and is limited to one day and 2,000 positions. Traccar's REST API does not expose the original tracker packet or the tracker's enabled AVL configuration; collect those separately when source provenance is needed.
+
+This is test/development tooling for decoder and profile review, not a production requirement. Production installations should not need a diagnostic Traccar account. The test API's `appsettings.Development.json` points to the test Traccar host; keep `TRACCAR_USERNAME` and `TRACCAR_PASSWORD` in the API process environment, and override `Traccar:BaseUrl` there if using a different test host. The test Traccar account is administrator-level for read access, with device access set to read-only and command sending disabled. Run `scripts/capture_device_protocol_diagnostics.ps1` on the API host to call its localhost endpoint; the API uses its own server-side Traccar credentials, so the shell command needs no password. The endpoint produces a sanitized capture and does not change device or tracker settings.
+
 ## Code and Documentation Rules
 
 - Keep changes minimal and task-focused.

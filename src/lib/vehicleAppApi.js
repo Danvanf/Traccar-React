@@ -120,6 +120,250 @@ export async function saveUserPreference(baseUrl, preferenceKey, value) {
   return response.json()
 }
 
+export async function fetchEmailAlertPreferences(baseUrl) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/user/email-alerts/preferences`
+  const response = await vehicleFetch(url, { headers: { Accept: 'application/json' } })
+  if (!response.ok) throw await toResponseError(response, 'Email alert preferences failed', url)
+  return response.json()
+}
+
+export async function fetchEmailProviderStatus(baseUrl) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/admin/email/status`
+  const response = await vehicleFetch(url, { headers: { Accept: 'application/json' } })
+  if (!response.ok) throw await toResponseError(response, 'Email provider status failed', url)
+  return response.json()
+}
+
+export async function fetchProviderAccounts(baseUrl) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/admin/provider-accounts`
+  const response = await vehicleFetch(url, { headers: { Accept: 'application/json' } })
+  if (!response.ok) throw await toResponseError(response, 'Provider accounts failed', url)
+  return response.json()
+}
+
+export async function saveProviderAccount(baseUrl, account, accountId = null) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/admin/provider-accounts${accountId ? `/${encodeURIComponent(accountId)}` : ''}`
+  const response = await vehicleFetch(url, {
+    method: accountId ? 'PUT' : 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(account),
+  })
+  if (!response.ok) throw await toResponseError(response, 'Saving provider account failed', url)
+  return response.json()
+}
+
+export async function importLegacyProviderAccount(baseUrl, channel) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/admin/provider-accounts/import-legacy/${encodeURIComponent(channel)}`
+  const response = await vehicleFetch(url, { method: 'POST', headers: { Accept: 'application/json' } })
+  if (!response.ok) throw await toResponseError(response, 'Importing legacy provider configuration failed', url)
+  return response.json()
+}
+
+export async function checkEmailProviderAccount(baseUrl, accountId) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/admin/email/provider-accounts/${encodeURIComponent(accountId)}/check`
+  const response = await vehicleFetch(url, { method: 'POST', headers: { Accept: 'application/json' } })
+  if (!response.ok) throw await toResponseError(response, 'Checking email provider account failed', url)
+  return response.json()
+}
+
+export async function fetchVehicleEmailProviderAssignments(baseUrl) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/admin/provider-accounts/vehicle-assignments/email`
+  const response = await vehicleFetch(url, { headers: { Accept: 'application/json' } })
+  if (!response.ok) throw await toResponseError(response, 'Loading vehicle email provider assignments failed', url)
+  return response.json()
+}
+
+export async function saveVehicleEmailProviderAssignment(baseUrl, vehicleId, accountId) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/admin/provider-accounts/vehicles/${encodeURIComponent(vehicleId)}/email`
+  const response = await vehicleFetch(url, {
+    method: 'PUT',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ accountId: accountId || null }),
+  })
+  if (!response.ok) throw await toResponseError(response, 'Saving vehicle email provider assignment failed', url)
+  return response.json()
+}
+
+export async function fetchVehicleSmsProviderAssignments(baseUrl) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/admin/provider-accounts/vehicle-assignments/sms`
+  const response = await vehicleFetch(url, { headers: { Accept: 'application/json' } })
+  if (!response.ok) throw await toResponseError(response, 'Loading vehicle SMS provider assignments failed', url)
+  return response.json()
+}
+
+export async function saveVehicleSmsProviderAssignment(baseUrl, vehicleId, accountId) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/admin/provider-accounts/vehicles/${encodeURIComponent(vehicleId)}/sms`
+  const response = await vehicleFetch(url, {
+    method: 'PUT',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ accountId: accountId || null }),
+  })
+  if (!response.ok) throw await toResponseError(response, 'Saving vehicle SMS provider assignment failed', url)
+  return response.json()
+}
+
+export async function fetchEmailSenderSettings(baseUrl) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/admin/email/settings`
+  const response = await vehicleFetch(url, { headers: { Accept: 'application/json' } })
+  if (!response.ok) throw await toResponseError(response, 'Email sender settings failed', url)
+  return response.json()
+}
+
+export async function saveEmailSenderSettings(baseUrl, senderUserId) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/admin/email/settings`
+  const response = await vehicleFetch(url, {
+    method: 'PUT',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ senderUserId }),
+  })
+  if (!response.ok) throw await toResponseError(response, 'Saving email sender settings failed', url)
+  return response.json()
+}
+
+export async function fetchVehicleEmailSender(baseUrl, vehicleId) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/admin/email/vehicles/${encodeURIComponent(vehicleId)}/sender`
+  const response = await vehicleFetch(url, { headers: { Accept: 'application/json' } })
+  if (!response.ok) throw await toResponseError(response, 'Vehicle email sender settings failed', url)
+  return response.json()
+}
+
+export async function saveVehicleEmailSender(baseUrl, vehicleId, senderUserId) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/admin/email/vehicles/${encodeURIComponent(vehicleId)}/sender`
+  const response = await vehicleFetch(url, {
+    method: 'PUT',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ senderUserId }),
+  })
+  if (!response.ok) throw await toResponseError(response, 'Saving vehicle email sender failed', url)
+  return response.json()
+}
+
+export async function sendEmailTest(baseUrl, to) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/admin/email/test-send`
+  const response = await vehicleFetch(url, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ to, confirmSend: true }),
+  })
+  if (!response.ok) throw await toResponseError(response, 'Email test send failed', url)
+  return response.json()
+}
+
+export async function saveEmailAlertPreferences(baseUrl, preferences) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/user/email-alerts/preferences`
+  const response = await vehicleFetch(url, {
+    method: 'PUT',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(preferences),
+  })
+  if (!response.ok) throw await toResponseError(response, 'Saving email alert preferences failed', url)
+  return response.json()
+}
+
+export async function requestEmailAlertVerification(baseUrl) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/user/email-alerts/request-verification`
+  const response = await vehicleFetch(url, { method: 'POST' })
+  if (!response.ok) throw await toResponseError(response, 'Email verification request failed', url)
+  return response.json()
+}
+
+export async function verifyEmailAlertCode(baseUrl, code) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/user/email-alerts/verify`
+  const response = await vehicleFetch(url, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  })
+  if (!response.ok) throw await toResponseError(response, 'Email verification failed', url)
+  return response.json()
+}
+
+export async function fetchEmailAlertHistory(baseUrl) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/user/email-alerts/history`
+  const response = await vehicleFetch(url, { headers: { Accept: 'application/json' } })
+  if (!response.ok) throw await toResponseError(response, 'Email alert history failed', url)
+  return response.json()
+}
+
+export async function retryUncertainEmailAlert(baseUrl, outboxId) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/admin/email/history/${encodeURIComponent(outboxId)}/retry-uncertain`
+  const response = await vehicleFetch(url, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ confirmSentItemsChecked: true }),
+  })
+  if (!response.ok) throw await toResponseError(response, 'Email retry request failed', url)
+  return response.json()
+}
+
+export async function fetchSmsProviderStatus(baseUrl) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/admin/sms/status`
+  const response = await vehicleFetch(url, { headers: { Accept: 'application/json' } })
+  if (!response.ok) throw await toResponseError(response, 'SMS provider status failed', url)
+  return response.json()
+}
+
+export async function checkTwilioProviderAccount(baseUrl, accountId) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/admin/sms/accounts/${encodeURIComponent(accountId)}/check-connection`
+  const response = await vehicleFetch(url, { headers: { Accept: 'application/json' } })
+  if (!response.ok) throw await toResponseError(response, 'Checking Twilio account failed', url)
+  return response.json()
+}
+
+export async function fetchSmsAlertPreferences(baseUrl) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/user/sms-alerts/preferences`
+  const response = await vehicleFetch(url, { headers: { Accept: 'application/json' } })
+  if (!response.ok) throw await toResponseError(response, 'SMS alert preferences failed', url)
+  return response.json()
+}
+
+export async function saveSmsAlertPreferences(baseUrl, preferences) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/user/sms-alerts/preferences`
+  const response = await vehicleFetch(url, {
+    method: 'PUT',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(preferences),
+  })
+  if (!response.ok) throw await toResponseError(response, 'Saving SMS alert preferences failed', url)
+  return response.json()
+}
+
+export async function requestSmsAlertVerification(baseUrl) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/user/sms-alerts/request-verification`
+  const response = await vehicleFetch(url, { method: 'POST' })
+  if (!response.ok) throw await toResponseError(response, 'SMS verification request failed', url)
+  return response.json()
+}
+
+export async function verifySmsAlertCode(baseUrl, code) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/user/sms-alerts/verify`
+  const response = await vehicleFetch(url, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  })
+  if (!response.ok) throw await toResponseError(response, 'SMS verification failed', url)
+  return response.json()
+}
+
+export async function fetchSmsAlertHistory(baseUrl) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/user/sms-alerts/history`
+  const response = await vehicleFetch(url, { headers: { Accept: 'application/json' } })
+  if (!response.ok) throw await toResponseError(response, 'SMS alert history failed', url)
+  return response.json()
+}
+
+export async function sendSmsTest(baseUrl, to, recipientConsentConfirmed) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/admin/sms/test-send`
+  const response = await vehicleFetch(url, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ to, confirmSend: true, recipientConsentConfirmed }),
+  })
+  if (!response.ok) throw await toResponseError(response, 'SMS test send failed', url)
+  return response.json()
+}
+
 export async function fetchVehicleCatalog(baseUrl) {
   const base = normalizeVehicleApiBase(baseUrl)
   const url = `${base}/api/vehicles`
@@ -155,6 +399,35 @@ export async function upsertVehicle(baseUrl, vehicle) {
   return response.json()
 }
 
+export async function fetchTelemetryProfiles(baseUrl) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/telemetry-profiles`
+  const response = await vehicleFetch(url, { headers: { Accept: 'application/json' } })
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API call failed for /api/telemetry-profiles', url)
+  const payload = await response.json()
+  return Array.isArray(payload) ? payload : []
+}
+
+export async function upsertTelemetryProfile(baseUrl, profile) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const key = encodeURIComponent(profile.id)
+  const url = `${base}/api/telemetry-profiles/${key}`
+  const response = await vehicleFetch(url, {
+    method: 'PUT',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(profile),
+  })
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API profile save failed', url)
+}
+
+export async function deleteTelemetryProfile(baseUrl, profileId) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const key = encodeURIComponent(profileId)
+  const url = `${base}/api/telemetry-profiles/${key}`
+  const response = await vehicleFetch(url, { method: 'DELETE', headers: { Accept: 'application/json' } })
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API profile delete failed', url)
+}
+
 export async function fetchVehicleSpeedBands(baseUrl, vehicleId) {
   const base = normalizeVehicleApiBase(baseUrl)
   const url = `${base}/api/vehicles/${vehicleId}/speed-bands`
@@ -185,13 +458,13 @@ export async function fetchStatusCardFields(baseUrl, vehicleId) {
   return response.json()
 }
 
-export async function saveStatusCardFields(baseUrl, vehicleId, fields) {
+export async function saveStatusCardFields(baseUrl, vehicleId, fields, popupFields = []) {
   const base = normalizeVehicleApiBase(baseUrl)
   const url = `${base}/api/vehicles/${vehicleId}/status-card`
   const response = await vehicleFetch(url, {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fields }),
+    body: JSON.stringify({ fields, popupFields }),
   })
   if (!response.ok) throw await toResponseError(response, 'Vehicle API call failed saving status card fields', url)
   return response.json()
@@ -303,6 +576,17 @@ export async function cancelBouncieImport(baseUrl) {
     headers: { Accept: 'application/json' },
   })
   if (!response.ok) throw await toResponseError(response, 'Vehicle API Bouncie import cancellation failed', url)
+  return response.json()
+}
+
+export async function continueBouncieImport(baseUrl) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/integrations/bouncie/import-continue`
+  const response = await vehicleFetch(url, {
+    method: 'POST',
+    headers: { Accept: 'application/json' },
+  })
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API Bouncie import could not continue', url)
   return response.json()
 }
 
@@ -440,6 +724,23 @@ export async function fetchActiveDeviceBindings(baseUrl) {
 
   if (!response.ok) {
     throw await toResponseError(response, 'Vehicle API call failed for /api/device-bindings', url)
+  }
+
+  const payload = await response.json()
+  return Array.isArray(payload) ? payload : []
+}
+
+export async function fetchDeviceBindingHistory(baseUrl) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/device-bindings/history`
+  const response = await vehicleFetch(url, {
+    headers: {
+      Accept: 'application/json',
+    },
+  })
+
+  if (!response.ok) {
+    throw await toResponseError(response, 'Vehicle API call failed for /api/device-bindings/history', url)
   }
 
   const payload = await response.json()

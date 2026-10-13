@@ -10,6 +10,11 @@ Accept: application/json
 
 ###
 
+GET {{VehicleApp.Api_HostAddress}}/api/device-protocol-diagnostics/5?fromUtc=2026-10-08T00:00:00Z&throughUtc=2026-10-09T00:00:00Z
+Accept: application/json
+
+###
+
 GET {{VehicleApp.Api_HostAddress}}/api/device-bindings
 Accept: application/json
 

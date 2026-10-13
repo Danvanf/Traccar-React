@@ -1,0 +1,627 @@
+{
+  "id": "teltonika-fmc130-experimental",
+  "name": "Teltonika FMC130 (experimental; firmware 03.29+ catalog)",
+  "schemaVersion": 14,
+  "attributeMap": {
+    "power": {
+      "label": "External Voltage",
+      "avlId": 66,
+      "units": "V",
+      "sourceUnit": "V",
+      "canonicalUnit": "V",
+      "canonicalScale": 1,
+      "quantity": "external_supply_voltage"
+    },
+    "battery": {
+      "label": "Tracker Battery Voltage",
+      "avlId": 67,
+      "units": "V",
+      "sourceUnit": "V",
+      "canonicalUnit": "V",
+      "canonicalScale": 1,
+      "quantity": "tracker_battery_voltage"
+    },
+    "batteryCurrent": {
+      "label": "Tracker Battery Current",
+      "avlId": 68,
+      "units": "A",
+      "sourceUnit": "A",
+      "canonicalUnit": "A",
+      "canonicalScale": 1,
+      "quantity": "tracker_battery_current"
+    },
+    "batteryLevel": {
+      "label": "Tracker Battery Level",
+      "avlId": 113,
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "battery_level"
+    },
+    "ignition": {
+      "label": "Configured Ignition State",
+      "avlId": 239
+    },
+    "motion": {
+      "label": "Movement",
+      "avlId": 240
+    },
+    "axisX": {
+      "label": "Accelerometer Axis X",
+      "avlId": 17,
+      "units": "mG",
+      "sourceUnit": "mG",
+      "canonicalUnit": "mG",
+      "canonicalScale": 1,
+      "quantity": "acceleration"
+    },
+    "axisY": {
+      "label": "Accelerometer Axis Y",
+      "avlId": 18,
+      "units": "mG",
+      "sourceUnit": "mG",
+      "canonicalUnit": "mG",
+      "canonicalScale": 1,
+      "quantity": "acceleration"
+    },
+    "axisZ": {
+      "label": "Accelerometer Axis Z",
+      "avlId": 19,
+      "units": "mG",
+      "sourceUnit": "mG",
+      "canonicalUnit": "mG",
+      "canonicalScale": 1,
+      "quantity": "acceleration"
+    },
+    "rssi": {
+      "label": "Cellular Signal Level",
+      "avlId": 21
+    },
+    "pdop": {
+      "label": "GNSS PDOP",
+      "avlId": 181
+    },
+    "hdop": {
+      "label": "GNSS HDOP",
+      "avlId": 182
+    },
+    "tripOdometer": {
+      "label": "Trip Odometer",
+      "avlId": 199,
+      "units": "mi",
+      "sourceUnit": "m",
+      "canonicalUnit": "m",
+      "canonicalScale": 1,
+      "quantity": "distance"
+    },
+    "odometer": {
+      "label": "Virtual Total Odometer",
+      "avlId": 16,
+      "units": "mi",
+      "sourceUnit": "m",
+      "canonicalUnit": "m",
+      "canonicalScale": 1,
+      "quantity": "distance"
+    },
+    "operator": {
+      "label": "Cellular Operator Code",
+      "avlId": 241,
+      "valueType": "identifier"
+    },
+    "dataMode": {
+      "label": "Data Mode",
+      "avlId": 80
+    },
+    "sleepMode": {
+      "label": "Sleep Mode",
+      "avlId": 200
+    },
+    "io69": {
+      "label": "GNSS Status",
+      "avlId": 69
+    },
+    "in1": {
+      "label": "Digital Input 1",
+      "avlId": 1
+    },
+    "adc1": {
+      "label": "Analog Input 1",
+      "avlId": 9,
+      "units": "V",
+      "sourceUnit": "V",
+      "canonicalUnit": "V",
+      "canonicalScale": 1,
+      "quantity": "analog_input_voltage"
+    },
+    "out1": {
+      "label": "Digital Output 1",
+      "avlId": 179
+    },
+    "fuelUsed": {
+      "label": "GPS Estimated Fuel Used",
+      "avlId": 12,
+      "units": "gal",
+      "sourceUnit": "L",
+      "canonicalUnit": "L",
+      "canonicalScale": 1,
+      "quantity": "estimated_fuel_used"
+    },
+    "fuelConsumption": {
+      "label": "GPS Estimated Fuel Rate",
+      "avlId": 13,
+      "units": "L/100km"
+    },
+    "io250": {
+      "label": "Trip State",
+      "avlId": 250
+    },
+    "io318": {
+      "label": "GNSS Jamming State",
+      "avlId": 318
+    },
+    "io155": {
+      "label": "Geofence Zone 01 State",
+      "avlId": 155
+    },
+    "bleTemp1": {
+      "label": "BLE Sensor 1 Temperature",
+      "avlId": 25,
+      "units": "°F",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "quantity": "temperature",
+      "sentinelValues": [
+        327.67,
+        327.66,
+        327.65
+      ]
+    },
+    "bleTemp2": {
+      "label": "BLE Sensor 2 Temperature",
+      "avlId": 26,
+      "units": "°F",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "quantity": "temperature",
+      "sentinelValues": [
+        327.67,
+        327.66,
+        327.65
+      ]
+    },
+    "bleTemp3": {
+      "label": "BLE Sensor 3 Temperature",
+      "avlId": 27,
+      "units": "°F",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "quantity": "temperature",
+      "sentinelValues": [
+        327.67,
+        327.66,
+        327.65
+      ]
+    },
+    "bleTemp4": {
+      "label": "BLE Sensor 4 Temperature",
+      "avlId": 28,
+      "units": "°F",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "quantity": "temperature",
+      "sentinelValues": [
+        327.67,
+        327.66,
+        327.65
+      ]
+    },
+    "io29": {
+      "label": "BLE Sensor 1 Battery",
+      "avlId": 29,
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "sensor_battery_level"
+    },
+    "io20": {
+      "label": "BLE Sensor 2 Battery",
+      "avlId": 20,
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "sensor_battery_level"
+    },
+    "io22": {
+      "label": "BLE Sensor 3 Battery",
+      "avlId": 22,
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "sensor_battery_level"
+    },
+    "io23": {
+      "label": "BLE Sensor 4 Battery",
+      "avlId": 23,
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "sensor_battery_level"
+    },
+    "io86": {
+      "label": "BLE Sensor 1 Humidity",
+      "avlId": 86,
+      "units": "%RH",
+      "sourceUnit": "%RH",
+      "canonicalUnit": "%RH",
+      "canonicalScale": 0.1,
+      "quantity": "humidity",
+      "sentinelValues": [
+        65535,
+        65534,
+        65533
+      ]
+    },
+    "io104": {
+      "label": "BLE Sensor 2 Humidity",
+      "avlId": 104,
+      "units": "%RH",
+      "sourceUnit": "%RH",
+      "canonicalUnit": "%RH",
+      "canonicalScale": 0.1,
+      "quantity": "humidity",
+      "sentinelValues": [
+        65535,
+        65534,
+        65533
+      ]
+    },
+    "io106": {
+      "label": "BLE Sensor 3 Humidity",
+      "avlId": 106,
+      "units": "%RH",
+      "sourceUnit": "%RH",
+      "canonicalUnit": "%RH",
+      "canonicalScale": 0.1,
+      "quantity": "humidity",
+      "sentinelValues": [
+        65535,
+        65534,
+        65533
+      ]
+    },
+    "io108": {
+      "label": "BLE Sensor 4 Humidity",
+      "avlId": 108,
+      "units": "%RH",
+      "sourceUnit": "%RH",
+      "canonicalUnit": "%RH",
+      "canonicalScale": 0.1,
+      "quantity": "humidity",
+      "sentinelValues": [
+        65535,
+        65534,
+        65533
+      ]
+    },
+    "eyeTemp1": {
+      "label": "EYE Sensor 1 Temperature",
+      "avlId": 10800,
+      "units": "°F",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "quantity": "temperature"
+    },
+    "eyeTemp2": {
+      "label": "EYE Sensor 2 Temperature",
+      "avlId": 10801,
+      "units": "°F",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "quantity": "temperature"
+    },
+    "eyeTemp3": {
+      "label": "EYE Sensor 3 Temperature",
+      "avlId": 10802,
+      "units": "°F",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "quantity": "temperature"
+    },
+    "eyeTemp4": {
+      "label": "EYE Sensor 4 Temperature",
+      "avlId": 10803,
+      "units": "°F",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "quantity": "temperature"
+    },
+    "io10804": {
+      "label": "EYE Sensor 1 Humidity",
+      "avlId": 10804,
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "humidity"
+    },
+    "io10805": {
+      "label": "EYE Sensor 2 Humidity",
+      "avlId": 10805,
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "humidity"
+    },
+    "io10806": {
+      "label": "EYE Sensor 3 Humidity",
+      "avlId": 10806,
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "humidity"
+    },
+    "io10807": {
+      "label": "EYE Sensor 4 Humidity",
+      "avlId": 10807,
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "humidity"
+    },
+    "io10808": {
+      "label": "EYE Sensor 1 Magnet",
+      "avlId": 10808
+    },
+    "io10809": {
+      "label": "EYE Sensor 2 Magnet",
+      "avlId": 10809
+    },
+    "io10810": {
+      "label": "EYE Sensor 3 Magnet",
+      "avlId": 10810
+    },
+    "io10811": {
+      "label": "EYE Sensor 4 Magnet",
+      "avlId": 10811
+    },
+    "eyeRoll1": {
+      "label": "EYE Sensor 1 Roll Angle",
+      "avlId": 10832,
+      "units": "degree",
+      "sourceUnit": "degree",
+      "canonicalUnit": "degree",
+      "canonicalScale": 1,
+      "quantity": "angle"
+    },
+    "eyeRoll2": {
+      "label": "EYE Sensor 2 Roll Angle",
+      "avlId": 10833,
+      "units": "degree",
+      "sourceUnit": "degree",
+      "canonicalUnit": "degree",
+      "canonicalScale": 1,
+      "quantity": "angle"
+    },
+    "eyeRoll3": {
+      "label": "EYE Sensor 3 Roll Angle",
+      "avlId": 10834,
+      "units": "degree",
+      "sourceUnit": "degree",
+      "canonicalUnit": "degree",
+      "canonicalScale": 1,
+      "quantity": "angle"
+    },
+    "eyeRoll4": {
+      "label": "EYE Sensor 4 Roll Angle",
+      "avlId": 10835,
+      "units": "degree",
+      "sourceUnit": "degree",
+      "canonicalUnit": "degree",
+      "canonicalScale": 1,
+      "quantity": "angle"
+    },
+    "sat": {
+      "label": "GNSS Satellites",
+      "units": "count",
+      "sourceUnit": "count",
+      "canonicalUnit": "count",
+      "canonicalScale": 1,
+      "quantity": "satellite_count"
+    },
+    "priority": {
+      "label": "Record Priority"
+    },
+    "event": {
+      "label": "Triggering AVL Element ID"
+    },
+    "distance": {
+      "label": "Traccar Segment Distance",
+      "units": "mi",
+      "sourceUnit": "m",
+      "canonicalUnit": "m",
+      "canonicalScale": 1,
+      "quantity": "distance"
+    },
+    "totalDistance": {
+      "label": "Traccar Total Distance",
+      "units": "mi",
+      "sourceUnit": "m",
+      "canonicalUnit": "m",
+      "canonicalScale": 1,
+      "quantity": "distance"
+    },
+    "in2": {
+      "label": "Digital Input 2",
+      "avlId": 2
+    },
+    "out2": {
+      "label": "Digital Output 2",
+      "avlId": 180
+    },
+    "io6": {
+      "label": "Analog Input 2",
+      "avlId": 6,
+      "units": "V",
+      "sourceUnit": "V",
+      "canonicalUnit": "V",
+      "canonicalScale": 0.001,
+      "quantity": "analog_input_voltage"
+    },
+    "temp1": {
+      "label": "Dallas Temperature 1",
+      "avlId": 72,
+      "units": "°F",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "quantity": "temperature",
+      "sentinelValues": [
+        200,
+        300,
+        400,
+        500
+      ]
+    },
+    "temp2": {
+      "label": "Dallas Temperature 2",
+      "avlId": 73,
+      "units": "°F",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "quantity": "temperature",
+      "sentinelValues": [
+        200,
+        300,
+        400,
+        500
+      ]
+    },
+    "temp3": {
+      "label": "Dallas Temperature 3",
+      "avlId": 74,
+      "units": "°F",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "quantity": "temperature",
+      "sentinelValues": [
+        200,
+        300,
+        400,
+        500
+      ]
+    },
+    "temp4": {
+      "label": "Dallas Temperature 4",
+      "avlId": 75,
+      "units": "°F",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "quantity": "temperature",
+      "sentinelValues": [
+        200,
+        300,
+        400,
+        500
+      ]
+    },
+    "driverUniqueId": {
+      "label": "iButton Driver ID",
+      "avlId": 78,
+      "valueType": "identifier"
+    },
+    "vin": {
+      "label": "CAN VIN",
+      "avlId": 256,
+      "valueType": "identifier"
+    },
+    "obdSpeed": {
+      "label": "CAN Vehicle Speed",
+      "avlId": 81,
+      "units": "mph",
+      "sourceUnit": "km/h",
+      "canonicalUnit": "km/h",
+      "canonicalScale": 1,
+      "quantity": "speed"
+    },
+    "throttle": {
+      "label": "CAN Accelerator Pedal Position",
+      "avlId": 82,
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "pedal_position"
+    },
+    "rpm": {
+      "label": "CAN Engine RPM",
+      "avlId": 85,
+      "units": "rpm",
+      "sourceUnit": "rpm",
+      "canonicalUnit": "rpm",
+      "canonicalScale": 1,
+      "quantity": "engine_speed"
+    },
+    "obdOdometer": {
+      "label": "CAN Total Mileage",
+      "avlId": 87,
+      "units": "mi",
+      "sourceUnit": "m",
+      "canonicalUnit": "m",
+      "canonicalScale": 1,
+      "quantity": "distance"
+    },
+    "fuel": {
+      "label": "CAN Fuel Level (volume)",
+      "avlId": 84,
+      "units": "gal",
+      "sourceUnit": "L",
+      "canonicalUnit": "L",
+      "canonicalScale": 1,
+      "quantity": "fuel_volume"
+    },
+    "fuelLevel": {
+      "label": "CAN Fuel Level (percent)",
+      "avlId": 89,
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "fuel_level"
+    },
+    "io10812": {
+      "label": "EYE Sensor 1 Movement",
+      "avlId": 10812
+    },
+    "io10813": {
+      "label": "EYE Sensor 2 Movement",
+      "avlId": 10813
+    },
+    "io10814": {
+      "label": "EYE Sensor 3 Movement",
+      "avlId": 10814
+    },
+    "io10815": {
+      "label": "EYE Sensor 4 Movement",
+      "avlId": 10815
+    }
+  }
+}

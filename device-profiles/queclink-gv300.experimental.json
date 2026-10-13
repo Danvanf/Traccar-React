@@ -1,0 +1,127 @@
+{
+  "id": "queclink-gv300-experimental",
+  "name": "Queclink GV300 (experimental; @Track GV300 V2 protocol)",
+  "schemaVersion": 14,
+  "attributeMap": {
+    "power": {
+      "label": "External Supply Voltage",
+      "units": "V"
+    },
+    "battery": {
+      "label": "Backup Battery Voltage",
+      "units": "V"
+    },
+    "batteryLevel": {
+      "label": "Backup Battery Charge",
+      "units": "%"
+    },
+    "charge": {
+      "label": "Backup Battery Charging State"
+    },
+    "ignition": {
+      "label": "Ignition State"
+    },
+    "motion": {
+      "label": "Reported Motion State"
+    },
+    "iccid": {
+      "label": "SIM ICCID",
+      "valueType": "identifier"
+    },
+    "rssi": {
+      "label": "Cellular CSQ RSSI",
+      "sentinelValues": [
+        99
+      ]
+    },
+    "odometer": {
+      "label": "Device Mileage",
+      "units": "mi",
+      "sourceUnit": "m",
+      "canonicalUnit": "m",
+      "canonicalScale": 1,
+      "quantity": "distance"
+    },
+    "hours": {
+      "label": "Engine-On Hour Meter (raw milliseconds)",
+      "units": "ms"
+    },
+    "adc1": {
+      "label": "Analog Input 1 Voltage",
+      "units": "V"
+    },
+    "adc2": {
+      "label": "Analog Input 2 Voltage",
+      "units": "V"
+    },
+    "fuel1": {
+      "label": "Configured Fuel Input 1 (unverified scale)"
+    },
+    "fuel2": {
+      "label": "Configured Fuel Input 2 (unverified scale)"
+    },
+    "hdop": {
+      "label": "GNSS HDOP"
+    },
+    "sat": {
+      "label": "GNSS Satellite Count",
+      "units": "count"
+    },
+    "input": {
+      "label": "Digital Input Bitmask"
+    },
+    "output": {
+      "label": "Digital Output Bitmask"
+    },
+    "in1": {
+      "label": "Decoded Input 1 State"
+    },
+    "in2": {
+      "label": "Decoded Input 2 State"
+    },
+    "out1": {
+      "label": "Decoded Output 1 State"
+    },
+    "out2": {
+      "label": "Decoded Output 2 State"
+    },
+    "event": {
+      "label": "Report Event Code"
+    },
+    "alarm": {
+      "label": "Traccar Alarm"
+    },
+    "result": {
+      "label": "Command / Device Response",
+      "valueType": "text"
+    },
+    "deviceType": {
+      "label": "Reported Device Type",
+      "valueType": "text"
+    },
+    "versionFw": {
+      "label": "Firmware Version Code",
+      "valueType": "text"
+    },
+    "versionHw": {
+      "label": "Hardware Version Code",
+      "valueType": "text"
+    },
+    "distance": {
+      "label": "Traccar Segment Distance",
+      "units": "mi",
+      "sourceUnit": "m",
+      "canonicalUnit": "m",
+      "canonicalScale": 1,
+      "quantity": "distance"
+    },
+    "totalDistance": {
+      "label": "Traccar Total Distance",
+      "units": "mi",
+      "sourceUnit": "m",
+      "canonicalUnit": "m",
+      "canonicalScale": 1,
+      "quantity": "distance"
+    }
+  }
+}

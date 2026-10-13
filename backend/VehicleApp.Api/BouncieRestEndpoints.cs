@@ -2,6 +2,32 @@ public static class BouncieRestEndpoints
 {
     public static void MapBouncieRestEndpoints(this WebApplication app)
     {
+        app.MapGet("/api/integrations/bouncie/diagnostic/trips", async (
+            string imei,
+            DateTimeOffset from,
+            DateTimeOffset through,
+            HttpContext context,
+            BouncieRestService service,
+            CancellationToken cancellationToken) =>
+        {
+            if (!app.Environment.IsDevelopment() || context.Connection.RemoteIpAddress is not { } remoteIp || !System.Net.IPAddress.IsLoopback(remoteIp))
+                return Results.NotFound();
+            try
+            {
+                return Results.Ok(await service.ProbeTripsAsync(imei, from, through, cancellationToken));
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.Conflict(new { error = ex.Message });
+            }
+        })
+        .AllowAnonymous()
+        .WithName("ProbeBouncieTripsLocally");
+
         app.MapGet("/api/integrations/bouncie/status", (BouncieRestService service) =>
             Results.Ok(service.GetStatus()))
             .WithName("GetBouncieIntegrationStatus");
@@ -131,6 +157,12 @@ public static class BouncieRestEndpoints
             return Results.Ok(service.GetStatus());
         })
         .WithName("CancelBouncieImport");
+
+        app.MapPost("/api/integrations/bouncie/import-continue", (BouncieRestService service) =>
+            service.ContinueImport()
+                ? Results.Ok(service.GetStatus())
+                : Results.Conflict(new { error = "The Bouncie import is not waiting for confirmation." }))
+            .WithName("ContinueBouncieImport");
 
         app.MapPost("/api/integrations/bouncie/forget", async (BouncieRestService service, CancellationToken cancellationToken) =>
         {

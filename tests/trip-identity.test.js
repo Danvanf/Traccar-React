@@ -23,6 +23,38 @@ test('position identities survive normalization, trip merging, and JSON import p
   assert.equal(payload.endTraccarPositionId, 103)
 })
 
+test('ignition transitions split trips even when the off period is shorter than ten minutes', () => {
+  const points = [
+    { positionId: 201, timestamp: new Date(+start), latitude: 40, longitude: -75, speed: 0, attributes: { ignition: true } },
+    { positionId: 202, timestamp: new Date(+start + 30000), latitude: 40.001, longitude: -75, speed: 5, attributes: { ignition: true } },
+    { positionId: 203, timestamp: new Date(+start + 60000), latitude: 40.002, longitude: -75, speed: 0, attributes: { ignition: false } },
+    { positionId: 204, timestamp: new Date(+start + 3 * 60000), latitude: 40.002, longitude: -75, speed: 0, attributes: { ignition: true } },
+    { positionId: 205, timestamp: new Date(+start + 5 * 60000), latitude: 40.003, longitude: -75, speed: 0, attributes: { ignition: false } },
+  ]
+
+  const trips = buildTripsForDevice(5, points, 20)
+
+  assert.equal(trips.length, 2)
+  assert.equal(trips[0].startTraccarPositionId, 201)
+  assert.equal(trips[0].endTraccarPositionId, 203)
+  assert.equal(trips[1].startTraccarPositionId, 204)
+  assert.equal(trips[1].endTraccarPositionId, 205)
+})
+
+test('ignition-on driving remains one trip across long GPS time gaps until ignition turns off', () => {
+  const points = [
+    { positionId: 301, timestamp: new Date(+start), latitude: 40, longitude: -75, speed: 10, attributes: { ignition: true } },
+    { positionId: 302, timestamp: new Date(+start + 90 * 60000), latitude: 41, longitude: -75, speed: 10, attributes: { ignition: true } },
+    { positionId: 303, timestamp: new Date(+start + 180 * 60000), latitude: 42, longitude: -75, speed: 0, attributes: { ignition: false } },
+  ]
+
+  const trips = buildTripsForDevice(5, points, 20)
+
+  assert.equal(trips.length, 1)
+  assert.equal(trips[0].startTraccarPositionId, 301)
+  assert.equal(trips[0].endTraccarPositionId, 303)
+})
+
 test('separate journeys retain their own source endpoints', () => {
   const points = [0, 15000, 1200000, 1215000].map((ms, i) => ({
     positionId: i + 1, timestamp: new Date(+start + ms),

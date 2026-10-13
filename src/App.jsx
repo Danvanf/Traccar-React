@@ -6,23 +6,22 @@ import 'leaflet/dist/leaflet.css'
 import './App.css'
 import HistoryNavigator from './components/HistoryNavigator'
 import DeviceList from './components/DeviceList'
+import DeviceProtocolProfileEditor from './components/DeviceProtocolProfileEditor'
 import ExportPanel from './components/ExportPanel'
 import SettingsModal from './components/SettingsModal'
 import StatusCard from './components/StatusCard'
 import TripPanel from './components/TripPanel'
 import VehicleStatusCard from './components/VehicleStatusCard'
+import MovableMapKey from './components/MovableMapKey'
+import MovablePanel from './components/MovablePanel'
 import VehicleStatsPanel from './components/VehicleStatsPanel'
 import NotificationsPanel from './components/NotificationsPanel'
 import TelemetryGraphViewer from './components/TelemetryGraphViewer'
 import { buildRangeCsv, downloadCsvFile, parseAppPositionCsv } from './lib/csvExport'
-import { buildProfileMap, DEFAULT_PROFILE_ID, validateAttributeMap } from './lib/carProfiles'
+import { buildProfileMap, DEFAULT_PROFILE_DEFINITIONS, DEFAULT_PROFILE_ID, PROFILE_DEFINITION_SCHEMA_VERSION, migrateProfileDefinition, resolveProfileContext, translateAttribute, validateAttributeMap } from './lib/carProfiles'
+import { mergeSelectedProfileProperties } from './lib/profileImport'
 import { metersBetween, toHistoryPosition } from './lib/geo'
-import {
-  loadDeviceProfileAssignments,
-  loadProfileDefinitions,
-  saveDeviceProfileAssignments,
-  saveProfileDefinitions,
-} from './lib/profileStore'
+import { loadProfileDefinitionsWithStatus, saveProfileDefinitions } from './lib/profileStore'
 import { DEFAULT_SETTINGS, PALETTE, readSettings, saveSettings } from './lib/settings'
 import { createRequestGate } from './lib/requestGate'
 import { getExportRangePreset, getRangeFromMode, toDateInputValue, toLocalInputValue } from './lib/time'
@@ -31,7 +30,8 @@ import { buildTripsForDevice, getTripMaxSpeedMph, summarizeTripsByDay } from './
 import { parseBouncieCsv } from './lib/bouncieCsv'
 import { collapseTripEvents, detectTripEvents, formatEventMeasurement, resolveEventThresholds } from './lib/tripEvents'
 import { DEFAULT_SPEED_BANDS, getSpeedBandsForVehicle, speedBandFor } from './lib/speedBands'
-import { DEFAULT_STATUS_CARD_FIELDS } from './lib/statusCardFields'
+import { DEFAULT_MAP_POPUP_FIELDS, DEFAULT_STATUS_CARD_FIELDS, getStatusCardFieldForAttribute, getStatusCardProfileKey } from './lib/statusCardFields'
+import { coveredRatio, findNearestAvailablePosition, intersectionArea, WINDOW_COVERAGE_LIMIT } from './lib/windowCollisions'
 import {
   addTagToTrip,
   deleteDeviceBinding,
@@ -39,6 +39,7 @@ import {
   fetchTripTagsForTrip,
   deleteNamedPlace,
   fetchActiveDeviceBindings,
+  fetchDeviceBindingHistory,
   fetchNearestDeviceBinding,
   fetchNamedPlaces,
   fetchTripTags,
@@ -51,6 +52,9 @@ import {
   fetchTripDaySummaries,
   deleteCalculatedTripEvents,
   fetchVehicleCatalog,
+  fetchTelemetryProfiles,
+  upsertTelemetryProfile,
+  deleteTelemetryProfile,
   upsertVehicle,
   importTripsByDevice,
   importBouncieTrips,
@@ -60,6 +64,7 @@ import {
   beginStoredBouncieAuthorization,
   startBouncieImport,
   cancelBouncieImport,
+  continueBouncieImport,
   forgetBouncieCredentials,
   restoreBouncieConnection,
   repairMissingDeviceBinding,
@@ -90,6 +95,15 @@ function fitBoundsWithPanelOffset(map, bounds, padding) {
   // Move the fitted content right to leave room for the floating Trips panel.
   map.panBy([-MAP_CONTENT_SHIFT_PX, 0], { animate: false })
 }
+
+function isIgnitionOn(point) {
+  const attributes = point?.attributes || {}
+  const entry = Object.entries(attributes).find(([key]) => /^(ignition|ignitionOn|engineOn)$/i.test(key))
+  if (!entry) return false
+  const value = entry[1]
+  return value === true || value === 1 || ['true', '1', 'on'].includes(String(value).toLowerCase())
+}
+
 const TAG_COLOR_PALETTE = ['#2563eb', '#16a34a', '#dc2626', '#d97706', '#7c3aed', '#0891b2', '#db2777', '#4f46e5']
 
 function toPositiveInt32(value) {
@@ -106,6 +120,10 @@ function normalizeName(value) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character])
 }
 
 function suggestVehicleIdForDevice(deviceId, devices, vehicles) {
@@ -449,12 +467,18 @@ function App() {
   const { refs: tripFlyoutRefs, floatingStyles: tripFlyoutStyles } = useFloating({
     placement: 'right-start',
     strategy: 'fixed',
-    middleware: [offset({ mainAxis: 8, crossAxis: 40 }), shift({ padding: 16 })],
+    middleware: [offset({ mainAxis: 10, crossAxis: -1 }), shift({ padding: 16 })],
     whileElementsMounted: autoUpdate,
   })
   const [showTripsPanel, setShowTripsPanel] = useState(false)
+  const [historyPanelPosition, setHistoryPanelPosition] = useState(() => ({ left: 8, top: Math.round(window.innerHeight * 255 / 1205) }))
+  const [notificationsPanelPosition, setNotificationsPanelPosition] = useState(() => ({ left: 8, top: Math.round(window.innerHeight * 714 / 1205), height: 200 }))
   const [tripFlyoutPosition, setTripFlyoutPosition] = useState(null)
-  const [vehicleStatusPosition, setVehicleStatusPosition] = useState(null)
+  const [tripFlyoutTemporaryPosition, setTripFlyoutTemporaryPosition] = useState(null)
+  const [vehicleStatusPosition, setVehicleStatusPosition] = useState(() => ({ left: Math.max(8, window.innerWidth - 288), top: 53 }))
+  const [vehicleStatusCollapsed, setVehicleStatusCollapsed] = useState(true)
+  const [speedBandKeyPosition, setSpeedBandKeyPosition] = useState(null)
+  const [trackPlaceKeyPosition, setTrackPlaceKeyPosition] = useState(null)
   const [error, setError] = useState('')
   const [sessionState, setSessionState] = useState('unknown')
   const [isAutoFitPaused, setIsAutoFitPaused] = useState(false)
@@ -462,6 +486,7 @@ function App() {
   const [deviceColors, setDeviceColors] = useState({})
   const [deviceVisibility, setDeviceVisibility] = useState({})
   const [deviceListSelectedId, setDeviceListSelectedId] = useState(null)
+  const [deviceListExpanded, setDeviceListExpanded] = useState(true)
   const [statusDeviceId, setStatusDeviceId] = useState(null)
   const [selectedMapPoint, setSelectedMapPoint] = useState(null)
   const [historyByDevice, setHistoryByDevice] = useState({})
@@ -493,6 +518,9 @@ function App() {
   const [daySelectionAnchor, setDaySelectionAnchor] = useState(null)
   const [selectedTripId, setSelectedTripId] = useState(null)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isProfileMappingEditorOpen, setIsProfileMappingEditorOpen] = useState(false)
+  const profileMappingReturnScrollRef = useRef(null)
+  const profileMappingReturnFocusRef = useRef(false)
   const [isDataTransferOpen, setIsDataTransferOpen] = useState(false)
   const [operationsReport, setOperationsReport] = useState(null)
   const [operationsReportBusy, setOperationsReportBusy] = useState(false)
@@ -505,8 +533,14 @@ function App() {
   const [exportStartDate, setExportStartDate] = useState(() => toDateInputValue(new Date()))
   const [exportEndDate, setExportEndDate] = useState(() => toDateInputValue(new Date()))
   const [exportHeaderMode, setExportHeaderMode] = useState('translated')
-  const [profileDefinitions, setProfileDefinitions] = useState(loadProfileDefinitions)
-  const [deviceProfileById, setDeviceProfileById] = useState(loadDeviceProfileAssignments)
+  const [profileStorageState] = useState(loadProfileDefinitionsWithStatus)
+  const [profileDefinitions, setProfileDefinitions] = useState(() => profileStorageState.definitions)
+  const profileDefinitionsRef = useRef(profileDefinitions)
+  const [profileSyncStatus, setProfileSyncStatus] = useState('')
+  const [profileServerReady, setProfileServerReady] = useState(false)
+  const [profileServerAvailable, setProfileServerAvailable] = useState(false)
+  const lastSyncedProfileDefinitionsRef = useRef(null)
+  const profileSyncQueueRef = useRef(Promise.resolve())
   const [selectedProfileId, setSelectedProfileId] = useState(DEFAULT_PROFILE_ID)
   const [profileName, setProfileName] = useState('')
   const [profileAttributesJson, setProfileAttributesJson] = useState('{}')
@@ -523,6 +557,7 @@ function App() {
   const [bindingVehicles, setBindingVehicles] = useState([])
   const [speedBandsByVehicle, setSpeedBandsByVehicle] = useState({})
   const [statusCardFieldsByVehicle, setStatusCardFieldsByVehicle] = useState({})
+  const [mapPopupFieldsByVehicle, setMapPopupFieldsByVehicle] = useState({})
   const [vehicleEditId, setVehicleEditId] = useState(null)
   const [vehicleName, setVehicleName] = useState('')
   const [vehicleVin, setVehicleVin] = useState('')
@@ -530,9 +565,6 @@ function App() {
   const [vehicleMake, setVehicleMake] = useState('')
   const [vehicleModel, setVehicleModel] = useState('')
   const [vehicleNotes, setVehicleNotes] = useState('')
-  const [vehicleProfileById, setVehicleProfileById] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('traccarVehicleProfileAssignments') || '{}') } catch { return {} }
-  })
   const [vehicleEditorStatus, setVehicleEditorStatus] = useState('')
   const [vehicleProfileId, setVehicleProfileId] = useState('')
   const [vehicleDeviceId, setVehicleDeviceId] = useState('')
@@ -542,6 +574,7 @@ function App() {
     return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
   })
   const [activeBindings, setActiveBindings] = useState([])
+  const [historicalDeviceBindings, setHistoricalDeviceBindings] = useState([])
   const [filterBindingsToSelectedDevice, setFilterBindingsToSelectedDevice] = useState(false)
   const [bindingDeviceId, setBindingDeviceId] = useState(null)
   const [bindingVehicleId, setBindingVehicleId] = useState(null)
@@ -562,6 +595,8 @@ function App() {
   const [placeLatitude, setPlaceLatitude] = useState('')
   const [placeLongitude, setPlaceLongitude] = useState('')
   const [placeRadiusYards, setPlaceRadiusYards] = useState('75')
+  const [placeType, setPlaceType] = useState('general')
+  const [placeTrackName, setPlaceTrackName] = useState('')
   const [placeNotes, setPlaceNotes] = useState('')
   const [tagVehicleId, setTagVehicleId] = useState(null)
   const [tagName, setTagName] = useState('')
@@ -665,6 +700,8 @@ function App() {
   const resetAutoZoomControlRef = useRef(null)
   const cancelLocationControlRef = useRef(null)
   const resetMapAutoFitActionRef = useRef(null)
+  const resetWindowPositionsActionRef = useRef(null)
+  const movableWindowZIndexRef = useRef(0)
   const mapAutoFitRef = useRef(true)
   const programmaticMapMoveRef = useRef(false)
   const liveIntervalRef = useRef(null)
@@ -763,6 +800,13 @@ function App() {
     } finally { setBouncieBusy(false) }
   }, [settings.vehicleApiBaseUrl])
 
+  const continueBouncieSync = useCallback(async () => {
+    setBouncieBusy(true)
+    try { setBouncieStatus(await continueBouncieImport(settings.vehicleApiBaseUrl)) } catch (err) {
+      setBouncieStatus((current) => ({ ...current, import: { ...current.import, message: err instanceof Error ? err.message : 'Unable to continue Bouncie import.' } }))
+    } finally { setBouncieBusy(false) }
+  }, [settings.vehicleApiBaseUrl])
+
   const forgetBouncieConnection = useCallback(async () => {
     setBouncieBusy(true)
     try {
@@ -834,19 +878,107 @@ function App() {
   }, [settings])
 
   useEffect(() => {
-    saveProfileDefinitions(profileDefinitions)
+    profileDefinitionsRef.current = profileDefinitions
   }, [profileDefinitions])
 
   useEffect(() => {
-    saveDeviceProfileAssignments(deviceProfileById)
-  }, [deviceProfileById])
+    let active = true
+    async function loadSharedProfiles() {
+      if (vehicleAuth.checking || (vehicleAuth.enabled && !vehicleAuth.authenticated)) return
+      if (!profileStorageState.canSave) {
+        setProfileSyncStatus('Shared profile loading paused because this browser has an unreadable or newer local profile schema.')
+        return
+      }
+      try {
+        const rows = await fetchTelemetryProfiles(settings.vehicleApiBaseUrl)
+        if (!active) return
+        const local = profileDefinitionsRef.current
+        const remoteMigrationChanges = []
+        const remote = Object.fromEntries(rows.filter((profile) => profile?.id && profile?.name && profile.attributeMap && typeof profile.attributeMap === 'object' && !Array.isArray(profile.attributeMap)).map((profile) => {
+          if (Number(profile.schemaVersion || 1) > PROFILE_DEFINITION_SCHEMA_VERSION) throw new Error(`Shared profile ${profile.id} uses a newer schema version.`)
+          const migration = migrateProfileDefinition(profile)
+          remoteMigrationChanges.push(...migration.changes)
+          const localProfile = local[profile.id]
+          const attributeMap = { ...migration.definition.attributeMap }
+          for (const [key, localInfo] of Object.entries(localProfile?.attributeMap || {})) {
+            if (attributeMap[key] && !attributeMap[key].quantity && localInfo.quantity) {
+              attributeMap[key] = { ...attributeMap[key], quantity: localInfo.quantity }
+            }
+          }
+          return [profile.id, { ...migration.definition, schemaVersion: PROFILE_DEFINITION_SCHEMA_VERSION, attributeMap }]
+        }))
+        let next = local
+        let profilesToUpload = Object.values(local)
+        let status = ''
+        if (Object.keys(remote).length) {
+          const conflicts = Object.keys(remote).filter((id) => local[id] && JSON.stringify(local[id]) !== JSON.stringify(remote[id]))
+          if (conflicts.length) {
+            localStorage.setItem('traccarProfileDefinitions:pre-shared-backup', JSON.stringify({ savedAt: new Date().toISOString(), definitions: local }))
+            status = `Shared profiles were loaded. A local backup was saved because ${conflicts.length} browser profile(s) differed from the shared copy.`
+          } else {
+            status = 'Shared device profiles loaded from the Vehicle App database.'
+          }
+          next = { ...local, ...remote }
+          profilesToUpload = Object.values(next).filter((profile) => !remote[profile.id] || JSON.stringify(rows.find((row) => row.id === profile.id)) !== JSON.stringify(profile))
+        }
+        if (remoteMigrationChanges.length) {
+          if (!localStorage.getItem('traccarProfileDefinitions:pre-shared-schema-14-backup')) {
+            localStorage.setItem('traccarProfileDefinitions:pre-shared-schema-14-backup', JSON.stringify({ savedAt: new Date().toISOString(), profiles: rows }))
+          }
+          status = [status, ...new Set(remoteMigrationChanges)].filter(Boolean).join(' ')
+          status += ' A copy of the previous shared definitions was saved in this browser before synchronization.'
+        }
+        await Promise.all(profilesToUpload.map((profile) => upsertTelemetryProfile(settings.vehicleApiBaseUrl, profile)))
+        if (!active) return
+        setProfileDefinitions(next)
+        lastSyncedProfileDefinitionsRef.current = next
+        setProfileServerAvailable(true)
+        setProfileServerReady(true)
+        setProfileSyncStatus(status || 'Device profiles are synchronized with the Vehicle App database.')
+      } catch (error) {
+        if (!active) return
+        setProfileServerAvailable(false)
+        setProfileSyncStatus(`Shared profile storage is unavailable; this browser's saved profiles remain active. ${error instanceof Error ? error.message : ''}`.trim())
+      }
+    }
+    loadSharedProfiles()
+    return () => { active = false }
+  }, [profileStorageState.canSave, settings.vehicleApiBaseUrl, vehicleAuth.authenticated, vehicleAuth.checking, vehicleAuth.enabled])
 
   useEffect(() => {
-    localStorage.setItem('traccarVehicleProfileAssignments', JSON.stringify(vehicleProfileById))
-  }, [vehicleProfileById])
+    if (!profileStorageState.canSave) return
+    saveProfileDefinitions(profileDefinitions)
+  }, [profileDefinitions, profileStorageState.canSave])
 
-  const profileMap = useMemo(() => buildProfileMap(profileDefinitions), [profileDefinitions])
+  useEffect(() => {
+    if (!profileServerReady || !profileServerAvailable) return
+    const desired = profileDefinitions
+    let active = true
+    const sync = profileSyncQueueRef.current.catch(() => {}).then(async () => {
+      const previous = lastSyncedProfileDefinitionsRef.current || {}
+      if (JSON.stringify(previous) === JSON.stringify(desired)) return
+      setProfileSyncStatus('Synchronizing device profiles with the Vehicle App database…')
+      await Promise.all(Object.keys(previous).filter((id) => !desired[id]).map((id) => deleteTelemetryProfile(settings.vehicleApiBaseUrl, id)))
+      await Promise.all(Object.values(desired).filter((profile) => JSON.stringify(previous[profile.id]) !== JSON.stringify(profile)).map((profile) => upsertTelemetryProfile(settings.vehicleApiBaseUrl, profile)))
+      lastSyncedProfileDefinitionsRef.current = desired
+    })
+    profileSyncQueueRef.current = sync
+    sync.then(() => {
+      if (active) setProfileSyncStatus('Device profiles synchronized with the Vehicle App database.')
+    }).catch((error) => {
+      if (active) setProfileSyncStatus(`Profile changes are saved in this browser but could not be synchronized. ${error instanceof Error ? error.message : ''}`.trim())
+    })
+    return () => { active = false }
+  }, [profileDefinitions, profileServerAvailable, profileServerReady, settings.vehicleApiBaseUrl])
+
+  const profileMap = useMemo(() => buildProfileMap(profileDefinitions, settings.displayUnits), [profileDefinitions, settings.displayUnits])
   const profileOptions = useMemo(() => Object.values(profileDefinitions), [profileDefinitions])
+  const profileContextFor = useCallback((context = {}) => resolveProfileContext({
+    ...context,
+    vehicles: bindingVehicles,
+    bindings: context.at != null && historicalDeviceBindings.length ? historicalDeviceBindings : activeBindings,
+    profileMap,
+  }), [activeBindings, bindingVehicles, historicalDeviceBindings, profileMap])
 
   useEffect(() => {
     if (!profileOptions.length) {
@@ -908,10 +1040,31 @@ function App() {
   }, [isSettingsOpen])
 
   useEffect(() => {
+    if (!isSettingsOpen || profileMappingReturnScrollRef.current == null) return undefined
+    const frame = window.requestAnimationFrame(() => {
+      const modal = document.querySelector('.settings-modal')
+      if (modal) modal.scrollTop = profileMappingReturnScrollRef.current
+      profileMappingReturnScrollRef.current = null
+      if (profileMappingReturnFocusRef.current) {
+        document.getElementById('open-device-protocol-profile-editor')?.focus()
+        profileMappingReturnFocusRef.current = false
+      }
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [isSettingsOpen])
+
+  useEffect(() => {
+    if (!isProfileMappingEditorOpen) return undefined
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = previousOverflow }
+  }, [isProfileMappingEditorOpen])
+
+  useEffect(() => {
     if (!isSettingsOpen) return undefined
     refreshBouncieStatus()
     const state = bouncieStatus?.import?.state
-    if (state !== 'running') return undefined
+    if (state !== 'running' && state !== 'awaiting_confirmation') return undefined
     const timer = window.setInterval(refreshBouncieStatus, 2000)
     return () => window.clearInterval(timer)
   }, [bouncieStatus?.import?.state, isSettingsOpen, refreshBouncieStatus])
@@ -972,6 +1125,24 @@ function App() {
         () => setIsPickingLocation(false),
       )
       cancelLocationControlRef.current.hidden = true
+      createButton(
+        'map-action-settings',
+        'Open settings',
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"/><path d="m19.4 15 .1.1a1.8 1.8 0 0 1-2.5 2.5l-.1-.1a1.8 1.8 0 0 0-3 .9v.2a1.8 1.8 0 0 1-3.6 0v-.2a1.8 1.8 0 0 0-3-.9l-.1.1a1.8 1.8 0 1 1-2.5-2.5l.1-.1a1.8 1.8 0 0 0-.9-3H3.7a1.8 1.8 0 0 1 0-3h.2a1.8 1.8 0 0 0 .9-3l-.1-.1a1.8 1.8 0 1 1 2.5-2.5l.1.1a1.8 1.8 0 0 0 3-.9v-.2a1.8 1.8 0 0 1 3.6 0v.2a1.8 1.8 0 0 0 3 .9l.1-.1a1.8 1.8 0 1 1 2.5 2.5l-.1.1a1.8 1.8 0 0 0 .9 3h.2a1.8 1.8 0 0 1 0 3h-.2a1.8 1.8 0 0 0-.9 3Z"/></svg>',
+        () => setIsSettingsOpen(true),
+      )
+      createButton(
+        'map-action-transfer',
+        'Import/Export data',
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V3m0 0L7 8m5-5 5 5M5 14v6h14v-6"/><path d="M8 17h8"/></svg>',
+        () => setIsDataTransferOpen(true),
+      )
+      createButton(
+        'map-action-reset-positions',
+        'Reset windows to original positions',
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7v5h5"/><path d="M5.6 15a7 7 0 1 0 .1-6.1L4 12"/><path d="M12 8v4l2.5 1.5"/></svg>',
+        () => resetWindowPositionsActionRef.current?.(),
+      )
       L.DomEvent.disableClickPropagation(container)
       L.DomEvent.disableScrollPropagation(container)
       return container
@@ -1039,6 +1210,12 @@ function App() {
     }
   }, [isPickingLocation])
 
+  useEffect(() => {
+    if (!mapReady) return undefined
+    const frameId = requestAnimationFrame(() => mapRef.current?.invalidateSize({ pan: false }))
+    return () => cancelAnimationFrame(frameId)
+  }, [mapReady])
+
   const startLocationPicker = () => {
     mapAutoFitRef.current = false
     setIsAutoFitPaused(true)
@@ -1080,14 +1257,18 @@ function App() {
   const speedBandsForVehicle = useCallback((vehicleId) => (
     speedBandsByVehicle[vehicleId] || getSpeedBandsForVehicle(vehicleId)
   ), [speedBandsByVehicle])
-  const selectedTripVehicleId = selectedTrip?.vehicleId
-    || activeBindings.find((binding) => Number(binding.traccarDeviceId) === Number(selectedTrip?.deviceId))?.vehicleId
+  const selectedTripVehicleId = selectedTrip
+    ? profileContextFor({ vehicleId: selectedTrip.vehicleId, deviceId: selectedTrip.deviceId, at: selectedTrip.start }).vehicle?.id ?? selectedTrip.vehicleId
+    : null
 
   useEffect(() => {
     const map = mapRef.current
     const markerLayer = markerLayerRef.current
     const trailLayer = trailLayerRef.current
     const selectedTripLayer = selectedTripLayerRef.current
+    const selectedTripProfile = selectedTrip
+      ? profileContextFor({ vehicleId: selectedTrip.vehicleId, deviceId: selectedTrip.deviceId, at: selectedTrip.start }).profile
+      : null
 
     if (!map || !markerLayer || !trailLayer) {
       return
@@ -1108,7 +1289,7 @@ function App() {
       const color = selectedDayKey || selectedDayKeys.length > 0 ? '#22c55e' : (deviceColors[device.id] || '#f97316')
       const sourcePoints = [...(historyByDevice[device.id] || []), ...historyRoutePoints.filter((point) => Number(point.deviceId) === Number(device.id))]
         .sort((a, b) => a.timestamp - b.timestamp)
-      const points = sourcePoints.filter((point) => {
+      const dayPoints = sourcePoints.filter((point) => {
         if (!selectedDayKey && selectedDayKeys.length === 0) {
           return point.timestamp.getTime() >= Date.now() - 48 * 60 * 60 * 1000
         }
@@ -1116,19 +1297,30 @@ function App() {
         const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
         return selectedDayKeys.includes(key) || key === selectedDayKey
       })
+      const points = dayPoints.filter(isIgnitionOn)
       if (points.length === 0) {
         return
       }
 
-      const coords = points.map((point) => [point.latitude, point.longitude])
-
-      if (coords.length > 1) {
-        L.polyline(coords, {
-          color,
-          weight: 3,
-          opacity: 0.9,
-        }).addTo(trailLayer)
+      let activeSegment = []
+      const drawSegment = () => {
+        if (activeSegment.length > 1) {
+          L.polyline(activeSegment.map((point) => [point.latitude, point.longitude]), {
+            color,
+            weight: 3,
+            opacity: 0.9,
+          }).addTo(trailLayer)
+        }
+        activeSegment = []
       }
+      dayPoints.forEach((point) => {
+        if (!isIgnitionOn(point)) {
+          drawSegment()
+          return
+        }
+        activeSegment.push(point)
+      })
+      drawSegment()
 
       const last = points[points.length - 1]
       const marker = L.circleMarker([last.latitude, last.longitude], {
@@ -1175,12 +1367,22 @@ function App() {
         const pointBand = speedBandFor(pointSpeedMph, speedBandsForVehicle(selectedTripVehicleId))
         const marker = L.circleMarker([point.latitude, point.longitude], { radius: 4, color: pointBand.color, fillColor: pointBand.color, fillOpacity: 1, weight: 1 })
         const speedMph = Number(point.speed || 0) * 1.15078
+        const displayedSpeed = speedMph * (settings.displayUnits === 'metric' ? 1.609344 : 1)
+        const speedUnit = settings.displayUnits === 'metric' ? 'km/h' : 'mph'
+        const selectedPopupFields = new Set(mapPopupFieldsByVehicle[selectedTripVehicleId] || DEFAULT_MAP_POPUP_FIELDS)
+        const seenPopupFields = new Set()
         const telemetry = Object.entries(point.attributes || {})
-          .filter(([key]) => /obd|fuel|rpm|engine|coolant|accel|g.?force/i.test(key))
-          .slice(0, 8)
-          .map(([key, value]) => `<br/>${key}: ${String(value)}`)
+          .map(([key, raw]) => {
+            const field = getStatusCardFieldForAttribute(selectedTripProfile, key)
+            if (!field || !selectedPopupFields.has(field) || seenPopupFields.has(field)) return ''
+            seenPopupFields.add(field)
+            const translated = translateAttribute(selectedTripProfile, getStatusCardProfileKey(selectedTripProfile, field, key), raw)
+            const value = ['sentinel', 'invalid'].includes(translated.status) ? 'invalid' : translated.value
+            const units = translated.unit ? ` ${translated.unit}` : ''
+            return `<br/>${escapeHtml(translated.label)}: ${escapeHtml(value)}${escapeHtml(units)}`
+          })
           .join('')
-        const popup = `<strong>${point.timestamp.toLocaleString()}</strong><br/>Location: ${point.latitude.toFixed(5)}, ${point.longitude.toFixed(5)}<br/>Speed: ${speedMph.toFixed(1)} mph${telemetry}`
+        const popup = `<strong>${escapeHtml(point.timestamp.toLocaleString())}</strong><br/>Location: ${point.latitude.toFixed(5)}, ${point.longitude.toFixed(5)}<br/>Speed: ${displayedSpeed.toFixed(1)} ${speedUnit}${telemetry}`
         marker.bindPopup(popup)
         marker.on('click', () => selectStatusPoint(selectedTrip.deviceId, point))
         marker.addTo(selectedTripLayer)
@@ -1203,7 +1405,7 @@ function App() {
         const eventType = String(event.eventType || 'event')
         const icon = L.divIcon({ className: 'trip-event-icon', html: `<span style="background:${colors[eventType] || '#475569'}">${symbols[eventType] || '•'}</span>`, iconSize: [24, 24], iconAnchor: [12, 12] })
         const marker = L.marker([latitude, longitude], { icon })
-        marker.bindPopup(`<strong>${eventType.replaceAll('_', ' ')}</strong><br/>Source: ${event.source || 'unknown'}<br/>${new Date(event.occurredAt).toLocaleString()}${event.measuredValue == null ? '' : `<br/>Value: ${formatEventMeasurement(event)}`}`)
+        marker.bindPopup(`<strong>${eventType.replaceAll('_', ' ')}</strong><br/>Source: ${event.source || 'unknown'}<br/>${new Date(event.occurredAt).toLocaleString()}${event.measuredValue == null ? '' : `<br/>Value: ${formatEventMeasurement(event, settings.displayUnits)}`}`)
         marker.on('click', () => selectStatusPoint(selectedTrip.deviceId, {
           timestamp: new Date(event.occurredAt),
           latitude,
@@ -1223,7 +1425,7 @@ function App() {
         programmaticMapMoveRef.current = false
       }, 0)
     }
-  }, [activeBindings, deviceColors, deviceVisibility, devices, historyByDevice, historyRoutePoints, selectStatusPoint, selectedDayKey, selectedDayKeys, selectedTrip, selectedTripEvents, selectedTripRoutePoints, selectedTripVehicleId, speedBandsForVehicle])
+  }, [activeBindings, deviceColors, deviceVisibility, devices, historyByDevice, historyRoutePoints, mapPopupFieldsByVehicle, profileContextFor, selectStatusPoint, selectedDayKey, selectedDayKeys, selectedTrip, selectedTripEvents, selectedTripRoutePoints, selectedTripVehicleId, settings.displayUnits, speedBandsForVehicle])
 
   const focusTripEvent = useCallback((event) => {
     const latitude = Number(event?.latitude)
@@ -1312,19 +1514,30 @@ function App() {
       const vehicleName = place.vehicleId
         ? (bindingVehicles.find((vehicle) => vehicle.id === place.vehicleId)?.displayName || 'Vehicle scoped')
         : 'All vehicles'
+      const placeType = place.placeType || 'general'
+      const placeRole = placeType === 'general' ? 'General place' : placeType.replaceAll('_', ' ')
+      const placeColor = {
+        track_start: '#22c55e',
+        track_finish: '#ef4444',
+        track_start_finish: '#f59e0b',
+        track_split: '#38bdf8',
+        drag_start: '#a78bfa',
+        drag_finish: '#f472b6',
+        track_other: '#94a3b8',
+      }[placeType] || '#16a34a'
 
       const circle = L.circle(center, {
         radius: radiusMeters,
-        color: '#16a34a',
+        color: placeColor,
         weight: 2,
-        fillColor: '#22c55e',
+        fillColor: placeColor,
         fillOpacity: 0.15,
         pane: 'namedPlacesPane',
       })
 
       const notesBlock = place.notes ? `<br/>${place.notes}` : ''
       circle.bindPopup(
-        `<strong>${place.name}</strong><br/>${vehicleName}<br/>Radius: ${Math.round(radiusMeters * YARDS_PER_METER)} yd${notesBlock}`,
+        `<strong>${place.name}</strong><br/>${vehicleName}${place.trackName ? `<br/>Track: ${place.trackName}` : ''}<br/>Role: ${placeRole}<br/>Radius: ${Math.round(radiusMeters * YARDS_PER_METER)} yd${notesBlock}`,
       )
       circle.addTo(placeLayer)
     })
@@ -1364,7 +1577,9 @@ function App() {
       if (!active) return
       const left = Number(saved?.left)
       const top = Number(saved?.top)
-      setTripFlyoutPosition(Number.isFinite(left) && Number.isFinite(top) ? { left, top } : null)
+      const height = Number(saved?.height)
+      const position = { ...(Number.isFinite(left) && Number.isFinite(top) ? { left, top } : {}), ...(Number.isFinite(height) && height > 0 ? { height } : {}) }
+      setTripFlyoutPosition(Object.keys(position).length ? position : null)
     }
     try {
       const saved = JSON.parse(localStorage.getItem(tripFlyoutPreferenceKey) || 'null')
@@ -1391,6 +1606,23 @@ function App() {
     }
   }, [settings.vehicleApiBaseUrl, tripFlyoutPreferenceKey, vehicleAuth.authenticated])
 
+  useEffect(() => {
+    if (!graphGroups || !showTripsPanel) {
+      setTripFlyoutTemporaryPosition(null)
+      return undefined
+    }
+    const timer = window.setTimeout(() => {
+      const graph = document.querySelector('.telemetry-graph-card')
+      const trips = document.querySelector('.trip-panel-flyout')
+      if (!graph || !trips) return
+      const graphRect = graph.getBoundingClientRect()
+      const tripsRect = trips.getBoundingClientRect()
+      const overlaps = tripsRect.right > graphRect.left && tripsRect.left < graphRect.right && tripsRect.bottom > graphRect.top && tripsRect.top < graphRect.bottom
+      if (overlaps) setTripFlyoutTemporaryPosition({ left: Math.max(20, Math.floor(graphRect.left - tripsRect.width - 20)), top: Math.round(tripsRect.top) })
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [graphGroups, showTripsPanel])
+
   const vehicleStatusPreferenceKey = useMemo(() => {
     if (vehicleAuth.checking) return null
     const userKey = vehicleAuth.authenticated && vehicleAuth.username
@@ -1406,7 +1638,9 @@ function App() {
       if (!active) return
       const left = Number(saved?.left)
       const top = Number(saved?.top)
-      setVehicleStatusPosition(Number.isFinite(left) && Number.isFinite(top) ? { left, top } : null)
+      setVehicleStatusPosition(Number.isFinite(left) && Number.isFinite(top)
+        ? { left, top }
+        : { left: Math.max(8, window.innerWidth - 288), top: 53 })
     }
     try {
       applyPosition(JSON.parse(localStorage.getItem(vehicleStatusPreferenceKey) || 'null'))
@@ -1430,6 +1664,234 @@ function App() {
       saveUserPreference(settings.vehicleApiBaseUrl, 'vehicle-status-position', position).catch(() => {})
     }
   }, [settings.vehicleApiBaseUrl, vehicleAuth.authenticated, vehicleStatusPreferenceKey])
+
+  useEffect(() => {
+    let active = true
+    const apply = (value) => {
+      if (!active || typeof value !== 'boolean') return
+      setVehicleStatusCollapsed(value)
+    }
+    if (vehicleStatusPreferenceKey) {
+      try {
+        const saved = JSON.parse(localStorage.getItem(`${vehicleStatusPreferenceKey}:collapsed`) || 'null')
+        apply(saved)
+      } catch { /* use collapsed default */ }
+    }
+    if (vehicleAuth.authenticated) fetchUserPreference(settings.vehicleApiBaseUrl, 'vehicle-status-collapsed').then(apply).catch(() => {})
+    return () => { active = false }
+  }, [settings.vehicleApiBaseUrl, vehicleAuth.authenticated, vehicleStatusPreferenceKey])
+
+  const persistVehicleStatusCollapsed = useCallback((collapsed) => {
+    setVehicleStatusCollapsed(collapsed)
+    if (vehicleStatusPreferenceKey) localStorage.setItem(`${vehicleStatusPreferenceKey}:collapsed`, JSON.stringify(collapsed))
+    if (vehicleAuth.authenticated) saveUserPreference(settings.vehicleApiBaseUrl, 'vehicle-status-collapsed', collapsed).catch(() => {})
+  }, [settings.vehicleApiBaseUrl, vehicleAuth.authenticated, vehicleStatusPreferenceKey])
+
+  useEffect(() => {
+    let active = true
+    const localKey = vehicleStatusPreferenceKey ? `${vehicleStatusPreferenceKey}:devices-expanded` : null
+    const apply = (value) => {
+      if (active && typeof value === 'boolean') setDeviceListExpanded(value)
+    }
+    if (localKey) {
+      try { apply(JSON.parse(localStorage.getItem(localKey) || 'null')) } catch { /* keep default */ }
+    }
+    if (vehicleAuth.authenticated) fetchUserPreference(settings.vehicleApiBaseUrl, 'devices-panel-expanded').then(apply).catch(() => {})
+    return () => { active = false }
+  }, [settings.vehicleApiBaseUrl, vehicleAuth.authenticated, vehicleStatusPreferenceKey])
+
+  const persistDeviceListExpanded = useCallback((expanded) => {
+    setDeviceListExpanded(expanded)
+    if (vehicleStatusPreferenceKey) localStorage.setItem(`${vehicleStatusPreferenceKey}:devices-expanded`, JSON.stringify(expanded))
+    if (vehicleAuth.authenticated) saveUserPreference(settings.vehicleApiBaseUrl, 'devices-panel-expanded', expanded).catch(() => {})
+  }, [settings.vehicleApiBaseUrl, vehicleAuth.authenticated, vehicleStatusPreferenceKey])
+
+  const mapKeyPreferenceKey = useCallback((name) => {
+    const userKey = vehicleAuth.authenticated && vehicleAuth.username ? vehicleAuth.username.trim().toLowerCase() : 'local'
+    return `vehicleApp:${name}:${userKey}`
+  }, [vehicleAuth.authenticated, vehicleAuth.username])
+
+  useEffect(() => {
+    let active = true
+    const apply = (setter, saved) => {
+      const left = Number(saved?.left)
+      const top = Number(saved?.top)
+      const height = Number(saved?.height)
+      const next = { ...(Number.isFinite(left) && Number.isFinite(top) ? { left, top } : {}), ...(Number.isFinite(height) && height > 0 ? { height } : {}) }
+      if (active) setter(Object.keys(next).length ? next : null)
+    }
+    ;[['speedBandKeyPosition', setSpeedBandKeyPosition, 'speed-bands-key-position'], ['trackPlaceKeyPosition', setTrackPlaceKeyPosition, 'track-places-key-position'], ['historyPanelPosition', setHistoryPanelPosition, 'history-panel-position', { left: 8, top: Math.round(window.innerHeight * 255 / 1205) }], ['notificationsPanelPosition', setNotificationsPanelPosition, 'notifications-panel-position', { left: 8, top: Math.round(window.innerHeight * 714 / 1205), height: 200 }]].forEach(([storageName, setter, preferenceName, fallback]) => {
+      const localKey = mapKeyPreferenceKey(storageName)
+      try {
+        const saved = JSON.parse(localStorage.getItem(localKey) || 'null')
+        if (saved) apply(setter, saved)
+        else if (fallback) apply(setter, fallback)
+      } catch { if (fallback) apply(setter, fallback) }
+      if (vehicleAuth.authenticated) fetchUserPreference(settings.vehicleApiBaseUrl, preferenceName).then((value) => { if (value && active) apply(setter, value) }).catch(() => {})
+    })
+    return () => { active = false }
+  }, [mapKeyPreferenceKey, settings.vehicleApiBaseUrl, vehicleAuth.authenticated])
+
+  const persistMapKeyPosition = useCallback((storageName, preferenceName, position, setter) => {
+    setter(position)
+    localStorage.setItem(mapKeyPreferenceKey(storageName), JSON.stringify(position))
+    if (vehicleAuth.authenticated) saveUserPreference(settings.vehicleApiBaseUrl, preferenceName, position).catch(() => {})
+  }, [mapKeyPreferenceKey, settings.vehicleApiBaseUrl, vehicleAuth.authenticated])
+
+  const persistWindowPosition = useCallback((windowId, position) => {
+    if (windowId === 'history') {
+      persistMapKeyPosition('historyPanelPosition', 'history-panel-position', { ...historyPanelPosition, ...position }, setHistoryPanelPosition)
+    } else if (windowId === 'notifications') {
+      persistMapKeyPosition('notificationsPanelPosition', 'notifications-panel-position', { ...notificationsPanelPosition, ...position }, setNotificationsPanelPosition)
+    } else if (windowId === 'trips') {
+      setTripFlyoutTemporaryPosition(null)
+      persistTripFlyoutPosition({ ...position, ...(tripFlyoutPosition?.height ? { height: tripFlyoutPosition.height } : {}) })
+    } else if (windowId === 'vehicleStatus') {
+      persistVehicleStatusPosition(position)
+    } else if (windowId === 'trackPlaces') {
+      persistMapKeyPosition('trackPlaceKeyPosition', 'track-places-key-position', position, setTrackPlaceKeyPosition)
+    } else if (windowId === 'speedBands') {
+      persistMapKeyPosition('speedBandKeyPosition', 'speed-bands-key-position', position, setSpeedBandKeyPosition)
+    }
+  }, [
+    historyPanelPosition,
+    notificationsPanelPosition,
+    persistMapKeyPosition,
+    persistTripFlyoutPosition,
+    persistVehicleStatusPosition,
+    tripFlyoutPosition,
+  ])
+
+  const resolveWindowOverlaps = useCallback((frontWindowId) => {
+    const windowSelectors = {
+      history: '.floating-history-panel',
+      notifications: '.floating-notifications-panel',
+      trips: '.trip-panel-flyout',
+      vehicleStatus: '.vehicle-status-card',
+      trackPlaces: '.track-place-key',
+      speedBands: '.speed-band-key',
+    }
+    const toRect = (element) => {
+      const rect = element?.getBoundingClientRect()
+      return rect ? { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height } : null
+    }
+    const windows = Object.entries(windowSelectors).map(([id, selector]) => {
+      const element = document.querySelector(selector)
+      if (!element) return null
+      const rect = toRect(element)
+      const zIndex = Number.parseInt(window.getComputedStyle(element).zIndex, 10) || 0
+      return { id, element, rect, zIndex }
+    }).filter(Boolean)
+    let front = windows.find((item) => item.id === frontWindowId)
+    if (!front) return
+
+    const hardBlockers = ['.map-action-control', '.global-sign-out-button', '.vehicle-stats-launcher']
+      .map((selector) => toRect(document.querySelector(selector)))
+      .filter(Boolean)
+    const fixedPanels = ['.map-device-list', '.map-app-title', '.map-status-card']
+      .map((selector) => toRect(document.querySelector(selector)))
+      .filter(Boolean)
+    const viewport = { viewportWidth: window.innerWidth, viewportHeight: window.innerHeight }
+    const panelBlockers = () => windows.filter((item) => item.id !== frontWindowId).map((item) => item.rect)
+    const needsMovingFront = hardBlockers.some((rect) => intersectionArea(front.rect, rect) > 0)
+      || fixedPanels.some((rect) => coveredRatio(rect, front.rect) >= WINDOW_COVERAGE_LIMIT)
+    if (needsMovingFront) {
+      const next = findNearestAvailablePosition(front.rect, {
+        ...viewport,
+        hardBlockers,
+        softBlockers: [...fixedPanels, ...panelBlockers()],
+      })
+      if (next) {
+        persistWindowPosition(front.id, next)
+        front.rect = { ...front.rect, ...next, right: next.left + front.rect.width, bottom: next.top + front.rect.height }
+      }
+    }
+
+    const topDownWindows = [...windows].sort((first, second) => second.zIndex - first.zIndex)
+    topDownWindows.forEach((overlay) => {
+      topDownWindows
+        .filter((underneath) => underneath.id !== overlay.id && underneath.zIndex < overlay.zIndex)
+        .forEach((underneath) => {
+          if (coveredRatio(underneath.rect, overlay.rect) < WINDOW_COVERAGE_LIMIT) return
+          const higherWindows = windows
+            .filter((item) => item.id !== underneath.id && item.zIndex > underneath.zIndex)
+            .map((item) => item.rect)
+          const next = findNearestAvailablePosition(underneath.rect, {
+            ...viewport,
+            gapRects: [overlay.rect],
+            hardBlockers,
+            softBlockers: [...fixedPanels, ...higherWindows],
+          })
+          if (!next) return
+          persistWindowPosition(underneath.id, next)
+          underneath.rect = { ...underneath.rect, ...next, right: next.left + underneath.rect.width, bottom: next.top + underneath.rect.height }
+        })
+    })
+  }, [persistWindowPosition])
+
+  const commitMovableWindowPosition = useCallback((windowId, position, persist) => {
+    persist(position)
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolveWindowOverlaps(windowId)))
+  }, [resolveWindowOverlaps])
+
+  useEffect(() => {
+    const draggableHandles = [
+      ['.floating-history-panel', '.floating-panel-handle', 'history'],
+      ['.floating-notifications-panel', '.floating-panel-handle', 'notifications'],
+      ['.trip-panel-flyout', '.trip-panel-drag-handle', 'trips'],
+      ['.vehicle-status-card', '.vehicle-status-drag-handle', 'vehicleStatus'],
+      ['.track-place-key', '.map-key-drag-handle', 'trackPlaces'],
+      ['.speed-band-key', '.map-key-drag-handle', 'speedBands'],
+    ]
+    const bringToFront = (event) => {
+      const match = draggableHandles.find(([, handleSelector]) => event.target.closest(handleSelector))
+      if (!match) return
+      const [windowSelector] = match
+      const element = event.target.closest(windowSelector)
+      if (!element) return
+      const nextZIndex = Math.min(2190, 1600 + movableWindowZIndexRef.current++)
+      element.style.zIndex = String(nextZIndex)
+    }
+    document.addEventListener('pointerdown', bringToFront, true)
+    return () => document.removeEventListener('pointerdown', bringToFront, true)
+  }, [])
+
+  const resetWindowPositions = useCallback(() => {
+    const resetMarker = (height) => ({ resetToDefault: true, ...(Number.isFinite(height) && height > 0 ? { height } : {}) })
+    const historyDefault = { left: 8, top: Math.round(window.innerHeight * 255 / 1205), height: 422 }
+    const notificationsDefault = { left: 8, top: Math.round(window.innerHeight * 714 / 1205), height: 200 }
+    persistMapKeyPosition('historyPanelPosition', 'history-panel-position', historyDefault, setHistoryPanelPosition)
+    persistMapKeyPosition('notificationsPanelPosition', 'notifications-panel-position', notificationsDefault, setNotificationsPanelPosition)
+
+    const tripReset = resetMarker(448)
+    setTripFlyoutTemporaryPosition(null)
+    persistTripFlyoutPosition(tripReset)
+
+    const vehicleStatusReset = { left: Math.max(8, window.innerWidth - 288), top: 53 }
+    setVehicleStatusPosition(vehicleStatusReset)
+    if (vehicleStatusPreferenceKey) localStorage.setItem(vehicleStatusPreferenceKey, JSON.stringify(vehicleStatusReset))
+    if (vehicleAuth.authenticated) saveUserPreference(settings.vehicleApiBaseUrl, 'vehicle-status-position', vehicleStatusReset).catch(() => {})
+
+    ;[
+      ['speedBandKeyPosition', 'speed-bands-key-position', setSpeedBandKeyPosition, speedBandKeyPosition?.height],
+      ['trackPlaceKeyPosition', 'track-places-key-position', setTrackPlaceKeyPosition, trackPlaceKeyPosition?.height],
+    ].forEach(([storageName, preferenceName, setter, height]) => {
+      const marker = resetMarker(height)
+      setter(null)
+      localStorage.setItem(mapKeyPreferenceKey(storageName), JSON.stringify(marker))
+      if (vehicleAuth.authenticated) saveUserPreference(settings.vehicleApiBaseUrl, preferenceName, marker).catch(() => {})
+    })
+  }, [
+    mapKeyPreferenceKey,
+    persistMapKeyPosition,
+    persistTripFlyoutPosition,
+    settings.vehicleApiBaseUrl,
+    speedBandKeyPosition,
+    trackPlaceKeyPosition,
+    vehicleAuth.authenticated,
+    vehicleStatusPreferenceKey,
+  ])
+  resetWindowPositionsActionRef.current = resetWindowPositions
 
   const submitVehicleLogin = useCallback(async (event) => {
     event.preventDefault()
@@ -1469,7 +1931,12 @@ function App() {
           savedTripId: saved?.id || trip.savedTripId,
           vehicleId: trip.vehicleId || saved?.vehicleId,
           vehicleName: bindingVehicles.find((vehicle) => vehicle.id === (trip.vehicleId || saved?.vehicleId))?.displayName,
-          maxSpeedMph: Number.isFinite(Number(saved?.maxSpeedMph)) ? Number(saved.maxSpeedMph) : getTripMaxSpeedMph(trip),
+          maxSpeedMph: (() => {
+            const savedMaxSpeedMph = saved?.maxSpeedMph == null ? null : Number(saved.maxSpeedMph)
+            const calculatedMaxSpeedMph = getTripMaxSpeedMph(trip)
+            if (!Number.isFinite(calculatedMaxSpeedMph)) return Number.isFinite(savedMaxSpeedMph) ? savedMaxSpeedMph : null
+            return Number.isFinite(savedMaxSpeedMph) ? Math.max(savedMaxSpeedMph, calculatedMaxSpeedMph) : calculatedMaxSpeedMph
+          })(),
           eventCount: Number(saved?.eventCount) || 0,
         }
       }))
@@ -1560,24 +2027,40 @@ function App() {
     const points = trip === selectedTrip && selectedTripRoutePoints.length > 0
       ? selectedTripRoutePoints
       : (trip.points || [])
-    setGraphGroups([{ id: trip.tripId, label: `Trip ${trip.start.toLocaleString()}`, points }])
-  }, [selectedTrip, selectedTripRoutePoints])
+    setGraphGroups([{ id: trip.savedTripId || trip.tripId, vehicleId: trip.vehicleId, deviceId: trip.deviceId, profileContext: profileContextFor({ vehicleId: trip.vehicleId, deviceId: trip.deviceId, at: trip.start }), label: `Trip ${trip.start.toLocaleString()}`, points }])
+  }, [profileContextFor, selectedTrip, selectedTripRoutePoints])
+
+  const fetchGpsPositionsForExport = useCallback(async (groups) => {
+    return Promise.all(groups.map(async (group) => {
+      const groupPoints = Array.isArray(group.points) ? group.points : []
+      const deviceId = group.deviceId
+      if (!deviceId || groupPoints.length === 0) return { groupId: group.id, points: [] }
+      const timestamps = groupPoints.map((point) => new Date(point.timestamp).getTime()).filter(Number.isFinite)
+      if (timestamps.length === 0) return { groupId: group.id, points: [] }
+      const params = new URLSearchParams({
+        deviceId: String(deviceId),
+        from: new Date(Math.min(...timestamps)).toISOString(),
+        to: new Date(Math.max(...timestamps)).toISOString(),
+      })
+      const payload = await apiFetch(`/positions?${params.toString()}`)
+      return { groupId: group.id, points: (Array.isArray(payload) ? payload : []).map(toHistoryPosition).sort((a, b) => a.timestamp - b.timestamp) }
+    }))
+  }, [apiFetch])
 
   const openSelectedDaysGraph = useCallback(() => {
     const days = selectedDayKeys.length > 0 ? selectedDayKeys : (selectedDayKey ? [selectedDayKey] : [])
     const groups = visibleTrips
       .filter((trip) => days.length === 0 || days.includes(trip.dayKey))
       .sort((a, b) => a.start - b.start)
-      .map((trip) => ({ id: trip.tripId, label: `${trip.start.toLocaleTimeString()} – ${trip.end.toLocaleTimeString()}`, points: trip.points || [] }))
+       .map((trip) => ({ id: trip.savedTripId || trip.tripId, vehicleId: trip.vehicleId, deviceId: trip.deviceId, profileContext: profileContextFor({ vehicleId: trip.vehicleId, deviceId: trip.deviceId, at: trip.start }), label: `${trip.start.toLocaleTimeString()} – ${trip.end.toLocaleTimeString()}`, points: trip.points || [] }))
       .filter((group) => group.points.length > 0)
     setGraphGroups(groups)
-  }, [selectedDayKey, selectedDayKeys, visibleTrips])
+  }, [profileContextFor, selectedDayKey, selectedDayKeys, visibleTrips])
 
   const recalculateTripSet = useCallback(async (candidateTrips, { force = false } = {}) => {
-    // v4 adds plausibility filtering for calculated acceleration and braking.
-    // Imports continue to use the older metric-only version so the first day
-    // view recalculates them automatically.
-    const derivationVersion = `trip-v4-plausible-events-movement-${settings.movementThresholdM}`
+    // v5 makes ignition transitions the preferred trip boundary, retaining
+    // movement segmentation only when the selected history lacks ignition.
+    const derivationVersion = `trip-v5-ignition-first-movement-${settings.movementThresholdM}`
     const hasSavedRowForTrip = (trip) => historyDayRows.some((row) => rowMatchesTripIdentity(row, trip))
     const results = await Promise.allSettled(candidateTrips.map(async (trip) => {
       // Do not persist a completed derivation until the selected trip's points
@@ -1708,16 +2191,6 @@ function App() {
       return next
     })
 
-    setDeviceProfileById((prev) => {
-      const next = { ...prev }
-      normalized.forEach((device) => {
-        if (next[device.id] && !profileDefinitions[next[device.id]]) {
-          next[device.id] = ''
-        }
-      })
-      return next
-    })
-
     setExportDeviceId((prev) => {
       if (prev && normalized.some((device) => device.id === prev)) {
         return prev
@@ -1750,13 +2223,6 @@ function App() {
       ])
 
       setBindingVehicles(vehicles)
-      setVehicleProfileById((prev) => {
-        const next = { ...prev }
-        vehicles.forEach((vehicle) => {
-          if (vehicle.profileId !== undefined) next[vehicle.id] = vehicle.profileId || ''
-        })
-        return next
-      })
       setActiveBindings(bindings)
 
       setBindingVehicleId((prev) => {
@@ -1794,6 +2260,12 @@ function App() {
       setBindingStatus(err instanceof Error ? err.message : 'Failed to load binding data.')
       setBindingVehicles([])
       setActiveBindings([])
+    }
+
+    try {
+      setHistoricalDeviceBindings(await fetchDeviceBindingHistory(settings.vehicleApiBaseUrl))
+    } catch {
+      setHistoricalDeviceBindings([])
     }
 
     try {
@@ -1847,6 +2319,7 @@ function App() {
     if (!settings.vehicleApiBaseUrl || bindingVehicles.length === 0) {
       setSpeedBandsByVehicle({})
       setStatusCardFieldsByVehicle({})
+      setMapPopupFieldsByVehicle({})
       return () => { active = false }
     }
     Promise.all(bindingVehicles.map(async (vehicle) => {
@@ -1858,6 +2331,9 @@ function App() {
         return {
           speed: speedPayload?.bands ? [vehicle.id, speedPayload.bands] : null,
           card: cardPayload?.fields ? [vehicle.id, cardPayload.fields] : null,
+          popup: Array.isArray(cardPayload?.fields)
+            ? [vehicle.id, cardPayload.popupFieldsConfigured ? cardPayload.popupFields : DEFAULT_MAP_POPUP_FIELDS]
+            : null,
         }
       } catch {
         return null
@@ -1866,6 +2342,7 @@ function App() {
       if (!active) return
       setSpeedBandsByVehicle(Object.fromEntries(entries.filter(Boolean).map((entry) => entry.speed).filter(Boolean)))
       setStatusCardFieldsByVehicle(Object.fromEntries(entries.filter(Boolean).map((entry) => entry.card).filter(Boolean)))
+      setMapPopupFieldsByVehicle(Object.fromEntries(entries.filter(Boolean).map((entry) => entry.popup).filter(Boolean)))
     })
     return () => { active = false }
   }, [bindingVehicles, settings.vehicleApiBaseUrl])
@@ -1881,9 +2358,10 @@ function App() {
     return () => window.removeEventListener('vehicle-speed-bands-updated', handleSpeedBandsUpdated)
   }, [])
 
-  const saveStatusCardFields = useCallback(async (vehicleId, fields) => {
-    await persistStatusCardFields(settings.vehicleApiBaseUrl, vehicleId, fields)
+  const saveStatusCardFields = useCallback(async (vehicleId, fields, popupFields) => {
+    await persistStatusCardFields(settings.vehicleApiBaseUrl, vehicleId, fields, popupFields)
     setStatusCardFieldsByVehicle((current) => ({ ...current, [vehicleId]: fields }))
+    setMapPopupFieldsByVehicle((current) => ({ ...current, [vehicleId]: popupFields }))
   }, [settings.vehicleApiBaseUrl])
 
   const saveNamedPlace = useCallback(async () => {
@@ -1916,6 +2394,8 @@ function App() {
         latitude,
         longitude,
         radiusMeters,
+        placeType,
+        trackName: placeTrackName.trim() || null,
         notes: placeNotes.trim() || null,
       })
 
@@ -1930,11 +2410,13 @@ function App() {
       setPlaceLatitude('')
       setPlaceLongitude('')
       setPlaceRadiusYards('75')
+      setPlaceType('general')
+      setPlaceTrackName('')
       setPlaceNotes('')
     } catch (err) {
       setEnrichmentStatus(err instanceof Error ? err.message : 'Failed to save named place.')
     }
-  }, [placeEditId, placeLatitude, placeLongitude, placeName, placeNotes, placeRadiusYards, placeVehicleId, settings.vehicleApiBaseUrl])
+  }, [placeEditId, placeLatitude, placeLongitude, placeName, placeNotes, placeRadiusYards, placeTrackName, placeType, placeVehicleId, settings.vehicleApiBaseUrl])
 
   const beginEditNamedPlace = useCallback((place) => {
     if (!place?.id) {
@@ -1947,6 +2429,8 @@ function App() {
     setPlaceLatitude(String(place.latitude ?? ''))
     setPlaceLongitude(String(place.longitude ?? ''))
     setPlaceRadiusYards(String(Math.round((Number(place.radiusMeters) || METERS_PER_YARD * 75) * YARDS_PER_METER)))
+    setPlaceType(place.placeType || 'general')
+    setPlaceTrackName(place.trackName || '')
     setPlaceNotes(place.notes || '')
     setEnrichmentStatus(`Editing named place ${place.name}. Update fields and click Save Named Place.`)
   }, [])
@@ -1958,6 +2442,8 @@ function App() {
     setPlaceLatitude('')
     setPlaceLongitude('')
     setPlaceRadiusYards('75')
+    setPlaceType('general')
+    setPlaceTrackName('')
     setPlaceNotes('')
     setEnrichmentStatus('Named place edit canceled.')
   }, [])
@@ -2069,7 +2555,7 @@ function App() {
     setVehicleMake(vehicle?.make || '')
     setVehicleModel(vehicle?.model || '')
     setVehicleNotes(vehicle?.notes || '')
-    setVehicleProfileId(vehicleId ? (vehicleProfileById[vehicleId] || '') : '')
+    setVehicleProfileId(vehicle?.profileId || '')
     const currentBinding = vehicleId ? activeBindings.find((binding) => binding.vehicleId === vehicleId) : null
     setVehicleDeviceId(currentBinding ? String(currentBinding.traccarDeviceId) : '')
     if (currentBinding?.startsAt) {
@@ -2080,11 +2566,28 @@ function App() {
       date.setSeconds(0, 0)
       setVehicleEffectiveFrom(new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16))
     }
-  }, [activeBindings, bindingVehicles, vehicleProfileById])
+  }, [activeBindings, bindingVehicles])
 
   useEffect(() => {
     if (!vehicleEditId && bindingVehicles.length > 0) selectVehicleForEdit(bindingVehicles[0].id)
   }, [bindingVehicles, selectVehicleForEdit, vehicleEditId])
+
+  const settingsVehicleSelectedOnOpenRef = useRef(false)
+  useEffect(() => {
+    if (!isSettingsOpen) {
+      settingsVehicleSelectedOnOpenRef.current = false
+      return
+    }
+    if (settingsVehicleSelectedOnOpenRef.current) return
+    if (!selectedTrip) {
+      settingsVehicleSelectedOnOpenRef.current = true
+      return
+    }
+    const tripVehicle = bindingVehicles.find((vehicle) => vehicle.id === selectedTripVehicleId)
+    if (!tripVehicle) return
+    settingsVehicleSelectedOnOpenRef.current = true
+    selectVehicleForEdit(tripVehicle.id)
+  }, [bindingVehicles, isSettingsOpen, selectedTrip, selectedTripVehicleId, selectVehicleForEdit])
 
   const saveVehicle = useCallback(async () => {
     if (!vehicleName.trim()) { setVehicleEditorStatus('Vehicle name is required.'); return }
@@ -2115,7 +2618,6 @@ function App() {
       const vehicles = await fetchVehicleCatalog(settings.vehicleApiBaseUrl)
       setBindingVehicles(vehicles)
       const id = result?.id || vehicleEditId
-      if (id) setVehicleProfileById((prev) => ({ ...prev, [id]: vehicleProfileId || '' }))
       const desiredEffectiveFrom = vehicleEffectiveFrom ? new Date(vehicleEffectiveFrom).toISOString() : new Date().toISOString()
       const effectiveDateChanged = sameVehicleBinding && Math.abs(new Date(sameVehicleBinding.startsAt).getTime() - new Date(desiredEffectiveFrom).getTime()) > 1000
       if (selectedDeviceId && id && (!alreadyAssignedToVehicle || effectiveDateChanged)) {
@@ -2346,7 +2848,7 @@ function App() {
         try {
           const result = await importTripsByDevice(settings.vehicleApiBaseUrl, {
             traccarDeviceId,
-            derivationVersion: `trip-v1-movement-${settings.movementThresholdM}`,
+            derivationVersion: `trip-v5-ignition-first-movement-${settings.movementThresholdM}`,
             treatOverlappingAsExisting: true,
             trips: tripsPayload,
           })
@@ -2588,7 +3090,7 @@ function App() {
           setTripEditorStatus('Trip is not synchronized yet. Importing this trip…')
           await importTripsByDevice(settings.vehicleApiBaseUrl, {
             traccarDeviceId: Number(trip.deviceId),
-            derivationVersion: `trip-v1-movement-${settings.movementThresholdM}`,
+            derivationVersion: `trip-v5-ignition-first-movement-${settings.movementThresholdM}`,
             treatOverlappingAsExisting: true,
             trips: [{
               startTraccarPositionId: startPositionId,
@@ -2778,11 +3280,18 @@ function App() {
       return
     }
 
-    const assignedProfileId = deviceProfileById[exportDeviceId] || DEFAULT_PROFILE_ID
-    const selectedProfile = profileMap[assignedProfileId] || profileMap[DEFAULT_PROFILE_ID]
-    if (!selectedProfile) {
-      setExportMessage('No valid device protocol profile was found for this export.')
-      setError('No valid car profile found for export.')
+    const pointProfileContexts = rangedPoints.map((point) => profileContextFor({ deviceId: exportDeviceId, at: point.timestamp }))
+    const profileContext = pointProfileContexts[0]
+    const profileKeys = new Set(pointProfileContexts.map((context) => `${context.status}:${context.profileId ?? ''}`))
+    if (profileKeys.size > 1) {
+      setExportMessage('This date range crosses device bindings with different protocol profiles. Narrow the range to one profile assignment before exporting translated data.')
+      setError('The selected range uses multiple device protocol profiles.')
+      setStatus('Range spans multiple profiles')
+      return
+    }
+    if (profileContext.status === 'missing-definition') {
+      setExportMessage(`Profile "${profileContext.profileId}" is assigned to this vehicle but is not available in this browser.`)
+      setError('The assigned device protocol profile is unavailable.')
       return
     }
 
@@ -2791,8 +3300,9 @@ function App() {
       dayKey,
       deviceName: device.name,
       points: rangedPoints,
-      carProfile: selectedProfile,
+      carProfile: profileContext.profile,
       headerMode: exportHeaderMode,
+      unitSystem: settings.displayUnits,
     })
 
     downloadCsvFile(csv)
@@ -2806,9 +3316,9 @@ function App() {
     exportHeaderMode,
     exportRangePreset,
     exportStartDate,
-    deviceProfileById,
-    profileMap,
+    profileContextFor,
     apiFetch,
+    settings.displayUnits,
   ])
 
   const importDataFile = useCallback(async (file) => {
@@ -2865,7 +3375,7 @@ function App() {
         try {
           const result = await importTripsByDevice(settings.vehicleApiBaseUrl, {
             traccarDeviceId: primaryDeviceId,
-            derivationVersion: `trip-v1-restored-csv-${settings.movementThresholdM}`,
+          derivationVersion: `trip-v5-restored-csv-ignition-first-${settings.movementThresholdM}`,
             treatOverlappingAsExisting: true,
             trips: tripsPayload,
           })
@@ -2994,7 +3504,7 @@ function App() {
 
       const result = await importTripsByDevice(settings.vehicleApiBaseUrl, {
         traccarDeviceId: primaryDeviceId,
-        derivationVersion: `trip-v1-movement-${settings.movementThresholdM}`,
+        derivationVersion: `trip-v5-ignition-first-movement-${settings.movementThresholdM}`,
         trips: tripsPayload,
       })
       setImportRecovery(null)
@@ -3081,42 +3591,80 @@ function App() {
     setBindingRepairStatus('')
   }, [])
 
-  const saveProfileEdits = useCallback(() => {
-    const trimmedName = profileName.trim()
+  const saveProfileEdits = useCallback((overrides = {}) => {
+    const profileToSaveId = overrides.profileId ?? selectedProfileId
+    const trimmedName = String(overrides.name ?? profileName).trim()
+    const attributesJson = overrides.attributesJson ?? profileAttributesJson
     if (!trimmedName) {
-      setProfileEditorStatus('Profile name is required.')
-      return
+      const message = 'Profile name is required.'
+      setProfileEditorStatus(message)
+      return { ok: false, message }
     }
 
     let parsedAttributes
     try {
-      parsedAttributes = JSON.parse(profileAttributesJson)
+      parsedAttributes = JSON.parse(attributesJson)
     } catch {
-      setProfileEditorStatus('Attribute JSON is invalid.')
-      return
+      const message = 'Attribute JSON is invalid.'
+      setProfileEditorStatus(message)
+      return { ok: false, message }
     }
 
     if (!parsedAttributes || typeof parsedAttributes !== 'object' || Array.isArray(parsedAttributes)) {
-      setProfileEditorStatus('Attribute JSON must be an object.')
-      return
+      const message = 'Attribute JSON must be an object.'
+      setProfileEditorStatus(message)
+      return { ok: false, message }
     }
     const mappingError = validateAttributeMap(parsedAttributes)
     if (mappingError) {
       setProfileEditorStatus(mappingError)
-      return
+      return { ok: false, message: mappingError }
     }
 
     setProfileDefinitions((prev) => ({
       ...prev,
-      [selectedProfileId]: {
-        id: selectedProfileId,
+      [profileToSaveId]: {
+        id: profileToSaveId,
         name: trimmedName,
+        schemaVersion: PROFILE_DEFINITION_SCHEMA_VERSION,
         attributeMap: parsedAttributes,
       },
     }))
 
     setProfileEditorStatus('Profile saved.')
+    return { ok: true }
   }, [profileAttributesJson, profileName, selectedProfileId])
+
+  const openProfileMappingEditor = useCallback(() => {
+    let parsed
+    try {
+      parsed = JSON.parse(profileAttributesJson)
+    } catch {
+      setProfileEditorStatus('Fix the field mapping JSON before opening the visual editor.')
+      return
+    }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      setProfileEditorStatus('Field mapping JSON must be an object before opening the visual editor.')
+      return
+    }
+    const modal = document.querySelector('.settings-modal')
+    profileMappingReturnScrollRef.current = modal?.scrollTop ?? 0
+    localStorage.setItem('openDeviceProtocolProfilePanel', 'true')
+    setIsSettingsOpen(false)
+    setIsProfileMappingEditorOpen(true)
+  }, [profileAttributesJson])
+
+  const returnToProfileSettings = useCallback(() => {
+    localStorage.setItem('openDeviceProtocolProfilePanel', 'true')
+    profileMappingReturnFocusRef.current = true
+    setIsProfileMappingEditorOpen(false)
+    setIsSettingsOpen(true)
+  }, [])
+
+  const closeProfileMappingEditor = useCallback(() => {
+    setIsProfileMappingEditorOpen(false)
+    setIsSettingsOpen(false)
+  }, [])
 
   const createProfileFromEditor = useCallback(() => {
     const baseName = profileName.trim() || 'New Profile'
@@ -3157,6 +3705,7 @@ function App() {
       [nextId]: {
         id: nextId,
         name: nextName,
+        schemaVersion: PROFILE_DEFINITION_SCHEMA_VERSION,
         attributeMap: parsedAttributes,
       },
     }))
@@ -3164,7 +3713,67 @@ function App() {
     setProfileEditorStatus(`Created profile ${nextName}.`)
   }, [profileAttributesJson, profileDefinitions, profileName])
 
-  const deleteSelectedProfile = useCallback(() => {
+  const discoverBundledProfiles = useCallback(() => Object.values(DEFAULT_PROFILE_DEFINITIONS), [])
+
+  const updateCurrentProfileFromBundle = useCallback((sourceProfile, selectedProperties) => {
+    const target = profileDefinitions[selectedProfileId]
+    if (!target || !sourceProfile || !selectedProperties || typeof selectedProperties !== 'object') return
+    const source = migrateProfileDefinition(sourceProfile).definition
+    const attributeMap = mergeSelectedProfileProperties(target.attributeMap || {}, source.attributeMap || {}, selectedProperties)
+    const mappingError = validateAttributeMap(attributeMap)
+    if (mappingError) {
+      setProfileEditorStatus(mappingError)
+      return
+    }
+    setProfileDefinitions((previous) => ({
+      ...previous,
+      [selectedProfileId]: {
+        ...previous[selectedProfileId],
+        schemaVersion: PROFILE_DEFINITION_SCHEMA_VERSION,
+        attributeMap,
+      },
+    }))
+    const selectedCount = Object.values(selectedProperties).reduce((total, properties) => total + (Array.isArray(properties) ? properties.length : 0), 0)
+    setProfileEditorStatus(`Updated ${selectedCount} selected mapping change(s) in ${target.name} from ${source.name}.`)
+  }, [profileDefinitions, selectedProfileId])
+
+  const createProfileFromBundle = useCallback((sourceProfile) => {
+    if (!sourceProfile?.attributeMap || typeof sourceProfile.attributeMap !== 'object') return
+    const source = migrateProfileDefinition(sourceProfile).definition
+    const mappingError = validateAttributeMap(source.attributeMap)
+    if (mappingError) {
+      setProfileEditorStatus(`Packaged profile could not be copied: ${mappingError}`)
+      return
+    }
+    const baseId = String(source.id || source.name || 'device-profile').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'device-profile'
+    let nextId = baseId
+    let suffix = 2
+    while (profileDefinitions[nextId]) {
+      nextId = `${baseId}-copy-${suffix}`
+      suffix += 1
+    }
+    const baseName = source.name || source.id || 'Device Profile'
+    let nextName = baseName
+    let nameSuffix = 2
+    while (Object.values(profileDefinitions).some((profile) => profile.name === nextName)) {
+      nextName = `${baseName} Copy ${nameSuffix}`
+      nameSuffix += 1
+    }
+    setProfileDefinitions((previous) => ({
+      ...previous,
+      [nextId]: {
+        ...source,
+        id: nextId,
+        name: nextName,
+        schemaVersion: PROFILE_DEFINITION_SCHEMA_VERSION,
+        attributeMap: { ...source.attributeMap },
+      },
+    }))
+    setSelectedProfileId(nextId)
+    setProfileEditorStatus(`Created profile ${nextName} from packaged device settings.`)
+  }, [profileDefinitions])
+
+  const deleteSelectedProfile = useCallback(async () => {
     if (selectedProfileId === DEFAULT_PROFILE_ID) {
       setProfileEditorStatus('Default profile cannot be deleted.')
       return
@@ -3181,25 +3790,27 @@ function App() {
       return
     }
 
+    if (profileServerAvailable) {
+      try {
+        await deleteTelemetryProfile(settings.vehicleApiBaseUrl, selectedProfileId)
+        const synced = { ...(lastSyncedProfileDefinitionsRef.current || {}) }
+        delete synced[selectedProfileId]
+        lastSyncedProfileDefinitionsRef.current = synced
+      } catch (error) {
+        setProfileEditorStatus(`Profile was not deleted from shared storage: ${error instanceof Error ? error.message : 'request failed'}`)
+        return
+      }
+    }
+
     setProfileDefinitions((prev) => {
       const next = { ...prev }
       delete next[selectedProfileId]
       return next
     })
 
-    setDeviceProfileById((prev) => {
-      const next = { ...prev }
-      Object.keys(next).forEach((deviceId) => {
-        if (next[deviceId] === selectedProfileId) {
-          next[deviceId] = fallback.id
-        }
-      })
-      return next
-    })
-
     setSelectedProfileId(fallback.id)
     setProfileEditorStatus('Profile deleted.')
-  }, [profileOptions, selectedProfileId])
+  }, [profileOptions, profileServerAvailable, selectedProfileId, settings.vehicleApiBaseUrl])
 
   const statusEligibleDeviceIds = useMemo(() => {
     const ids = new Set()
@@ -3244,9 +3855,51 @@ function App() {
   const statusPoint = selectedMapPoint && selectedMapPoint.deviceId === statusDevice?.id
     ? selectedMapPoint.point
     : (statusDevice ? (historyByDevice[statusDevice.id] || []).at(-1) : null)
-  const statusVehicleId = statusDevice?.appVehicleId || bindingVehicles.find((vehicle) => vehicle.traccarDeviceId === statusDevice?.id)?.id
+  const statusVehicle = statusDevice
+    ? bindingVehicles.find((vehicle) => Number(vehicle.traccarDeviceId) === Number(statusDevice.id))
+    : null
+  // Devices loaded from the vehicle catalog carry their authoritative vehicle
+  // ID. A device may also appear in historical bindings for a different
+  // vehicle, so only infer the ID from the current binding when it is absent.
+  const statusVehicleId = statusDevice?.appVehicleId || statusVehicle?.id
   const activeSpeedBands = speedBandsForVehicle(selectedTripVehicleId)
-  const graphProfile = profileMap[deviceProfileById[selectedTrip?.deviceId || statusDevice?.id] || DEFAULT_PROFILE_ID]
+  const graphProfile = graphGroups?.[0]
+    ? (graphGroups[0].profileContext || profileContextFor({ vehicleId: graphGroups[0].vehicleId, deviceId: graphGroups[0].deviceId })).profile
+    : null
+  const renderHistoryPanel = (floating = true) => <HistoryNavigator
+    daySummaries={daySummaries}
+    monthKeys={historyMonthKeys}
+    monthSummaryByKey={historyMonthSummaryByKey}
+    monthLoadState={historyMonthLoadState}
+    selectedDayKey={selectedDayKey}
+    selectedDayKeys={selectedDayKeys}
+    setSelectedDayKey={selectDay}
+    refreshHistory={applyTimeRange}
+    loadMonth={loadHistoryMonth}
+    onReportDays={openSelectedDaysGraph}
+    displayUnits={settings.displayUnits}
+    floating={floating}
+    referenceRef={tripFlyoutRefs.setReference}
+    showTripsButton={!showTripsPanel && Boolean(selectedDayKey || selectedDayKeys.length > 0)}
+    onShowTrips={() => setShowTripsPanel(true)}
+    height={historyPanelPosition?.height}
+    onHeightChange={(height) => setHistoryPanelPosition((current) => ({ ...current, height }))}
+    onHeightCommit={(height) => persistMapKeyPosition('historyPanelPosition', 'history-panel-position', { ...historyPanelPosition, height }, setHistoryPanelPosition)}
+  />
+  const renderNotificationsPanel = (floating = true) => <NotificationsPanel
+    notifications={notifications}
+    selectedTripEvents={selectedTripEvents}
+    onSelectTripEvent={focusTripEvent}
+    loading={notificationsLoading}
+    rangeLabel={notificationsRangeLabel}
+    displayUnits={settings.displayUnits}
+    floating={floating}
+    height={notificationsPanelPosition?.height}
+    onHeightChange={(height) => setNotificationsPanelPosition((current) => ({ ...current, height }))}
+    onHeightCommit={(height) => persistMapKeyPosition('notificationsPanelPosition', 'notifications-panel-position', { ...notificationsPanelPosition, height }, setNotificationsPanelPosition)}
+  />
+  const savedTripPanelPosition = tripFlyoutTemporaryPosition || tripFlyoutPosition
+  const hasSavedTripPanelPosition = Number.isFinite(savedTripPanelPosition?.left) && Number.isFinite(savedTripPanelPosition?.top)
 
   if (vehicleAuth.checking) {
     return <main className="auth-screen"><div className="auth-card"><h1>Traccar React</h1><p>Checking application access…</p></div></main>
@@ -3258,37 +3911,18 @@ function App() {
 
   return (
     <main className="app-shell">
-      <aside className="control-panel">
-        <div className="panel-header">
-          <div>
-            <h1>Traccar React</h1>
-          </div>
-          <button
-            type="button"
-            className="small secondary settings-button"
-            onClick={() => setIsSettingsOpen(true)}
-            title="Settings"
-            aria-label="Settings"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" />
-              <path d="m19.4 15 .1.1a1.8 1.8 0 0 1-2.5 2.5l-.1-.1a1.8 1.8 0 0 0-3 .9v.2a1.8 1.8 0 0 1-3.6 0v-.2a1.8 1.8 0 0 0-3-.9l-.1.1a1.8 1.8 0 1 1-2.5-2.5l.1-.1a1.8 1.8 0 0 0-.9-3H3.7a1.8 1.8 0 0 1 0-3h.2a1.8 1.8 0 0 0 .9-3l-.1-.1a1.8 1.8 0 1 1 2.5-2.5l.1.1a1.8 1.8 0 0 0 3-.9v-.2a1.8 1.8 0 0 1 3.6 0v.2a1.8 1.8 0 0 0 3 .9l.1-.1a1.8 1.8 0 1 1 2.5 2.5l-.1.1a1.8 1.8 0 0 0 .9 3h.2a1.8 1.8 0 0 1 0 3h-.2a1.8 1.8 0 0 0-.9 3Z" />
-            </svg>
-          </button>
-          {vehicleAuth.enabled && <button type="button" className="small secondary" onClick={logoutVehicleSession}>Sign out</button>}
-          <button
-            type="button"
-            className="small secondary transfer-button"
-            title="Import/Export data"
-            aria-label="Import/Export data"
-            onClick={() => setIsDataTransferOpen(true)}
-          >
-            ⇅
-          </button>
-        </div>
-
-        {importRecovery && (
-          <section className="import-conflict-badge" role="status" aria-live="polite">
+      {vehicleAuth.enabled && vehicleAuth.authenticated && <div className="global-auth-controls">
+        <span className="global-auth-username">{vehicleAuth.username}</span>
+        <button
+          type="button"
+          className="small secondary global-sign-out-button"
+          onClick={logoutVehicleSession}
+          title="Sign out"
+          aria-label="Sign out"
+        >Sign out</button>
+      </div>}
+        {importRecovery && createPortal((
+          <section className="import-conflict-badge map-import-conflict" role="status" aria-live="polite">
             <div className="import-conflict-badge-header">
               <strong>Trip Sync Needs Attention</strong>
               <span>HTTP 409</span>
@@ -3337,59 +3971,30 @@ function App() {
               </button>
             </div>
           </section>
-        )}
-
-        <DeviceList
-          devices={devices}
-          deviceVisibility={deviceVisibility}
-          setDeviceVisibility={setDeviceVisibility}
-          deviceColors={deviceColors}
-          selectedDeviceId={deviceListSelectedId}
-          onSelectDevice={setDeviceListSelectedId}
-        />
-
-        <div ref={tripFlyoutRefs.setReference} className="history-trips-row">
-        <HistoryNavigator
-          daySummaries={daySummaries}
-          monthKeys={historyMonthKeys}
-          monthSummaryByKey={historyMonthSummaryByKey}
-          monthLoadState={historyMonthLoadState}
-          selectedDayKey={selectedDayKey}
-          selectedDayKeys={selectedDayKeys}
-          setSelectedDayKey={selectDay}
-          refreshHistory={applyTimeRange}
-          loadMonth={loadHistoryMonth}
-          onReportDays={openSelectedDaysGraph}
-        />
-        {!showTripsPanel && (selectedDayKey || selectedDayKeys.length > 0) && <button
-          type="button"
-          className="small secondary trip-panel-show-button"
-          onClick={() => setShowTripsPanel(true)}
-          title="Show Trips panel"
-        >Show Trips</button>}
+        ), document.body)}
 
         {showTripsPanel && createPortal(<TripPanel
           floatingRef={tripFlyoutRefs.setFloating}
-          style={tripFlyoutPosition
-            ? { position: 'fixed', left: `${tripFlyoutPosition.left}px`, top: `${tripFlyoutPosition.top}px` }
+          style={hasSavedTripPanelPosition
+            ? { position: 'fixed', left: `${savedTripPanelPosition.left}px`, top: `${savedTripPanelPosition.top}px` }
             : tripFlyoutStyles}
-          position={tripFlyoutPosition}
-          onPositionChange={setTripFlyoutPosition}
-          onPositionCommit={persistTripFlyoutPosition}
+          position={hasSavedTripPanelPosition ? savedTripPanelPosition : null}
+          onPositionChange={(position) => { setTripFlyoutTemporaryPosition(null); setTripFlyoutPosition((current) => ({ ...current, ...position })) }}
+          onPositionCommit={(position) => commitMovableWindowPosition('trips', position, () => persistTripFlyoutPosition({ ...position, ...(tripFlyoutPosition?.height ? { height: tripFlyoutPosition.height } : {}) }))}
           onHide={() => setShowTripsPanel(false)}
           visibleTrips={visibleTrips}
           selectedDayKey={selectedDayKey}
+          selectedDayKeys={selectedDayKeys}
           devices={devices}
           selectedTripId={selectedTripId}
           focusTrip={focusTrip}
           selectedTrip={selectedTrip}
           selectedTripMaxSpeedMph={selectedTripMaxSpeedMph}
+          displayUnits={settings.displayUnits}
           tripEditorLoading={tripEditorLoading}
           tripEditorDisabled={!selectedBackendTripId || tripEditorLoading || tripEditorBusy}
           tripEditorStatus={tripEditorStatus}
           tripEditorTags={tripEditorTags}
-          selectedTripEvents={selectedTripEvents}
-          focusTripEvent={focusTripEvent}
           availableTripTags={tripEditorAvailableTags}
           tagToAdd={tagToAdd}
           setTagToAdd={setTagToAdd}
@@ -3399,43 +4004,64 @@ function App() {
           setNoteDraft={setTripNoteDraft}
           saveSelectedTripNote={saveSelectedTripNote}
           openTripGraph={openTripGraph}
+          panelHeight={tripFlyoutPosition?.height}
+          onPanelHeightChange={(height) => setTripFlyoutPosition((current) => ({ ...current, height }))}
+          onPanelHeightCommit={(height) => persistTripFlyoutPosition({ ...tripFlyoutPosition, height })}
         />, document.body)}
-        </div>
-        <NotificationsPanel notifications={notifications} loading={notificationsLoading} rangeLabel={notificationsRangeLabel} />
 
-        <StatusCard
-          status={status}
-          sessionState={sessionState}
-          error={error}
-        />
-      </aside>
+      {createPortal(<MovablePanel className="floating-history-panel" position={historyPanelPosition} onPositionChange={(position) => setHistoryPanelPosition((current) => ({ ...current, ...position }))} onPositionCommit={(position) => commitMovableWindowPosition('history', position, () => persistMapKeyPosition('historyPanelPosition', 'history-panel-position', { ...historyPanelPosition, ...position }, setHistoryPanelPosition))}>{renderHistoryPanel(true)}</MovablePanel>, document.body)}
+      {createPortal(<MovablePanel className="floating-notifications-panel" position={notificationsPanelPosition} onPositionChange={(position) => setNotificationsPanelPosition((current) => ({ ...current, ...position }))} onPositionCommit={(position) => commitMovableWindowPosition('notifications', position, () => persistMapKeyPosition('notificationsPanelPosition', 'notifications-panel-position', { ...notificationsPanelPosition, ...position }, setNotificationsPanelPosition))}>{renderNotificationsPanel(true)}</MovablePanel>, document.body)}
 
       <section className={`map-panel${isPickingLocation ? ' map-location-picker' : ''}`}>
+        <h1 className="map-app-title">Traccar React</h1>
+        <div className="map-status-card">
+          <StatusCard
+            status={status}
+            sessionState={sessionState}
+            error={error}
+          />
+        </div>
+        <div className="map-device-list">
+          <DeviceList
+            devices={devices}
+            deviceVisibility={deviceVisibility}
+            setDeviceVisibility={setDeviceVisibility}
+            deviceColors={deviceColors}
+            selectedDeviceId={deviceListSelectedId}
+            onSelectDevice={setDeviceListSelectedId}
+            expanded={deviceListExpanded}
+            onExpandedChange={persistDeviceListExpanded}
+          />
+        </div>
         <VehicleStatusCard
           style={vehicleStatusPosition
             ? { position: 'fixed', left: `${vehicleStatusPosition.left}px`, top: `${vehicleStatusPosition.top}px`, right: 'auto' }
             : undefined}
           position={vehicleStatusPosition}
           onPositionChange={setVehicleStatusPosition}
-          onPositionCommit={persistVehicleStatusPosition}
+          onPositionCommit={(position) => commitMovableWindowPosition('vehicleStatus', position, persistVehicleStatusPosition)}
+          collapsed={vehicleStatusCollapsed}
+          onCollapsedChange={persistVehicleStatusCollapsed}
           device={statusDevice}
+          vehicleId={statusVehicleId}
           point={statusPoint}
           historyPoints={statusDevice ? (historyByDevice[statusDevice.id] || []) : []}
-          profile={statusDevice ? profileMap[deviceProfileById[statusDevice.id] || DEFAULT_PROFILE_ID] : null}
+          profile={profileContextFor({ vehicleId: statusVehicleId, deviceId: statusDevice?.id }).profile}
           cardFields={statusCardFieldsByVehicle[statusVehicleId] || DEFAULT_STATUS_CARD_FIELDS}
         />
-        <VehicleStatsPanel baseUrl={settings.vehicleApiBaseUrl} vehicleId={statusVehicleId || null} traccarApi={apiFetch} />
+        <VehicleStatsPanel baseUrl={settings.vehicleApiBaseUrl} vehicleId={statusVehicleId || null} traccarApi={apiFetch} profileMap={profileMap} bindings={activeBindings} displayUnits={settings.displayUnits} updateSetting={updateSetting} />
         <div ref={mapElementRef} className="map-canvas" />
-        <div
-          className="speed-band-key"
-          aria-label="Speed bands"
-          title="Double-click to edit speed bands"
-          onDoubleClick={() => { localStorage.setItem('openSpeedBandsPanel', 'true'); setIsSettingsOpen(true) }}
-        >
-          <strong>Speed bands</strong>
-          <small>Double-click to edit</small>
-          {activeSpeedBands.map((band, index) => <span key={`${band.label}-${index}`}><i style={{ backgroundColor: band.color }} />{band.upperMph == null ? `${index ? activeSpeedBands[index - 1].upperMph : 0}+ mph` : `${index ? activeSpeedBands[index - 1].upperMph : 0}–${band.upperMph} mph`}</span>)}
-        </div>
+        {namedPlaces.some((place) => place.placeType && place.placeType !== 'general') && <MovableMapKey className="track-place-key" position={trackPlaceKeyPosition} onPositionChange={setTrackPlaceKeyPosition} onPositionCommit={(position) => commitMovableWindowPosition('trackPlaces', position, () => persistMapKeyPosition('trackPlaceKeyPosition', 'track-places-key-position', position, setTrackPlaceKeyPosition))}>
+          <strong>Track locations</strong>
+          {[['track_start', 'Start', '#22c55e'], ['track_finish', 'Finish', '#ef4444'], ['track_start_finish', 'Start / finish', '#f59e0b'], ['track_split', 'Split', '#38bdf8'], ['drag_start', 'Drag start', '#a78bfa'], ['drag_finish', 'Drag finish', '#f472b6'], ['track_other', 'Other', '#94a3b8']].map(([type, label, color]) => namedPlaces.some((place) => place.placeType === type) && <span key={type}><i style={{ backgroundColor: color }} />{label}</span>)}
+        </MovableMapKey>}
+        <MovableMapKey className="speed-band-key" position={speedBandKeyPosition} onPositionChange={setSpeedBandKeyPosition} onPositionCommit={(position) => commitMovableWindowPosition('speedBands', position, () => persistMapKeyPosition('speedBandKeyPosition', 'speed-bands-key-position', position, setSpeedBandKeyPosition))}>
+          <div aria-label="Speed bands" title="Double-click to edit speed bands" onDoubleClick={() => { localStorage.setItem('openSpeedBandsPanel', 'true'); setIsSettingsOpen(true) }}>
+            <strong>Speed bands</strong>
+            <small>Double-click to edit</small>
+            {activeSpeedBands.map((band, index) => { const factor = settings.displayUnits === 'metric' ? 1.609344 : 1; const unit = settings.displayUnits === 'metric' ? 'km/h' : 'mph'; const lower = Math.round((index ? activeSpeedBands[index - 1].upperMph : 0) * factor); const upper = band.upperMph == null ? null : Math.round(band.upperMph * factor); return <span key={`${band.label}-${index}`}><i style={{ backgroundColor: band.color }} />{upper == null ? `${lower}+ ${unit}` : `${lower}–${upper} ${unit}`}</span> })}
+          </div>
+        </MovableMapKey>
       </section>
 
       {isSettingsOpen && (
@@ -3448,6 +4074,10 @@ function App() {
           closeModal={() => setIsSettingsOpen(false)}
           refreshDevices={loadDevices}
           profileOptions={profileOptions}
+          bundledProfileOptions={Object.values(DEFAULT_PROFILE_DEFINITIONS)}
+          onDiscoverBundledProfiles={discoverBundledProfiles}
+          updateCurrentProfileFromBundle={updateCurrentProfileFromBundle}
+          createProfileFromBundle={createProfileFromBundle}
           selectedProfileId={selectedProfileId}
           setSelectedProfileId={setSelectedProfileId}
           profileName={profileName}
@@ -3455,6 +4085,10 @@ function App() {
           profileAttributesJson={profileAttributesJson}
           setProfileAttributesJson={setProfileAttributesJson}
           profileEditorStatus={profileEditorStatus}
+          profileStorageNotice={vehicleAuth.enabled && vehicleAuth.role !== 'admin' ? 'Only Vehicle App administrators can change shared device protocol profiles.' : profileStorageState.notice}
+          profileStorageCanSave={profileStorageState.canSave && (!vehicleAuth.enabled || vehicleAuth.role === 'admin')}
+          profileSyncStatus={profileSyncStatus}
+          onOpenProfileMappingEditor={openProfileMappingEditor}
           saveProfileEdits={saveProfileEdits}
           createProfileFromEditor={createProfileFromEditor}
           deleteSelectedProfile={deleteSelectedProfile}
@@ -3483,6 +4117,9 @@ function App() {
           vehicleEditorStatus={vehicleEditorStatus}
           saveVehicle={saveVehicle}
           statusCardFieldsByVehicle={statusCardFieldsByVehicle}
+          onPreviewStatusCardFields={(vehicleId, fields) => setStatusCardFieldsByVehicle((current) => ({ ...current, [vehicleId]: fields }))}
+          mapPopupFieldsByVehicle={mapPopupFieldsByVehicle}
+          onPreviewMapPopupFields={(vehicleId, fields) => setMapPopupFieldsByVehicle((current) => ({ ...current, [vehicleId]: fields }))}
           saveStatusCardFields={saveStatusCardFields}
           filterBindingsToSelectedDevice={filterBindingsToSelectedDevice}
           setFilterBindingsToSelectedDevice={setFilterBindingsToSelectedDevice}
@@ -3517,6 +4154,10 @@ function App() {
           setPlaceLongitude={setPlaceLongitude}
           placeRadiusYards={placeRadiusYards}
           setPlaceRadiusYards={setPlaceRadiusYards}
+          placeType={placeType}
+          setPlaceType={setPlaceType}
+          placeTrackName={placeTrackName}
+          setPlaceTrackName={setPlaceTrackName}
           placeNotes={placeNotes}
           setPlaceNotes={setPlaceNotes}
           saveNamedPlace={saveNamedPlace}
@@ -3547,9 +4188,28 @@ function App() {
           connectBouncie={connectBouncieAccount}
           startBouncieImport={startBouncieSync}
           cancelBouncieImport={cancelBouncieSync}
+          continueBouncieImport={continueBouncieSync}
           forgetBouncieCredentials={forgetBouncieConnection}
           restoreBouncieConnection={restoreBouncieStoredConnection}
           vehicleAuth={vehicleAuth}
+        />
+      )}
+
+      {isProfileMappingEditorOpen && (
+        <DeviceProtocolProfileEditor
+          profileId={selectedProfileId}
+          profileName={profileName}
+          profileAttributesJson={profileAttributesJson}
+          setProfileAttributesJson={setProfileAttributesJson}
+          displayUnits={settings.displayUnits}
+          canSave={profileStorageState.canSave && (!vehicleAuth.enabled || vehicleAuth.role === 'admin')}
+          serverSyncEnabled={profileServerReady && profileServerAvailable}
+          storageNotice={vehicleAuth.enabled && vehicleAuth.role !== 'admin' ? 'Only Vehicle App administrators can change shared device protocol profiles.' : profileStorageState.notice}
+          syncStatus={profileSyncStatus}
+          editorStatus={profileEditorStatus}
+          saveProfile={saveProfileEdits}
+          onBackToSettings={returnToProfileSettings}
+          onSaveAndClose={closeProfileMappingEditor}
         />
       )}
 
@@ -3608,7 +4268,7 @@ function App() {
         </div>
       )}
 
-      {graphGroups && <TelemetryGraphViewer groups={graphGroups} profile={graphProfile} title={graphGroups.length === 1 ? 'Trip Telemetry Graph' : 'Selected Days Telemetry Graph'} onClose={() => setGraphGroups(null)} />}
+      {graphGroups && <TelemetryGraphViewer groups={graphGroups} profile={graphProfile} fetchGpsPositions={fetchGpsPositionsForExport} namedPlaces={namedPlaces} vehicleMetadata={bindingVehicles.find((vehicle) => vehicle.id === graphGroups[0]?.vehicleId)} deviceMetadata={devices.find((device) => Number(device.id) === Number(graphGroups[0]?.deviceId))} title={graphGroups.length === 1 ? 'Trip Telemetry Graph' : 'Selected Days Telemetry Graph'} onClose={() => setGraphGroups(null)} />}
     </main>
   )
 }

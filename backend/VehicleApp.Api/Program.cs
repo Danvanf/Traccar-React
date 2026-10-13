@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,7 +12,9 @@ var authUsername = builder.Configuration["VehicleApp:Auth:Username"]
     ?? Environment.GetEnvironmentVariable("VEHICLE_APP_AUTH_USERNAME");
 var authPassword = builder.Configuration["VehicleApp:Auth:Password"]
     ?? Environment.GetEnvironmentVariable("VEHICLE_APP_AUTH_PASSWORD");
-var authOptions = new VehicleAppAuthOptions(authUsername, authPassword);
+var allowUnauthenticatedDevelopment = builder.Environment.IsDevelopment()
+    && builder.Configuration.GetValue<bool>("VehicleApp:Auth:AllowUnauthenticatedDevelopment");
+var authOptions = new VehicleAppAuthOptions(authUsername, authPassword, allowUnauthenticatedDevelopment);
 
 builder.Services.AddProblemDetails(options =>
 {
@@ -23,6 +26,17 @@ builder.Services.AddProblemDetails(options =>
 });
 builder.Services.AddOpenApi();
 builder.Services.AddSingleton(authOptions);
+builder.Services.AddSingleton(new TraccarDiagnosticsOptions(
+    builder.Configuration["Traccar:BaseUrl"] ?? Environment.GetEnvironmentVariable("TRACCAR_BASE_URL"),
+    builder.Configuration["Traccar:Username"] ?? Environment.GetEnvironmentVariable("TRACCAR_USERNAME"),
+    builder.Configuration["Traccar:Password"] ?? Environment.GetEnvironmentVariable("TRACCAR_PASSWORD")));
+builder.Services.AddHttpClient(nameof(DeviceProtocolDiagnosticsEndpoints), client => client.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddHttpClient(nameof(EmailDeliveryService), client => client.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddSingleton<EmailDeliveryService>();
+builder.Services.AddHttpClient(nameof(SmsDeliveryService), client => client.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddSingleton<SmsDeliveryService>();
+builder.Services.AddHostedService<EmailAlertWorker>();
+builder.Services.AddHostedService<SmsAlertWorker>();
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
@@ -42,6 +56,55 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         };
     });
 builder.Services.AddAuthorization();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("publicTelemetryShares", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 60,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        }));
+    options.AddPolicy("emailTest", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.User.Identity?.Name ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 3,
+            Window = TimeSpan.FromMinutes(10),
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        }));
+    options.AddPolicy("smsTest", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 3,
+            Window = TimeSpan.FromMinutes(10),
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        }));
+    options.AddPolicy("smsMagicTest", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 20,
+            Window = TimeSpan.FromMinutes(10),
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        }));
+    options.AddPolicy("smsVerification", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.User.Identity?.Name ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 20,
+            Window = TimeSpan.FromHours(1),
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        }));
+});
 
 var connectionString = builder.Configuration.GetConnectionString("VehicleApp");
 if (string.IsNullOrWhiteSpace(connectionString))
@@ -51,12 +114,20 @@ if (string.IsNullOrWhiteSpace(connectionString))
 
 builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(connectionString));
 builder.Services.AddSingleton<BouncieRestService>();
+builder.Services.AddSingleton<CredentialProtectionService>();
+builder.Services.AddSingleton<ProviderAccountStore>();
+builder.Services.AddSingleton<TelemetryShareTokenService>();
+builder.Services.AddHostedService<TelemetryShareCleanupService>();
 
 var app = builder.Build();
 var requestLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("RequestTiming");
 
 await EnsureEnrichmentSchemaAsync(app.Services);
 await EnsureInitialAdminAsync(app.Services, authOptions);
+await ProviderAccountSchema.EnsureAsync(app.Services);
+await EmailAlertSchema.EnsureAsync(app.Services);
+await SmsTestSchema.EnsureAsync(app.Services);
+await SmsAlertSchema.EnsureAsync(app.Services);
 await app.Services.GetRequiredService<BouncieRestService>().InitializeAsync();
 
 if (app.Environment.IsDevelopment())
@@ -83,13 +154,16 @@ app.Use(async (context, next) =>
         stopwatch.Stop();
         var elapsedMs = stopwatch.Elapsed.TotalMilliseconds;
         var statusCode = context.Response.StatusCode;
+        var loggedPath = context.Request.Path.StartsWithSegments("/api/public/telemetry-shares")
+            ? "/api/public/telemetry-shares/[redacted]"
+            : context.Request.Path.ToString();
 
         if (statusCode >= 500)
         {
             requestLogger.LogWarning(
                 "HTTP {Method} {Path} -> {StatusCode} in {ElapsedMs:0.0} ms (requestId: {RequestId})",
                 context.Request.Method,
-                context.Request.Path,
+                loggedPath,
                 statusCode,
                 elapsedMs,
                 context.TraceIdentifier);
@@ -99,7 +173,7 @@ app.Use(async (context, next) =>
             requestLogger.LogInformation(
                 "HTTP {Method} {Path} -> {StatusCode} in {ElapsedMs:0.0} ms (requestId: {RequestId})",
                 context.Request.Method,
-                context.Request.Path,
+                loggedPath,
                 statusCode,
                 elapsedMs,
                 context.TraceIdentifier);
@@ -109,12 +183,40 @@ app.Use(async (context, next) =>
 
 app.UseExceptionHandler();
 app.UseHttpsRedirection();
+app.UseRateLimiter();
 app.UseAuthentication();
+app.Use(async (context, next) =>
+{
+    // Keep the browser's identity check truthful so the UI can require a named
+    // app_users login, while still allowing local development clients (including
+    // AI tooling) to use the development bypass on API requests.
+    if (authOptions.IsDevelopmentBypass(context)
+        && !context.Request.Path.Equals("/auth/status", StringComparison.OrdinalIgnoreCase)
+        && !(context.User.Identity?.IsAuthenticated ?? false))
+    {
+        var identity = new System.Security.Claims.ClaimsIdentity(
+            new[]
+            {
+                new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Name, authOptions.Username ?? "development-bypass"),
+                new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, "admin"),
+            },
+            "DevelopmentBypass");
+        context.User = new System.Security.Claims.ClaimsPrincipal(identity);
+    }
+
+    await next();
+});
 app.UseAuthorization();
 app.Use(async (context, next) =>
 {
     if (authOptions.Enabled
+        && !authOptions.IsDevelopmentBypass(context)
         && context.Request.Path.StartsWithSegments("/api")
+        && !context.Request.Path.StartsWithSegments("/api/public/telemetry-shares")
+        && !context.Request.Path.StartsWithSegments("/api/email/webhooks")
+        && !context.Request.Path.StartsWithSegments("/api/sms/webhooks")
+        && !context.Request.Path.StartsWithSegments("/api/device-protocol-diagnostics")
+        && !(app.Environment.IsDevelopment() && context.Request.Path.StartsWithSegments("/api/integrations/bouncie/diagnostic/trips"))
         && !(context.User.Identity?.IsAuthenticated ?? false))
     {
         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
@@ -127,6 +229,7 @@ app.Use(async (context, next) =>
 app.Use(async (context, next) =>
 {
     if (authOptions.Enabled
+        && !authOptions.IsDevelopmentBypass(context)
         && (HttpMethods.IsPost(context.Request.Method) || HttpMethods.IsPut(context.Request.Method) || HttpMethods.IsPatch(context.Request.Method) || HttpMethods.IsDelete(context.Request.Method)))
     {
         var path = context.Request.Path;
@@ -157,6 +260,13 @@ app.MapTripIdentityEndpoints();
 app.MapTripDaySummaryEndpoints();
 app.MapTripRecalculationEndpoints();
 app.MapTripEventEndpoints();
+app.MapEmailDeliveryEndpoints();
+app.MapProviderAccountEndpoints();
+app.MapEmailAlertEndpoints();
+app.MapEmailProviderWebhookEndpoints();
+app.MapSmsDeliveryEndpoints();
+app.MapSmsAlertEndpoints();
+app.MapSmsAlertWebhookEndpoints();
 app.MapTripRoutePointEndpoints();
 app.MapTripEventThresholdEndpoints();
 app.MapVehicleStatsEndpoints();
@@ -169,6 +279,10 @@ app.MapBusinessMileageReportEndpoints();
 app.MapSpeedBandReportEndpoints();
 app.MapOperationsReportEndpoints();
 app.MapStatusCardEndpoints();
+app.MapTelemetryShareEndpoints();
+app.MapTelemetrySharePublicEndpoints();
+app.MapTelemetryProfileEndpoints();
+app.MapDeviceProtocolDiagnosticsEndpoints();
 
 app.MapGet("/health", async Task<IResult> (NpgsqlDataSource dataSource, CancellationToken cancellationToken) =>
 {
@@ -391,6 +505,62 @@ app.MapGet("/api/device-bindings", async Task<IResult> (NpgsqlDataSource dataSou
 .WithName("GetActiveDeviceBindings")
 .WithSummary("Returns active device-to-vehicle bindings.")
 .WithDescription("Reads active rows from vehicle_app.vehicle_device_bindings joined to vehicles.");
+
+app.MapGet("/api/device-bindings/history", async Task<IResult> (
+    NpgsqlDataSource dataSource,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            """
+            select
+              b.id,
+              b.vehicle_id,
+              v.display_name,
+              b.traccar_device_id,
+              b.starts_at,
+              b.ends_at,
+              b.is_primary
+            from vehicle_device_bindings b
+            join vehicles v on v.id = b.vehicle_id
+            order by b.traccar_device_id, b.starts_at
+            """, connection);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var results = new List<DeviceBindingResponse>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(new DeviceBindingResponse(
+                reader.GetGuid(0),
+                reader.GetGuid(1),
+                reader.GetString(2),
+                reader.GetInt32(3),
+                reader.GetFieldValue<DateTimeOffset>(4),
+                reader.IsDBNull(5) ? null : reader.GetFieldValue<DateTimeOffset>(5),
+                reader.GetBoolean(6)));
+        }
+
+        return TypedResults.Ok(results);
+    }
+    catch (PostgresException ex) when (ex.SqlState == "42P01")
+    {
+        return TypedResults.Problem(
+            title: "vehicle_app schema is missing",
+            detail: "Required binding table(s) were not found. Apply Phase 3 DDL before using this endpoint.",
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+    catch (PostgresException ex)
+    {
+        return TypedResults.Problem(
+            title: "Device binding history lookup database error",
+            detail: $"PostgreSQL {ex.SqlState}: {ex.MessageText}",
+            statusCode: StatusCodes.Status500InternalServerError);
+    }
+})
+.WithName("GetDeviceBindingHistory")
+.WithSummary("Returns all device-to-vehicle bindings, including ended bindings, for historical data resolution.");
 
 app.MapGet("/api/device-bindings/nearest", async Task<IResult> (
     int traccarDeviceId,
@@ -892,7 +1062,7 @@ app.MapGet("/api/named-places", async Task<IResult> (
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var command = new NpgsqlCommand(
             """
-            select id, vehicle_id, name, latitude, longitude, radius_meters, notes, created_at
+            select id, vehicle_id, name, latitude, longitude, radius_meters, place_type, track_name, notes, created_at
             from named_places
             where (@vehicleId::uuid is null or vehicle_id = @vehicleId::uuid)
             order by created_at desc
@@ -912,8 +1082,10 @@ app.MapGet("/api/named-places", async Task<IResult> (
                 reader.GetDouble(3),
                 reader.GetDouble(4),
                 reader.GetInt32(5),
-                reader.IsDBNull(6) ? null : reader.GetString(6),
-                reader.GetFieldValue<DateTimeOffset>(7)));
+                reader.GetString(6),
+                reader.IsDBNull(7) ? null : reader.GetString(7),
+                reader.IsDBNull(8) ? null : reader.GetString(8),
+                reader.GetFieldValue<DateTimeOffset>(9)));
         }
 
         return TypedResults.Ok(results);
@@ -945,6 +1117,12 @@ app.MapPost("/api/named-places/upsert", async Task<IResult> (
         return TypedResults.BadRequest("radiusMeters must be > 0.");
     }
 
+    var allowedPlaceTypes = new[] { "general", "track_start", "track_finish", "track_start_finish", "track_split", "drag_start", "drag_finish", "track_other" };
+    if (!allowedPlaceTypes.Contains(request.PlaceType, StringComparer.OrdinalIgnoreCase))
+    {
+        return TypedResults.BadRequest("placeType is not recognized.");
+    }
+
     try
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -957,14 +1135,16 @@ app.MapPost("/api/named-places/upsert", async Task<IResult> (
                       latitude = @latitude,
                       longitude = @longitude,
                       radius_meters = @radiusMeters,
+                      place_type = @placeType,
+                      track_name = @trackName,
                       notes = @notes
                   where id = @id
-                  returning id, vehicle_id, name, latitude, longitude, radius_meters, notes, created_at
+                  returning id, vehicle_id, name, latitude, longitude, radius_meters, place_type, track_name, notes, created_at
                   """
                 : """
-                  insert into named_places (vehicle_id, name, latitude, longitude, radius_meters, notes)
-                  values (@vehicleId, @name, @latitude, @longitude, @radiusMeters, @notes)
-                  returning id, vehicle_id, name, latitude, longitude, radius_meters, notes, created_at
+                  insert into named_places (vehicle_id, name, latitude, longitude, radius_meters, place_type, track_name, notes)
+                  values (@vehicleId, @name, @latitude, @longitude, @radiusMeters, @placeType, @trackName, @notes)
+                  returning id, vehicle_id, name, latitude, longitude, radius_meters, place_type, track_name, notes, created_at
                   """, connection);
 
         command.Parameters.AddWithValue("id", (object?)request.Id ?? DBNull.Value);
@@ -973,6 +1153,8 @@ app.MapPost("/api/named-places/upsert", async Task<IResult> (
         command.Parameters.AddWithValue("latitude", request.Latitude);
         command.Parameters.AddWithValue("longitude", request.Longitude);
         command.Parameters.AddWithValue("radiusMeters", request.RadiusMeters);
+        command.Parameters.AddWithValue("placeType", request.PlaceType);
+        command.Parameters.AddWithValue("trackName", (object?)request.TrackName ?? DBNull.Value);
         command.Parameters.AddWithValue("notes", (object?)request.Notes ?? DBNull.Value);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -990,8 +1172,10 @@ app.MapPost("/api/named-places/upsert", async Task<IResult> (
             reader.GetDouble(3),
             reader.GetDouble(4),
             reader.GetInt32(5),
-            reader.IsDBNull(6) ? null : reader.GetString(6),
-            reader.GetFieldValue<DateTimeOffset>(7)));
+            reader.GetString(6),
+            reader.IsDBNull(7) ? null : reader.GetString(7),
+            reader.IsDBNull(8) ? null : reader.GetString(8),
+            reader.GetFieldValue<DateTimeOffset>(9)));
     }
     catch (PostgresException ex) when (ex.SqlState == "42P01")
     {
@@ -2084,9 +2268,17 @@ static async Task EnsureEnrichmentSchemaAsync(IServiceProvider services)
                             latitude double precision not null,
                             longitude double precision not null,
                             radius_meters integer not null default 75,
+                            place_type text not null default 'general',
+                            track_name text,
                             notes text,
                             created_at timestamptz not null default now()
                         );
+
+                        alter table if exists named_places
+                        add column if not exists place_type text not null default 'general';
+
+                        alter table if exists named_places
+                        add column if not exists track_name text;
 
                         create index if not exists ix_named_places_vehicle
                         on named_places (vehicle_id, name);
@@ -2271,7 +2463,7 @@ static async Task EnsureEnrichmentSchemaAsync(IServiceProvider services)
 
 static async Task EnsureInitialAdminAsync(IServiceProvider services, VehicleAppAuthOptions authOptions)
 {
-    if (!authOptions.Enabled || string.IsNullOrWhiteSpace(authOptions.Username))
+    if (string.IsNullOrWhiteSpace(authOptions.Username) || string.IsNullOrWhiteSpace(authOptions.Password))
     {
         return;
     }
@@ -2279,13 +2471,15 @@ static async Task EnsureInitialAdminAsync(IServiceProvider services, VehicleAppA
     var dataSource = services.GetRequiredService<NpgsqlDataSource>();
     await using var connection = await dataSource.OpenConnectionAsync();
     await using var command = new NpgsqlCommand("""
-        insert into app_users (username, first_name, role, active)
-        values (@username, @firstName, 'admin', true)
+        insert into app_users (username, first_name, password_hash, role, active)
+        values (@username, @firstName, @passwordHash, 'admin', true)
         on conflict (username) do update
-          set role = 'admin', active = true, updated_at = now()
+          set password_hash = coalesce(app_users.password_hash, excluded.password_hash),
+              role = 'admin', active = true, updated_at = now()
         """, connection);
     command.Parameters.AddWithValue("username", authOptions.Username);
     command.Parameters.AddWithValue("firstName", authOptions.Username);
+    command.Parameters.AddWithValue("passwordHash", PasswordHashing.Hash(authOptions.Password));
     await command.ExecuteNonQueryAsync();
 }
 
@@ -2378,6 +2572,8 @@ public sealed record NamedPlaceResponse(
     double Latitude,
     double Longitude,
     int RadiusMeters,
+    string PlaceType,
+    string? TrackName,
     string? Notes,
     DateTimeOffset CreatedAt);
 
@@ -2513,6 +2709,10 @@ public sealed record UpsertNamedPlaceRequest
     public required double Longitude { get; init; }
 
     public int RadiusMeters { get; init; } = 75;
+
+    public string PlaceType { get; init; } = "general";
+
+    public string? TrackName { get; init; }
 
     public string? Notes { get; init; }
 }
