@@ -6,7 +6,9 @@ Before every production build, npm prints a reminder to export the current FMM00
 
 ## Currently bundled options
 
-The current FMM003 profile remains the existing default definition. Additional optional definitions are bundled for Teltonika FMB120, FMC003, FMC130, and Queclink GV300 and GV55. These profiles are marked experimental and are available for manual assignment in Vehicle Catalog; bundling them does not assign them to any vehicle. Their definitions pass the app schema and mapping validation, but their model-specific Traccar output and measurements have not been confirmed with live devices. Check the Traccar attributes and values for a device before relying on its profile. An FMM00A profile can be added when its Traccar output and a suitable definition are available.
+The current FMM003 profile remains the existing default definition. An initial Teltonika FMM00A profile is now bundled alongside the optional Teltonika FMB120, FMC003, FMC130, and Queclink GV300 and GV55 definitions. The FMM00A mapping was created from the Silverado's decoded Traccar attributes and checked against Teltonika's FMM00A AVL reference. It labels the observed fields, applies only the documented PCB-temperature scale, and leaves AVL 247's FMM00A support explicitly unverified. The other optional profiles remain experimental; their model-specific Traccar output and measurements have not been confirmed with live devices. Bundling any profile does not assign it to a vehicle. Check Traccar attributes and values before relying on model-specific mappings. See [the FMM00A data catalog](../docs/TELTONIKA_FMM00A_DATA_CATALOG.md).
+
+The FMM00A file retains the stable ID `teltonika-fmm003` because that is the ID already assigned to the live Silverado profile. Do not rename the ID without migrating saved vehicle assignments.
 
 ## Add a profile
 
