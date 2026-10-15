@@ -27,14 +27,13 @@ test('FMM00A PCB temperature uses its documented scale in both display systems',
   assert.equal(metricValue.canonicalValue, 32.7)
   assert.equal(metricValue.value, 32.7)
   assert.equal(metricValue.unit, '°C')
-  assert.equal(imperialValue.value, 90.86)
+  assert.ok(Math.abs(imperialValue.value - 90.86) < 1e-9)
   assert.equal(imperialValue.unit, '°F')
 })
 
 test('FMM00A AVL 247 remains an unscaled raw value with an uncertainty label', async () => {
   const definition = JSON.parse(await readFile(profilePath, 'utf8'))
-  const profile = createCarProfile(definition)
-  const translated = translateAttribute(profile, 'io247', 6)
+  const translated = translateAttribute(createCarProfile(definition), 'io247', 6)
 
   assert.match(translated.label, /support unverified/)
   assert.equal(translated.value, 6)
