@@ -1,0 +1,124 @@
+{
+  "id": "teltonika-fmm003",
+  "name": "Teltonika FMM00A",
+  "schemaVersion": 14,
+  "attributeMap": {
+    "io13201": {
+      "avlId": 13201,
+      "label": "Tracker PCB Temperature",
+      "quantity": "temperature",
+      "sourceUnit": "0.1 °C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 0.1,
+      "units": "°C"
+    },
+    "io247": {
+      "avlId": 247,
+      "label": "AVL 247 (crash/trace code; FMM00A support unverified)"
+    },
+    "priority": {
+      "label": "AVL Packet Priority"
+    },
+    "sat": {
+      "label": "GNSS Satellite Count",
+      "units": "count",
+      "quantity": "gnss_satellite_count",
+      "statusCardField": "satellites"
+    },
+    "io69": {
+      "avlId": 69,
+      "label": "GNSS Status",
+      "statusCardField": "gnssStatus"
+    },
+    "io113": {
+      "avlId": 113,
+      "label": "Tracker Battery Level",
+      "units": "%",
+      "statusCardField": "trackerBatteryLevel"
+    },
+    "io12": {
+      "avlId": 12,
+      "label": "AVL 12 (device-configured value)",
+      "statusCardField": "avl12"
+    },
+    "motion": {
+      "avlId": 240,
+      "label": "Motion",
+      "statusCardField": "motion"
+    },
+    "rssi": {
+      "avlId": 21,
+      "label": "GSM Signal",
+      "statusCardField": "signalStrength"
+    },
+    "pdop": {
+      "avlId": 181,
+      "label": "GNSS PDOP",
+      "statusCardField": "pdop"
+    },
+    "hdop": {
+      "avlId": 182,
+      "label": "GNSS HDOP",
+      "statusCardField": "hdop"
+    },
+    "power": {
+      "avlId": 66,
+      "label": "External Tracker Supply Voltage",
+      "units": "V",
+      "quantity": "external_supply_voltage",
+      "statusCardField": "power"
+    },
+    "io24": {
+      "avlId": 24,
+      "label": "GNSS Speed (AVL 24)",
+      "units": "km/h",
+      "quantity": "speed"
+    },
+    "battery": {
+      "label": "Tracker Battery Voltage",
+      "units": "V",
+      "quantity": "tracker_battery_voltage",
+      "statusCardField": "batteryVoltage"
+    },
+    "axisX": {
+      "label": "Accelerometer X-axis",
+      "units": "mg",
+      "statusCardField": "accelerometerX"
+    },
+    "axisY": {
+      "label": "Accelerometer Y-axis",
+      "units": "mg",
+      "statusCardField": "accelerometerY"
+    },
+    "axisZ": {
+      "label": "Accelerometer Z-axis",
+      "units": "mg",
+      "statusCardField": "accelerometerZ"
+    },
+    "event": {
+      "label": "Event / Rule ID"
+    },
+    "operator": {
+      "avlId": 241,
+      "label": "GSM Operator",
+      "units": "MCC/MNC",
+      "statusCardField": "operator"
+    },
+    "odometer": {
+      "avlId": 16,
+      "label": "Teltonika Odometer",
+      "units": "m",
+      "quantity": "distance"
+    },
+    "distance": {
+      "label": "Segment Distance",
+      "units": "m",
+      "quantity": "distance"
+    },
+    "totalDistance": {
+      "label": "Traccar Total Distance",
+      "units": "m",
+      "quantity": "distance"
+    }
+  }
+}
