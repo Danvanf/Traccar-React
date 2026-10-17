@@ -42,10 +42,12 @@ ConnectionStrings__TraccarReactApi=Host=traccar-db;Port=5432;Database=traccar_re
 TraccarReactApi__Auth__Username=YOUR_BOOTSTRAP_ADMIN
 TraccarReactApi__Auth__Password=YOUR_BOOTSTRAP_PASSWORD
 TraccarReactApi__CredentialEncryption__ActiveKeyId=YOUR_EXISTING_ACTIVE_KEY_ID
-TraccarReactApi__CredentialEncryption__Keys__primary=YOUR_EXISTING_KEY
+TraccarReactApi__CredentialEncryption__Keys__primary=YOUR_EXISTING_BASE64_KEY
 ```
 
-Use the actual database login and key ID for the installation. Preserve the existing encryption key values. Update Compose service names, image entrypoints, reverse-proxy paths, environment-file paths, service-management commands, backup jobs, and monitoring references. Recreate the renamed API service, removing the old service container from the same Compose project after it has stopped. Keep the database volume intact.
+`ActiveKeyId` is the key's name, such as `primary`; it is not the encryption key itself. `Keys__primary` must contain the existing Base64-encoded encryption key, which must decode to exactly 32 bytes (256 bits). Copy that value unchanged from the old `VehicleApp__CredentialEncryption__Keys__primary` setting. Do not put the word `primary` in the key-value setting or generate a replacement during this migration, because stored credentials can only be decrypted with the original key.
+
+Use the actual database login and active key ID for the installation. Preserve the existing encryption key value. The API no longer reads `VehicleApp:*`, `ConnectionStrings:VehicleApp`, or `VITE_VEHICLE_API_TARGET`; rename those settings to their `TraccarReactApi` / `VITE_TRACCAR_REACT_API_TARGET` forms before starting it. Update Compose service names, image entrypoints, reverse-proxy paths, environment-file paths, service-management commands, backup jobs, and monitoring references. Recreate the renamed API service, removing the old service container from the same Compose project after it has stopped. Keep the database volume intact.
 
 For the development machine, restart the API with:
 
@@ -53,13 +55,12 @@ For the development machine, restart the API with:
 dotnet run --project .\backend\TraccarReact.Api\TraccarReact.Api.csproj --launch-profile http
 ```
 
-Restart Vite after changing its proxy configuration. Sign in again because the cookie is now named `traccar_react_api_session`.
+Vite's development proxy forwards browser requests beginning with `/traccar-react-api` to the API at `http://localhost:5124` and removes that prefix before forwarding. The repository's `vite.config.js` already has this route; you only need to change `VITE_TRACCAR_REACT_API_TARGET` if the API is hosted somewhere else. Restart Vite after changing that target. A response such as HTTP 503 from `/traccar-react-api/...` means the request reached the API; check the API response/log for the cause. Sign in again because the cookie is now named `traccar_react_api_session`.
 
-## Compatibility retained during the transition
+## Existing data handled during the transition
 
-- Legacy `VehicleApp:*` and `ConnectionStrings:VehicleApp` configuration keys remain accepted. Provider priority is respected, and a new key wins over its legacy alias within the same provider. New environment examples use the new keys.
 - Saved browser and shared server settings migrate `vehicleApiBaseUrl` to `traccarReactApiBaseUrl`, preserving custom hosts. The former `/vehicle-api` suffix becomes `/traccar-react-api`.
-- New deployment exports use `traccar-react-api/` ZIP entries and `includedTraccarReactApiTables`. The restore utility also accepts the former `vehicle-app/` entries, manifest table-list name, and `--vehicleapp-service` option. Existing checksum and path validation still apply.
+- The deployment restore utility accepts only the current format: `traccar-react-api/` ZIP entries, `includedTraccarReactApiTables`, and `--traccar-react-api-service`. It validates checksums and paths before import.
 - The two v1 credential-encryption associated-data prefixes intentionally retain their original bytes. They are persisted format identifiers and are required to decrypt existing credentials with the same key.
 - Obsolete tracked validation-build outputs have been removed from source control. Generated `bin_*` and `obj_*` folders are ignored.
 

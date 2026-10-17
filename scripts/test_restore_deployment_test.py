@@ -24,13 +24,13 @@ TABLES = [
 ]
 
 
-def make_archive(path: Path, *, tamper: bool = False, unsafe: bool = False, legacy: bool = False) -> None:
+def make_archive(path: Path, *, tamper: bool = False, unsafe: bool = False) -> None:
     entries = {
         "traccar/devices.jsonl": b'{"id":7,"name":"Synthetic"}\n',
         "traccar/positions.jsonl": b"",
         "traccar/events.jsonl": b"",
     }
-    prefix = "vehicle-app" if legacy else "traccar-react-api"
+    prefix = "traccar-react-api"
     entries.update({f"{prefix}/{table}.jsonl": b"" for table in TABLES})
     summaries = [
         {
@@ -50,7 +50,7 @@ def make_archive(path: Path, *, tamper: bool = False, unsafe: bool = False, lega
             "toExclusiveUtc": "2026-10-02T00:00:00Z",
         },
         "deviceCount": 1,
-        ("includedVehicleAppTables" if legacy else "includedTraccarReactApiTables"): TABLES,
+        "includedTraccarReactApiTables": TABLES,
         "files": summaries,
     }
     with zipfile.ZipFile(path, "w") as archive:
@@ -60,18 +60,6 @@ def make_archive(path: Path, *, tamper: bool = False, unsafe: bool = False, lega
 
 
 class RestorePackageTests(unittest.TestCase):
-    def test_legacy_archive_validates_and_streams_from_legacy_paths(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "legacy.zip"
-            make_archive(path, legacy=True)
-            manifest, _ = TOOL.inspect_archive(path)
-            self.assertEqual(manifest["includedTraccarReactApiTables"], TABLES)
-            with mock.patch.object(TOOL, "psql_stream", side_effect=lambda service, emit: emit(io.StringIO())) as stream:
-                TOOL.copy_archive_to_psql(path, "traccar", "app", TABLES, {7: 70}, manifest["_appArchivePrefix"])
-                self.assertEqual(stream.call_count, 2)
-            with self.assertRaises(TOOL.RestoreError):
-                TOOL.map_record({"base_url": "http://old-host"}, {}, "vehicle-app/traccar_sources.jsonl")
-
     def test_valid_synthetic_archive_passes_integrity_checks(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "valid.zip"

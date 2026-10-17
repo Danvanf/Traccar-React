@@ -25,26 +25,6 @@ CheckThrows("retired key is unavailable", () => CreateProtectorWithKeys([("new",
 var missingKeyProtector = CreateProtectorWithKeys([], "missing");
 Check("missing active key disables credential writes", !missingKeyProtector.CanProtect);
 CheckThrows("missing active key rejects credential writes", () => missingKeyProtector.Protect(accountId, "ClientSecret", "secret"));
-var aliases = new ConfigurationManager();
-aliases.AddInMemoryCollection(new Dictionary<string, string?> {
-    ["TraccarReactApi:Auth:Username"] = "default",
-    ["ConnectionStrings:TraccarReactApi"] = "default-db",
-});
-aliases.AddInMemoryCollection(new Dictionary<string, string?> {
-    ["VehicleApp:Auth:Username"] = "legacy-environment",
-    ["VehicleApp:CredentialEncryption:ActiveKeyId"] = "old",
-    ["VehicleApp:CredentialEncryption:Keys:old"] = oldKey,
-    ["ConnectionStrings:VehicleApp"] = "existing-db",
-});
-aliases.AddInMemoryCollection(new Dictionary<string, string?> {
-    ["VehicleApp:Auth:Password"] = "legacy-password",
-    ["TraccarReactApi:Auth:Password"] = "current-password",
-});
-ApiConfigurationAliases.Apply(aliases);
-Check("legacy environment wins over new defaults", aliases["TraccarReactApi:Auth:Username"] == "legacy-environment");
-Check("current key wins at equal provider priority", aliases["TraccarReactApi:Auth:Password"] == "current-password");
-Check("existing connection string survives rename", aliases.GetConnectionString("TraccarReactApi") == "existing-db");
-Check("legacy key ring still decrypts stored ciphertext", new CredentialProtectionService(aliases).Unprotect(accountId, "ClientSecret", oldEnvelope) == "a provider secret");
 var upgradedSettings = System.Text.Json.Nodes.JsonNode.Parse(ApiNamingMigration.UpgradeGeneralSettingsJson("""{"vehicleApiBaseUrl":"https://example.test/vehicle-api","pollIntervalMs":12000}"""))!;
 Check("server settings preserve custom host", upgradedSettings["traccarReactApiBaseUrl"]!.GetValue<string>() == "https://example.test/traccar-react-api");
 Check("server settings preserve unrelated fields", upgradedSettings["pollIntervalMs"]!.GetValue<int>() == 12000);

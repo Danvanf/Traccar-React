@@ -4,6 +4,8 @@
 
 The map screen has an **Ask** entry point for questions about saved trip summaries. The first release recognizes five measures: trip count, distance, driving time, highest recorded speed, and recorded event count. It can use a named vehicle or all vehicles the signed-in user is permitted to see.
 
+Ask remains experimental and is hidden by default. In a Vite development browser, append `?experimentalAsk=true` to the local app URL to show it with a yellow outline. Production builds always hide it, even if that query parameter is present.
+
 Date phrases supported today are today, yesterday, this week/month to date, last calendar week/month, the last 7 days, and explicit `YYYY-MM-DD to YYYY-MM-DD` ranges. If no period is given, it uses the last seven local calendar days. The panel shows the interpreted measure, vehicle scope, and date range before presenting the result.
 
 ## Data flow and privacy

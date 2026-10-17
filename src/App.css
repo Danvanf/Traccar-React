@@ -80,6 +80,11 @@ body[data-theme='light'] {
 
 .global-ask-vehicles:hover { border-color: var(--accent); }
 
+.global-ask-vehicles.is-experimental {
+  outline: 2px solid #ffd54f;
+  outline-offset: 2px;
+}
+
 .ask-vehicles-backdrop {
   position: fixed;
   z-index: 4200;

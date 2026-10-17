@@ -9,7 +9,6 @@ using System.Text.RegularExpressions;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
-ApiConfigurationAliases.Apply(builder.Configuration);
 
 var authUsername = builder.Configuration["TraccarReactApi:Auth:Username"]
     ?? Environment.GetEnvironmentVariable("TRACCAR_REACT_API_AUTH_USERNAME");

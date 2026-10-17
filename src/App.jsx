@@ -101,6 +101,8 @@ const YARDS_PER_METER = 1 / METERS_PER_YARD
 const MAP_CONTENT_SHIFT_PX = 50
 const VEHICLE_STATUS_DEFAULT_TOP = 300
 const INITIAL_MAP_HISTORY_DAYS = 7
+const SHOW_EXPERIMENTAL_ASK = import.meta.env.DEV
+  && new URLSearchParams(window.location.search).get('experimentalAsk') === 'true'
 
 function getDefaultVehicleStatusPosition() {
   return { left: Math.max(8, window.innerWidth - 288), top: VEHICLE_STATUS_DEFAULT_TOP }
@@ -4212,7 +4214,7 @@ function App() {
   return (
     <main className="app-shell">
       <div className="global-auth-controls" ref={userMenuRef}>
-        <button type="button" className="global-ask-vehicles" onClick={() => setIsVehicleQueryOpen(true)}>Ask</button>
+        {SHOW_EXPERIMENTAL_ASK && <button type="button" className="global-ask-vehicles is-experimental" title="Experimental feature enabled only in this development browser" onClick={() => setIsVehicleQueryOpen(true)}>Ask</button>}
         {vehicleAuth.enabled && vehicleAuth.authenticated && <>
         <button
           ref={userMenuButtonRef}
@@ -4233,7 +4235,7 @@ function App() {
         </div>}
         </>}
       </div>
-      {isVehicleQueryOpen && createPortal(<Suspense fallback={null}><AskVehiclesPanel baseUrl={settings.traccarReactApiBaseUrl} displayUnits={settings.displayUnits} onClose={() => setIsVehicleQueryOpen(false)} /></Suspense>, document.body)}
+      {SHOW_EXPERIMENTAL_ASK && isVehicleQueryOpen && createPortal(<Suspense fallback={null}><AskVehiclesPanel baseUrl={settings.traccarReactApiBaseUrl} displayUnits={settings.displayUnits} onClose={() => setIsVehicleQueryOpen(false)} /></Suspense>, document.body)}
       {isUserProfileOpen && createPortal(<Suspense fallback={null}><UserProfilePanel baseUrl={settings.traccarReactApiBaseUrl} devices={devices} onClose={() => setIsUserProfileOpen(false)} /></Suspense>, document.body)}
         {importRecovery && createPortal((
           <section className="import-conflict-badge map-import-conflict" role="status" aria-live="polite">
