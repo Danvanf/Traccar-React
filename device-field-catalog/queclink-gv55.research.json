@@ -1,0 +1,240 @@
+{
+  "catalogVersion": 1,
+  "manufacturer": "Queclink",
+  "model": "GV55",
+  "status": "research",
+  "fields": [
+    {
+      "key": "battery",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Backup Battery Voltage",
+      "applicability": {
+        "manufacturer": "Queclink",
+        "model": "GV55"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Queclink GV55 protocol document (third-party host)",
+            "url": "https://www.eddywireless.com/assets/docs/GV55_Track_Air_Interface_Protocol_V105_decrypted.99185028.pdf",
+            "supports": "Documented field name: Backup Battery Voltage."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/Gl200TextProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"battery\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "Manufacturer states voltage valid only when external supply disconnected.",
+          "The Queclink protocol document cited here is hosted by a third party; keep this as a label-only suggestion until a vendor-issued protocol copy or a matching device sample is verified."
+        ]
+      },
+      "suggestionReason": "Documentation names this field 'Backup Battery Voltage' for GV55. Manufacturer states voltage valid only when external supply disconnected. This is a label-only guess; confirm the raw Traccar key and device configuration."
+    },
+    {
+      "key": "hdop",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "GPS Accuracy / HDOP",
+      "applicability": {
+        "manufacturer": "Queclink",
+        "model": "GV55"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Queclink GV55 protocol document (third-party host)",
+            "url": "https://www.eddywireless.com/assets/docs/GV55_Track_Air_Interface_Protocol_V105_decrypted.99185028.pdf",
+            "supports": "Documented field name: GPS Accuracy / HDOP."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/Gl200TextProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"hdop\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "Check decoder emits hdop on text report; GPS accuracy value 0 can indicate invalid fix.",
+          "The Queclink protocol document cited here is hosted by a third party; keep this as a label-only suggestion until a vendor-issued protocol copy or a matching device sample is verified."
+        ]
+      },
+      "suggestionReason": "Documentation names this field 'GPS Accuracy / HDOP' for GV55. Check decoder emits hdop on text report; GPS accuracy value 0 can indicate invalid fix. This is a label-only guess; confirm the raw Traccar key and device configuration."
+    },
+    {
+      "key": "hours",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Engine-On Hour Meter",
+      "applicability": {
+        "manufacturer": "Queclink",
+        "model": "GV55"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Queclink GV55 protocol document (third-party host)",
+            "url": "https://www.eddywireless.com/assets/docs/GV55_Track_Air_Interface_Protocol_V105_decrypted.99185028.pdf",
+            "supports": "Documented field name: Engine-On Hour Meter."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/Gl200TextProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"hours\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "Traccar stores milliseconds; keep native ms because app schema lacks evidenced duration conversion.",
+          "The Queclink protocol document cited here is hosted by a third party; keep this as a label-only suggestion until a vendor-issued protocol copy or a matching device sample is verified."
+        ]
+      },
+      "suggestionReason": "Documentation names this field 'Engine-On Hour Meter' for GV55. Traccar stores milliseconds; keep native ms because app schema lacks evidenced duration conversion. This is a label-only guess; confirm the raw Traccar key and device configuration."
+    },
+    {
+      "key": "ignition",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Ignition State (from motion code)",
+      "applicability": {
+        "manufacturer": "Queclink",
+        "model": "GV55"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Queclink GV55 protocol document (third-party host)",
+            "url": "https://www.eddywireless.com/assets/docs/GV55_Track_Air_Interface_Protocol_V105_decrypted.99185028.pdf",
+            "supports": "Documented field name: Ignition State (from motion code)."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/Gl200TextProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"ignition\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "41/42 sensor mode produces motion only; no ignition key.",
+          "The Queclink protocol document cited here is hosted by a third party; keep this as a label-only suggestion until a vendor-issued protocol copy or a matching device sample is verified."
+        ]
+      },
+      "suggestionReason": "Documentation names this field 'Ignition State (from motion code)' for GV55. 41/42 sensor mode produces motion only; no ignition key. This is a label-only guess; confirm the raw Traccar key and device configuration."
+    },
+    {
+      "key": "motion",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Movement State (from motion code)",
+      "applicability": {
+        "manufacturer": "Queclink",
+        "model": "GV55"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Queclink GV55 protocol document (third-party host)",
+            "url": "https://www.eddywireless.com/assets/docs/GV55_Track_Air_Interface_Protocol_V105_decrypted.99185028.pdf",
+            "supports": "Documented field name: Movement State (from motion code)."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/Gl200TextProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"motion\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "Derived from configured motion state, including tow/fake tow.",
+          "The Queclink protocol document cited here is hosted by a third party; keep this as a label-only suggestion until a vendor-issued protocol copy or a matching device sample is verified."
+        ]
+      },
+      "suggestionReason": "Documentation names this field 'Movement State (from motion code)' for GV55. Derived from configured motion state, including tow/fake tow. This is a label-only guess; confirm the raw Traccar key and device configuration."
+    },
+    {
+      "key": "odometer",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Device Mileage",
+      "applicability": {
+        "manufacturer": "Queclink",
+        "model": "GV55"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Queclink GV55 protocol document (third-party host)",
+            "url": "https://www.eddywireless.com/assets/docs/GV55_Track_Air_Interface_Protocol_V105_decrypted.99185028.pdf",
+            "supports": "Documented field name: Device Mileage."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/Gl200TextProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"odometer\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "GTFRI mileage conditional; Traccar multiplies km by 1000. Device calculation/configuration needs review.",
+          "The Queclink protocol document cited here is hosted by a third party; keep this as a label-only suggestion until a vendor-issued protocol copy or a matching device sample is verified."
+        ]
+      },
+      "suggestionReason": "Documentation names this field 'Device Mileage' for GV55. GTFRI mileage conditional; Traccar multiplies km by 1000. Device calculation/configuration needs review. This is a label-only guess; confirm the raw Traccar key and device configuration."
+    },
+    {
+      "key": "power",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "External Supply Voltage",
+      "applicability": {
+        "manufacturer": "Queclink",
+        "model": "GV55"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Queclink GV55 protocol document (third-party host)",
+            "url": "https://www.eddywireless.com/assets/docs/GV55_Track_Air_Interface_Protocol_V105_decrypted.99185028.pdf",
+            "supports": "Documented field name: External Supply Voltage."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/Gl200TextProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"power\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "GTFRI suppresses zero in decoder; GTINF may show zero.",
+          "The Queclink protocol document cited here is hosted by a third party; keep this as a label-only suggestion until a vendor-issued protocol copy or a matching device sample is verified."
+        ]
+      },
+      "suggestionReason": "Documentation names this field 'External Supply Voltage' for GV55. GTFRI suppresses zero in decoder; GTINF may show zero. This is a label-only guess; confirm the raw Traccar key and device configuration."
+    },
+    {
+      "key": "rssi",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Cellular CSQ RSSI",
+      "applicability": {
+        "manufacturer": "Queclink",
+        "model": "GV55"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Queclink GV55 protocol document (third-party host)",
+            "url": "https://www.eddywireless.com/assets/docs/GV55_Track_Air_Interface_Protocol_V105_decrypted.99185028.pdf",
+            "supports": "Documented field name: Cellular CSQ RSSI."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/Gl200TextProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"rssi\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "99 is unknown; no continuous dBm conversion.",
+          "The Queclink protocol document cited here is hosted by a third party; keep this as a label-only suggestion until a vendor-issued protocol copy or a matching device sample is verified."
+        ]
+      },
+      "suggestionReason": "Documentation names this field 'Cellular CSQ RSSI' for GV55. 99 is unknown; no continuous dBm conversion. This is a label-only guess; confirm the raw Traccar key and device configuration."
+    }
+  ]
+}

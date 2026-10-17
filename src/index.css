@@ -82,6 +82,17 @@ body {
   box-shadow: 0 18px 60px rgb(0 0 0 / 45%);
 }
 
+.telemetry-graph-modal .telemetry-graph-card {
+  display: grid;
+  grid-template-rows: auto auto auto auto minmax(0, 1fr);
+  height: min(92vh, calc(100vh - 4rem));
+  overflow: hidden;
+}
+
+.telemetry-graph-notices {
+  min-width: 0;
+}
+
 .telemetry-graph-header,
 .telemetry-graph-controls,
 .telemetry-graph-legend {
@@ -124,14 +135,93 @@ body {
   background: #30486f;
 }
 
+.telemetry-graph-modal .telemetry-graph-controls {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  align-content: start;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
 .telemetry-graph-controls > strong {
   grid-column: 1 / -1;
+}
+.telemetry-field-review-filters {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .3rem;
+}
+.telemetry-field-review-filters button {
+  padding: .25rem .5rem;
+  border: 1px solid #7489ac;
+  border-radius: 999px;
+  background: #253a5c;
+  color: #dce7f8;
+  font-size: .72rem;
+  cursor: pointer;
+}
+.telemetry-field-review-filters button.active {
+  border-color: #b5d2ff;
+  background: #496792;
+  color: #fff;
+}
+.telemetry-field-review-filters button:focus-visible {
+  outline: 2px solid #dce7f8;
+  outline-offset: 2px;
 }
 
 .telemetry-graph-ignored {
   grid-column: 1 / -1;
   color: #bdc9df;
   font-size: .78rem;
+}
+
+.telemetry-unplotted-fields {
+  grid-column: 1 / -1;
+  margin-top: .35rem;
+  padding-top: .45rem;
+  border-top: 1px solid #52678f;
+}
+.telemetry-unplotted-fields > summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+.telemetry-unplotted-fields > p {
+  margin: .35rem 0;
+  color: #bdc9df;
+  font-size: .78rem;
+}
+.telemetry-unplotted-fields > div {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .35rem .6rem;
+}
+.telemetry-unplotted-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: .25rem;
+  min-width: 0;
+  padding: .3rem;
+  border: 1px solid rgb(188 204 230 / 24%);
+  border-radius: 5px;
+  overflow-wrap: anywhere;
+}
+.telemetry-unplotted-field small {
+  color: #bdc9df;
+  font-size: .7rem;
+}
+.telemetry-unplotted-field .telemetry-unplotted-source {
+  display: block;
+  color: #aebfdd;
+  font-size: .68rem;
+  font-weight: 400;
+}
+.telemetry-unplotted-field .telemetry-graph-field-target {
+  grid-column: 1 / -1;
+  justify-self: start;
 }
 
 .telemetry-graph-controls .checkbox-row {
@@ -141,6 +231,111 @@ body {
   min-width: 0;
   justify-content: flex-start;
 }
+
+.telemetry-graph-element-row {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr);
+  column-gap: .3rem;
+  align-items: start;
+  min-width: 0;
+}
+.telemetry-graph-element-checkbox {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-width: 0;
+  padding-top: .1rem;
+}
+.telemetry-graph-element-checkbox > input[type='checkbox'] {
+  margin: 0;
+}
+.telemetry-graph-element-details {
+  min-width: 0;
+  line-height: 1.4;
+}
+.telemetry-graph-element-details > span {
+  display: inline;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+.telemetry-graph-element-details input[type='color'] {
+  display: inline-block;
+  width: 24px;
+  height: 22px;
+  padding: 1px;
+  margin: 0 .3rem;
+  vertical-align: middle;
+}
+.telemetry-graph-field-target {
+  display: inline;
+  min-width: 0;
+  padding: 2px 4px;
+  border: 0;
+  background: transparent;
+  color: #bdc9df;
+  font-size: .68rem;
+  text-decoration: underline;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+  cursor: pointer;
+}
+.telemetry-graph-field-target:hover, .telemetry-graph-field-target:focus-visible { color: #fff; }
+.telemetry-graph-guessed-label { color: #ffdf88; }
+.telemetry-field-editor-guess {
+  color: #fbbf24;
+}
+.telemetry-graph-guessed-label { color: #ffdf88; }
+
+.telemetry-field-editor-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  overflow-y: auto;
+  background: rgb(4 8 20 / 82%);
+}
+.telemetry-field-editor {
+  display: grid;
+  gap: 14px;
+  width: min(620px, 100%);
+  max-height: min(92vh, 860px);
+  overflow: auto;
+  padding: 18px;
+  border: 1px solid #52678f;
+  border-radius: 12px;
+  background: #243758;
+  color: #f4f7ff;
+  box-shadow: 0 18px 60px rgb(0 0 0 / 55%);
+}
+.telemetry-field-editor-header, .telemetry-field-editor .profile-mapping-inspector-header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.telemetry-field-editor-header h2, .telemetry-field-editor h3, .telemetry-field-editor p { margin-top:0; }
+.telemetry-field-editor-header h2 { margin-bottom:4px; }
+.telemetry-field-editor-header p:last-child, .telemetry-field-editor-suggestions p, .telemetry-field-editor-shared > p, .telemetry-field-editor-help { margin-bottom:0; color:#bdc9df; font-size:.8rem; }
+.telemetry-field-editor-card, .telemetry-field-editor-personal, .telemetry-field-editor-suggestions, .telemetry-field-editor-shared { display:grid; gap:9px; padding:12px; border:1px solid #52678f; border-radius:9px; background:#30486f; }
+.telemetry-field-editor-card h3, .telemetry-field-editor-personal h3, .telemetry-field-editor-suggestions h3 { margin:0; font-size:1rem; }
+.telemetry-field-editor-sample { margin-bottom:0; padding-top:5px; color:#d5e1f5; font-size:.82rem; overflow-wrap:anywhere; }
+.telemetry-field-editor-sample-toggle { margin-left:8px; }
+.telemetry-field-editor-personal > label, .telemetry-field-editor-form > label { display:grid; gap:5px; color:#d5e1f5; font-size:.8rem; }
+.telemetry-field-editor-guess { margin:0; font-size:.78rem; }
+.telemetry-field-editor-candidate-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:7px; align-items:center; }
+.telemetry-field-editor-candidate { display:flex; align-items:center; justify-content:space-between; gap:10px; min-width:0; padding:9px; border:1px solid #936b17; border-radius:7px; background:rgb(251 191 36 / 10%); color:inherit; text-align:left; }
+.telemetry-field-editor-candidate-row > .small { grid-column:2; grid-row:1 / span 2; align-self:start; white-space:nowrap; }
+.telemetry-field-editor-candidate-sources { grid-column:1; margin:0 2px 2px; color:#bdc9df; font-size:.8rem; }
+.telemetry-field-editor-candidate-sources a { color:#9cc9ff; }
+.telemetry-field-editor-dismiss-all { justify-self:start; }
+.telemetry-field-editor-candidate > span:first-child { display:grid; gap:3px; }
+.telemetry-field-editor-candidate small { color:#bdc9df; }
+.telemetry-field-editor-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.telemetry-field-editor-form > label:first-child, .telemetry-field-editor-help, .telemetry-field-editor-form > button { grid-column:1 / -1; }
+.telemetry-field-editor-scope { grid-column:1 / -1; display:flex; align-items:flex-start; gap:8px; padding:9px; border:1px solid #936b17; border-radius:7px; color:#ffdf88; font-size:.8rem; }
+.telemetry-field-editor-scope input { flex:0 0 auto; margin-top:2px; }
+.telemetry-field-editor-shared summary { font-weight:700; cursor:pointer; }
+.telemetry-field-editor-status { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0; color:#d5e1f5; font-size:.82rem; }
+.telemetry-field-editor > footer { display:flex; justify-content:flex-end; }
 
 .telemetry-graph-plot-wrap {
   position: relative;
@@ -208,6 +403,7 @@ body {
 
 .telemetry-graph-status {
   margin: .5rem 0;
+  overflow-wrap: anywhere;
   color: #dce8ff;
   font-size: .82rem;
 }
@@ -299,15 +495,26 @@ body {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .telemetry-unplotted-fields > div {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .telemetry-graph-legend {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .telemetry-field-editor { padding:13px; }
 }
 
 @media (max-width: 520px) {
+  .telemetry-unplotted-fields > div {
+    grid-template-columns: 1fr;
+  }
+
   .telemetry-graph-legend {
     grid-template-columns: 1fr;
   }
+  .telemetry-field-editor-form { grid-template-columns:1fr; }
+  .telemetry-field-editor-form > label:first-child, .telemetry-field-editor-help, .telemetry-field-editor-form > button { grid-column:auto; }
 }
 
 .telemetry-scale-switch input {

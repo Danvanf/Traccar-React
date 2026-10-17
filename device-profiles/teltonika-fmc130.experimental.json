@@ -1,7 +1,7 @@
 {
   "id": "teltonika-fmc130-experimental",
   "name": "Teltonika FMC130 (experimental; firmware 03.29+ catalog)",
-  "schemaVersion": 14,
+  "schemaVersion": 16,
   "attributeMap": {
     "power": {
       "label": "External Voltage",

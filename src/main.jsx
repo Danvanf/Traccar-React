@@ -1,8 +1,8 @@
-import { StrictMode } from 'react'
+import { lazy, StrictMode, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import App from './App.jsx'
-import PublicTelemetryShare from './components/PublicTelemetryShare.jsx'
+const App = lazy(() => import('./App.jsx'))
+const PublicTelemetryShare = lazy(() => import('./components/PublicTelemetryShare.jsx'))
 
 const sharedMatch = window.location.pathname.match(/^\/shared\/telemetry\/([^/]+)$/)
 const rootComponent = sharedMatch
@@ -11,6 +11,6 @@ const rootComponent = sharedMatch
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    {rootComponent}
+    <Suspense fallback={null}>{rootComponent}</Suspense>
   </StrictMode>,
 )

@@ -1,7 +1,7 @@
 {
   "id": "teltonika-fmb120-experimental",
   "name": "Teltonika FMB120 (experimental; firmware 03.29+ catalog)",
-  "schemaVersion": 14,
+  "schemaVersion": 16,
   "attributeMap": {
     "power": {
       "label": "External Voltage",

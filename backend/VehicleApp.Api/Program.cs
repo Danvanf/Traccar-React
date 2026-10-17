@@ -1,4 +1,6 @@
 using Npgsql;
+using System.Net;
+using System.Net.Sockets;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using System.Diagnostics;
 using System.Text.Json;
@@ -31,6 +33,36 @@ builder.Services.AddSingleton(new TraccarDiagnosticsOptions(
     builder.Configuration["Traccar:Username"] ?? Environment.GetEnvironmentVariable("TRACCAR_USERNAME"),
     builder.Configuration["Traccar:Password"] ?? Environment.GetEnvironmentVariable("TRACCAR_PASSWORD")));
 builder.Services.AddHttpClient(nameof(DeviceProtocolDiagnosticsEndpoints), client => client.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddHttpClient("TraccarProxy", client => client.Timeout = TimeSpan.FromSeconds(60))
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+    {
+        AllowAutoRedirect = false,
+        UseProxy = false,
+        ConnectCallback = async (context, cancellationToken) =>
+        {
+            var addresses = await Dns.GetHostAddressesAsync(context.DnsEndPoint.Host, cancellationToken);
+            Exception? lastError = null;
+            foreach (var address in addresses.OrderBy(address => address.AddressFamily == AddressFamily.InterNetwork ? 0 : 1))
+            {
+                var socket = new Socket(address.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+                try
+                {
+                    await socket.ConnectAsync(new IPEndPoint(address, context.DnsEndPoint.Port), cancellationToken);
+                    return new NetworkStream(socket, ownsSocket: true);
+                }
+                catch (SocketException exception)
+                {
+                    socket.Dispose();
+                    lastError = exception;
+                }
+            }
+            throw new HttpRequestException("Unable to connect to the configured Traccar host.", lastError);
+        },
+    });
+var traccarProxyBaseUrl = Environment.GetEnvironmentVariable("TRACCAR_BASE_URL")
+    ?? builder.Configuration["Traccar:BaseUrl"]
+    ?? (builder.Environment.IsDevelopment() ? "http://localhost:8082" : "http://traccar:8082");
+builder.Services.AddSingleton(new TraccarProxyOptions(traccarProxyBaseUrl));
 builder.Services.AddHttpClient(nameof(EmailDeliveryService), client => client.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddSingleton<EmailDeliveryService>();
 builder.Services.AddHttpClient(nameof(SmsDeliveryService), client => client.Timeout = TimeSpan.FromSeconds(30));
@@ -77,6 +109,15 @@ builder.Services.AddRateLimiter(options =>
             QueueLimit = 0,
             AutoReplenishment = true,
         }));
+    options.AddPolicy("telemetryProfileSubmission", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.User.Identity?.Name ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 5,
+            Window = TimeSpan.FromHours(24),
+            QueueLimit = 0,
+            AutoReplenishment = true,
+        }));
     options.AddPolicy("smsTest", context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions
@@ -115,6 +156,9 @@ if (string.IsNullOrWhiteSpace(connectionString))
 builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(connectionString));
 builder.Services.AddSingleton<BouncieRestService>();
 builder.Services.AddSingleton<CredentialProtectionService>();
+builder.Services.AddSingleton<GlobalGeneralSettingsStore>();
+builder.Services.AddSingleton<TelemetryFieldInventoryService>();
+builder.Services.AddHostedService(services => services.GetRequiredService<TelemetryFieldInventoryService>());
 builder.Services.AddSingleton<ProviderAccountStore>();
 builder.Services.AddSingleton<TelemetryShareTokenService>();
 builder.Services.AddHostedService<TelemetryShareCleanupService>();
@@ -124,10 +168,13 @@ var requestLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogg
 
 await EnsureEnrichmentSchemaAsync(app.Services);
 await EnsureInitialAdminAsync(app.Services, authOptions);
+await app.Services.GetRequiredService<GlobalGeneralSettingsStore>().EnsureSchemaAsync();
 await ProviderAccountSchema.EnsureAsync(app.Services);
 await EmailAlertSchema.EnsureAsync(app.Services);
 await SmsTestSchema.EnsureAsync(app.Services);
 await SmsAlertSchema.EnsureAsync(app.Services);
+await TelemetrySourceMappingSchema.EnsureAsync(app.Services);
+await app.Services.GetRequiredService<TelemetryFieldInventoryService>().EnsureSchemaAsync();
 await app.Services.GetRequiredService<BouncieRestService>().InitializeAsync();
 
 if (app.Environment.IsDevelopment())
@@ -256,6 +303,8 @@ app.Use(async (context, next) =>
 app.MapVehicleAppAuthEndpoints();
 app.MapUserAccessEndpoints();
 app.MapUserPreferenceEndpoints();
+app.MapGlobalGeneralSettingsEndpoints();
+app.MapTraccarProxyEndpoints();
 app.MapTripIdentityEndpoints();
 app.MapTripDaySummaryEndpoints();
 app.MapTripRecalculationEndpoints();
@@ -282,6 +331,10 @@ app.MapStatusCardEndpoints();
 app.MapTelemetryShareEndpoints();
 app.MapTelemetrySharePublicEndpoints();
 app.MapTelemetryProfileEndpoints();
+app.MapTelemetryProfileSubmissionEndpoints();
+app.MapTelemetrySourceMappingEndpoints();
+app.MapTelemetryFieldInventoryEndpoints();
+app.MapDeploymentTestTransferEndpoints();
 app.MapDeviceProtocolDiagnosticsEndpoints();
 
 app.MapGet("/health", async Task<IResult> (NpgsqlDataSource dataSource, CancellationToken cancellationToken) =>
@@ -321,7 +374,7 @@ app.MapGet("/api/vehicles", async Task<IResult> (NpgsqlDataSource dataSource, Ve
                             v.make,
                             v.model,
                             v.notes,
-                            v.profile_id,
+                            case when profile_assignment.id is not null then profile_assignment.profile_id else v.profile_id end as profile_id,
                             b.traccar_device_id,
                             v.active,
                             v.created_at
@@ -334,6 +387,13 @@ app.MapGet("/api/vehicles", async Task<IResult> (NpgsqlDataSource dataSource, Ve
                             order by b.is_primary desc, b.starts_at desc
                             limit 1
                         ) b on true
+                        left join lateral (
+                            select id, profile_id
+                            from vehicle_profile_assignment_revisions a
+                            where a.vehicle_id = v.id and a.effective_at <= now()
+                            order by a.effective_at desc, a.revision_order desc
+                            limit 1
+                        ) profile_assignment on true
                         where not @authEnabled or @isAdmin or exists (
                             select 1
                             from app_users u
@@ -401,6 +461,59 @@ app.MapGet("/api/vehicles", async Task<IResult> (NpgsqlDataSource dataSource, Ve
 .WithSummary("Returns app vehicles.")
 .WithDescription("Reads from vehicle_app.vehicles.");
 
+app.MapGet("/api/vehicle-profile-assignments/history", async Task<IResult> (
+    NpgsqlDataSource dataSource,
+    VehicleAppAuthOptions authOptions,
+    HttpContext context,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            """
+            select a.vehicle_id, a.profile_id, a.effective_at, a.recorded_at, a.change_kind, a.revision_order
+            from vehicle_profile_assignment_revisions a
+            join vehicles v on v.id = a.vehicle_id
+            where not @authEnabled or @isAdmin or exists (
+              select 1 from app_users u
+              where u.username=@username and u.active and (
+                exists (select 1 from app_user_vehicle_access ua where ua.user_id=u.id and ua.vehicle_id=v.id)
+                or exists (
+                  select 1 from app_group_memberships gm
+                  join app_group_vehicle_access ga on ga.group_id=gm.group_id
+                  where gm.user_id=u.id and ga.vehicle_id=v.id
+                )
+              )
+            )
+            order by a.vehicle_id, a.effective_at, a.revision_order
+            """, connection);
+        command.Parameters.AddWithValue("authEnabled", authOptions.Enabled);
+        command.Parameters.AddWithValue("isAdmin", context.User.IsInRole("admin"));
+        command.Parameters.AddWithValue("username", context.User.Identity?.Name ?? string.Empty);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var results = new List<VehicleProfileAssignmentResponse>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(new VehicleProfileAssignmentResponse(
+                reader.GetGuid(0),
+                reader.IsDBNull(1) ? null : reader.GetString(1),
+                reader.GetFieldValue<DateTimeOffset>(2),
+                reader.GetFieldValue<DateTimeOffset>(3),
+                reader.GetString(4),
+                reader.GetInt64(5)));
+        }
+        return TypedResults.Ok(results);
+    }
+    catch (PostgresException ex)
+    {
+        return Results.Problem($"PostgreSQL {ex.SqlState}: {ex.MessageText}", statusCode: 500);
+    }
+})
+.WithName("GetVehicleProfileAssignmentHistory")
+.WithSummary("Returns effective-dated profile assignments for vehicles the user can access.");
+
 app.MapPost("/api/vehicles/upsert", async Task<IResult> (
     UpsertVehicleRequest request,
     NpgsqlDataSource dataSource,
@@ -412,26 +525,91 @@ app.MapPost("/api/vehicles/upsert", async Task<IResult> (
     try
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(
-            """
-            insert into vehicles (id, display_name, vin, year, make, model, notes, profile_id, active, updated_at)
-            values (coalesce(@id, gen_random_uuid()), @displayName, @vin, @year, @make, @model, @notes, @profileId, @active, now())
-            on conflict (id) do update set
-              display_name = excluded.display_name, vin = excluded.vin, year = excluded.year,
-              make = excluded.make, model = excluded.model, notes = excluded.notes, profile_id = excluded.profile_id,
-              active = excluded.active, updated_at = now()
-            returning id
-            """, connection);
-        command.Parameters.AddWithValue("id", (object?)request.Id ?? DBNull.Value);
-        command.Parameters.AddWithValue("displayName", request.DisplayName.Trim());
-        command.Parameters.AddWithValue("vin", (object?)request.Vin ?? DBNull.Value);
-        command.Parameters.AddWithValue("year", (object?)request.Year ?? DBNull.Value);
-        command.Parameters.AddWithValue("make", (object?)request.Make ?? DBNull.Value);
-        command.Parameters.AddWithValue("model", (object?)request.Model ?? DBNull.Value);
-        command.Parameters.AddWithValue("notes", (object?)request.Notes ?? DBNull.Value);
-        command.Parameters.AddWithValue("profileId", (object?)request.ProfileId ?? DBNull.Value);
-        command.Parameters.AddWithValue("active", request.Active);
-        var id = (Guid)(await command.ExecuteScalarAsync(cancellationToken))!;
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        var id = request.Id ?? Guid.NewGuid();
+        var existing = false;
+        string? oldProfileId = null;
+        var profileEffectiveAt = (request.ProfileEffectiveFrom ?? DateTimeOffset.UtcNow).ToUniversalTime();
+
+        await using (var lookup = new NpgsqlCommand(
+            "select profile_id from vehicles where id = @id for update", connection, transaction))
+        {
+            lookup.Parameters.AddWithValue("id", id);
+            await using var reader = await lookup.ExecuteReaderAsync(cancellationToken);
+            if (await reader.ReadAsync(cancellationToken))
+            {
+                existing = true;
+                oldProfileId = reader.IsDBNull(0) ? null : reader.GetString(0);
+            }
+        }
+
+        if (existing)
+        {
+            await using var assignment = new NpgsqlCommand(
+                """
+                select exists (
+                    select 1 from vehicle_profile_assignment_revisions
+                    where vehicle_id=@vehicleId and effective_at <= @effectiveAt
+                ), (
+                    select profile_id from vehicle_profile_assignment_revisions
+                    where vehicle_id=@vehicleId and effective_at <= @effectiveAt
+                    order by effective_at desc, revision_order desc limit 1
+                )
+                """, connection, transaction);
+            assignment.Parameters.AddWithValue("vehicleId", id);
+            assignment.Parameters.AddWithValue("effectiveAt", profileEffectiveAt);
+            await using var reader = await assignment.ExecuteReaderAsync(cancellationToken);
+            if (await reader.ReadAsync(cancellationToken) && reader.GetBoolean(0))
+                oldProfileId = reader.IsDBNull(1) ? null : reader.GetString(1);
+        }
+
+        if (existing)
+        {
+            await using var update = new NpgsqlCommand(
+                """
+                update vehicles set display_name=@displayName, vin=@vin, year=@year, make=@make,
+                  model=@model, notes=@notes, active=@active, updated_at=now()
+                where id=@id
+                """, connection, transaction);
+            AddVehicleParameters(update, request, id);
+            await update.ExecuteNonQueryAsync(cancellationToken);
+        }
+        else
+        {
+            await using var insert = new NpgsqlCommand(
+                """
+                insert into vehicles (id, display_name, vin, year, make, model, notes, profile_id, active, updated_at)
+                values (@id, @displayName, @vin, @year, @make, @model, @notes, @profileId, @active, now())
+                """, connection, transaction);
+            AddVehicleParameters(insert, request, id, includeProfile: true);
+            await insert.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        if (!existing || !string.Equals(oldProfileId, request.ProfileId, StringComparison.Ordinal))
+        {
+            await using var revision = new NpgsqlCommand(
+                """
+                insert into vehicle_profile_assignment_revisions (vehicle_id, profile_id, effective_at, change_kind)
+                values (@vehicleId, @profileId, @effectiveAt, 'manual')
+                """, connection, transaction);
+            revision.Parameters.AddWithValue("vehicleId", id);
+            revision.Parameters.AddWithValue("profileId", (object?)request.ProfileId ?? DBNull.Value);
+            revision.Parameters.AddWithValue("effectiveAt", profileEffectiveAt);
+            await revision.ExecuteNonQueryAsync(cancellationToken);
+
+            await using var current = new NpgsqlCommand(
+                """
+                update vehicles set profile_id = (
+                  select profile_id from vehicle_profile_assignment_revisions
+                  where vehicle_id=@vehicleId and effective_at <= now()
+                  order by effective_at desc, revision_order desc limit 1
+                ) where id=@vehicleId
+                """, connection, transaction);
+            current.Parameters.AddWithValue("vehicleId", id);
+            await current.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
         return Results.Ok(new { id });
     }
     catch (PostgresException ex)
@@ -441,6 +619,19 @@ app.MapPost("/api/vehicles/upsert", async Task<IResult> (
 })
 .WithName("UpsertVehicle")
 .WithDescription("Creates or updates an app-owned vehicle record.");
+
+static void AddVehicleParameters(NpgsqlCommand command, UpsertVehicleRequest request, Guid id, bool includeProfile = false)
+{
+    command.Parameters.AddWithValue("id", id);
+    command.Parameters.AddWithValue("displayName", request.DisplayName.Trim());
+    command.Parameters.AddWithValue("vin", (object?)request.Vin ?? DBNull.Value);
+    command.Parameters.AddWithValue("year", (object?)request.Year ?? DBNull.Value);
+    command.Parameters.AddWithValue("make", (object?)request.Make ?? DBNull.Value);
+    command.Parameters.AddWithValue("model", (object?)request.Model ?? DBNull.Value);
+    command.Parameters.AddWithValue("notes", (object?)request.Notes ?? DBNull.Value);
+    command.Parameters.AddWithValue("active", request.Active);
+    if (includeProfile) command.Parameters.AddWithValue("profileId", (object?)request.ProfileId ?? DBNull.Value);
+}
 
 app.MapGet("/api/device-bindings", async Task<IResult> (NpgsqlDataSource dataSource, CancellationToken cancellationToken) =>
 {
@@ -2388,6 +2579,29 @@ static async Task EnsureEnrichmentSchemaAsync(IServiceProvider services)
                         alter table if exists vehicles
                         add column if not exists profile_id text;
 
+                        create table if not exists vehicle_profile_assignment_revisions (
+                            id uuid primary key default gen_random_uuid(),
+                            revision_order bigserial not null unique,
+                            vehicle_id uuid not null references vehicles(id) on delete cascade,
+                            profile_id text,
+                            effective_at timestamptz not null,
+                            recorded_at timestamptz not null default now(),
+                            change_kind text not null default 'manual'
+                        );
+
+                        alter table vehicle_profile_assignment_revisions
+                        add column if not exists revision_order bigserial;
+
+                        create index if not exists ix_vehicle_profile_assignment_effective
+                        on vehicle_profile_assignment_revisions (vehicle_id, effective_at desc, revision_order desc);
+
+                        insert into vehicle_profile_assignment_revisions (vehicle_id, profile_id, effective_at, change_kind)
+                        select v.id, v.profile_id, v.created_at, 'legacy-baseline'
+                        from vehicles v
+                        where not exists (
+                            select 1 from vehicle_profile_assignment_revisions a where a.vehicle_id = v.id
+                        );
+
                         create table if not exists bouncie_credentials (
                             id smallint primary key check (id = 1),
                             client_id text not null,
@@ -2509,7 +2723,16 @@ public sealed record UpsertVehicleRequest(
     string? Model,
     string? Notes,
     string? ProfileId,
-    bool Active = true);
+    bool Active = true,
+    DateTimeOffset? ProfileEffectiveFrom = null);
+
+public sealed record VehicleProfileAssignmentResponse(
+    Guid VehicleId,
+    string? ProfileId,
+    DateTimeOffset EffectiveAt,
+    DateTimeOffset RecordedAt,
+    string ChangeKind,
+    long RevisionOrder);
 
 /// <summary>Active binding between a Traccar device and an app vehicle.</summary>
 public sealed record DeviceBindingResponse(

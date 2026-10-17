@@ -11,7 +11,6 @@ import {
   saveEmailAlertPreferences,
   saveEmailSenderSettings,
   saveProviderAccount,
-  importLegacyProviderAccount,
   fetchVehicleEmailProviderAssignments,
   saveVehicleEmailProviderAssignment,
   sendEmailTest,
@@ -185,7 +184,7 @@ export default function EmailAlertsSettings({ baseUrl, vehicleAuth, vehicles }) 
       const saved = await saveEmailSenderSettings(baseUrl, senderMailbox.trim())
       setSenderMailbox(saved.defaultSenderUserId || '')
       await refreshProviderStatus()
-      setMessage('Default Graph sender mailbox saved.')
+      setMessage('Graph sender mailbox saved.')
     } catch (error) {
       setMessage(error.message)
     } finally {
@@ -293,22 +292,6 @@ export default function EmailAlertsSettings({ baseUrl, vehicleAuth, vehicles }) 
     } catch (error) { setMessage(error.message) } finally { setBusy(false) }
   }
 
-  const importLegacyEmail = async () => {
-    setBusy(true)
-    setMessage('')
-    try {
-      const imported = await importLegacyProviderAccount(baseUrl, 'email')
-      const accounts = await fetchProviderAccounts(baseUrl)
-      setProviderAccounts(accounts)
-      const account = accounts.find((item) => item.id === imported.id)
-      if (account?.provider === 'Graph') startGraphAccount(account)
-      else if (account) startOtherEmailAccount(account)
-      setMessage(imported.alreadyImported
-        ? 'This legacy email configuration was already imported; its saved values were left unchanged.'
-        : 'Legacy email settings imported as a disabled account. Review it, then enable and select it when ready.')
-    } catch (error) { setMessage(error.message) } finally { setBusy(false) }
-  }
-
   const saveVehicleEmailAccount = async (vehicleId, accountId) => {
     setBusy(true)
     setMessage('')
@@ -378,7 +361,6 @@ export default function EmailAlertsSettings({ baseUrl, vehicleAuth, vehicles }) 
       </p>}
       {vehicleAuth?.role === 'admin' && <div className="actions">
         <button type="button" className="secondary" onClick={refreshProviderStatus}>Refresh Email Provider Status</button>
-        <button type="button" className="secondary" onClick={importLegacyEmail} disabled={busy}>Import Legacy Email Settings</button>
       </div>}
       {vehicleAuth?.role === 'admin' && <>
         <h5>Microsoft Graph API account</h5>
@@ -397,6 +379,13 @@ export default function EmailAlertsSettings({ baseUrl, vehicleAuth, vehicles }) 
           <label>Client secret {graphAccount.secretConfigured ? '(configured; enter a value to replace)' : ''}
             <input type="password" autoComplete="new-password" value={graphSecret} onChange={(event) => setGraphSecret(event.target.value)} placeholder={graphAccount.secretConfigured ? 'Saved secret is not shown' : 'Enter client secret'} />
           </label>
+          {vehicleAuth?.role === 'admin' && ['disabled', 'graph'].includes(providerStatus?.provider?.toLowerCase()) && <>
+            <label>Graph sender mailbox
+              <input type="email" name="graph-sender-mailbox" autoComplete="off" value={senderMailbox} onChange={(event) => setSenderMailbox(event.target.value)} placeholder="alerts@example.com" />
+            </label>
+            <p className="profile-editor-help">This mailbox sends alerts unless a vehicle has its own sender set in Vehicle Catalog. The Graph app must have permission to send from each selected mailbox.</p>
+            <div className="actions"><button type="button" className="secondary" onClick={saveSenderMailbox} disabled={busy}>Save Graph Sender Mailbox</button></div>
+          </>}
           {graphAccount.secretConfigured && <label className="checkbox-row"><input type="checkbox" checked={clearGraphSecret} onChange={(event) => setClearGraphSecret(event.target.checked)} />Clear saved client secret</label>}
           <label className="checkbox-row"><input type="checkbox" checked={graphAccount.enabled} onChange={(event) => setGraphAccount({ ...graphAccount, enabled: event.target.checked })} />Enable this account</label>
           <label className="checkbox-row"><input type="checkbox" checked={graphAccount.isDefault} onChange={(event) => setGraphAccount({ ...graphAccount, isDefault: event.target.checked })} />Use as default email provider account</label>
@@ -458,13 +447,7 @@ export default function EmailAlertsSettings({ baseUrl, vehicleAuth, vehicles }) 
           </select>
         </label>)}
       </>}
-      {vehicleAuth?.role === 'admin' && ['disabled', 'graph'].includes(providerStatus?.provider?.toLowerCase()) && <>
-        <label>Default Graph sender mailbox
-          <input type="email" name="graph-sender-mailbox" autoComplete="off" value={senderMailbox} onChange={(event) => setSenderMailbox(event.target.value)} placeholder="alerts@example.com" />
-        </label>
-        <p className="profile-editor-help">This mailbox sends alerts unless a vehicle has its own sender set in Vehicle Catalog. The Graph app must have permission to send from each selected mailbox.</p>
-        <div className="actions"><button type="button" className="secondary" onClick={saveSenderMailbox} disabled={busy}>Save Default Sender Mailbox</button></div>
-      </>}
+
       <p className="profile-editor-help">Email alerts are opt-in. Choose event types and verify the recipient address. Only events recorded within an hour of occurring can create alerts.</p>
       <label className="checkbox-row">
         <input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })} />

@@ -9,7 +9,7 @@ function clampPosition(left, top) {
   }
 }
 
-export default function MovableMapKey({ className, position, onPositionChange, onPositionCommit, children }) {
+export default function MovableMapKey({ className, position, onPositionChange, onPositionCommit, onHide, closeLabel = 'Hide map key', children }) {
   const dragRef = useRef(null)
   const beginDrag = useCallback((event) => {
     if (event.button !== 0) return
@@ -32,5 +32,5 @@ export default function MovableMapKey({ className, position, onPositionChange, o
     onPositionCommit(drag.position)
   }, [onPositionCommit])
   const style = position ? { position: 'fixed', left: `${position.left}px`, top: `${position.top}px`, bottom: 'auto' } : undefined
-  return <div className={className} style={style}><div className="map-key-drag-handle" title="Drag to move" onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}>{children}</div></div>
+  return <div className={className} style={style}>{onHide && <button type="button" className="map-panel-close" title={closeLabel} aria-label={closeLabel} onClick={onHide}>×</button>}<div className="map-key-drag-handle" title="Drag to move" onPointerDown={beginDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}>{children}</div></div>
 }

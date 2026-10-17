@@ -1,7 +1,7 @@
 const helpByLabel = {
-  'api base url': 'Base URL for the Traccar API used for devices, positions, and live data. Use the configured proxy path or the server API URL.',
-  'vehicle api base url': 'Base URL for this app’s Vehicle API. This is separate from the Traccar API URL.',
-  'username (email)': 'Traccar account username used by this app. It is not an email alias or a new account signup field.',
+  'api base url': 'Shared Traccar API URL used by every user for devices, positions, and live data. The Vehicle API proxies these requests using the saved Traccar credentials.',
+  'vehicle api base url': 'Shared base URL for this app’s Vehicle API. All users use this URL for app data and settings requests.',
+  'username (email)': 'Shared Traccar account username used by the app for every user. This is not a Vehicle App login or an email alias.',
   username: 'Login name for this Vehicle App user. Use it when signing in to the app.',
   password: 'Password for the selected account. When editing an existing user, leave blank to keep the current password.',
   'poll interval (ms)': 'How often the app asks Traccar for updated device data. Lower values refresh more often and make more requests.',
@@ -65,7 +65,8 @@ const helpByLabel = {
   'webhook token': 'Token used to validate provider webhook requests.',
   'sender email': 'Email address used as the sender for messages from this provider account.',
   'sender name': 'Name recipients see as the sender of alert emails.',
-  'default graph sender mailbox': 'Default Microsoft Graph mailbox used to send alert emails.',
+  'graph sender mailbox': 'Shared mailbox address used by Microsoft Graph to send alerts. Vehicle-specific sender addresses can override it.',
+  'default graph sender mailbox': 'Shared Microsoft Graph mailbox used to send alert emails unless a vehicle has its own sender.',
   'email account': 'Select the email provider account to edit.',
   'account sid': 'Provider account identifier supplied by your messaging provider.',
   role: 'Administrators can manage shared settings and user access. Regular users have the permissions assigned to them.',
@@ -83,8 +84,8 @@ const helpByLabel = {
 }
 
 const helpBySectionAndLabel = {
-  'general|username': 'Username for the Traccar server. It is used with the Traccar API password below; it is not a new email or alias signup field.',
-  'general|password': 'Password for the Traccar account above. It is stored in this browser’s app settings and sent to Traccar when the app makes API requests.',
+  'general|shared traccar username': 'Username for the shared Traccar account. It is used by the server for every user and is not an email alias or a Vehicle App login.',
+  'general|shared traccar password': 'Password for the shared Traccar account. The Vehicle API stores it encrypted and uses it for Traccar requests. Leave blank to keep the saved password.',
   'users and groups|username': 'Unique login name for this Vehicle App user.',
   'users and groups|password': 'Set a password for this user. When editing an existing user, leave it blank to keep the current password.',
   'vehicle catalog|name': 'Display name for this catalog vehicle. It appears in vehicle lists and reports.',
@@ -144,4 +145,68 @@ export function addSettingsFieldTips(root) {
       }
     })
   })
+}
+
+export function bindSettingsTooltipBehavior(root) {
+  if (!root) return () => {}
+
+  let activeHost = null
+  let showTimer = null
+  let pendingHost = null
+
+  const cancelPendingShow = () => {
+    if (showTimer) window.clearTimeout(showTimer)
+    showTimer = null
+    pendingHost = null
+  }
+
+  const hideActive = () => {
+    cancelPendingShow()
+    if (activeHost) activeHost.removeAttribute('data-tip-visible')
+    activeHost = null
+  }
+
+  const scheduleShow = (host) => {
+    if (!host || host === activeHost || host === pendingHost) return
+    cancelPendingShow()
+    pendingHost = host
+    showTimer = window.setTimeout(() => {
+      if (!root.contains(host) || pendingHost !== host) return
+      if (activeHost && activeHost !== host) activeHost.removeAttribute('data-tip-visible')
+      activeHost = host
+      host.setAttribute('data-tip-visible', 'true')
+      showTimer = null
+      pendingHost = null
+    }, 500)
+  }
+
+  const onPointerOver = (event) => {
+    if (event.pointerType && event.pointerType !== 'mouse') return
+    const host = event.target.closest?.('[data-field-tip]')
+    if (host && root.contains(host) && !host.contains(event.relatedTarget)) scheduleShow(host)
+  }
+
+  const onPointerOut = (event) => {
+    if (event.pointerType && event.pointerType !== 'mouse') return
+    const host = event.target.closest?.('[data-field-tip]')
+    if (!host || host.contains(event.relatedTarget)) return
+    if (pendingHost === host) cancelPendingShow()
+    if (activeHost === host) hideActive()
+  }
+
+  const onClick = (event) => {
+    if (event.target.closest?.('input, select, textarea, button')) hideActive()
+  }
+
+  root.addEventListener('pointerover', onPointerOver)
+  root.addEventListener('pointerout', onPointerOut)
+  root.addEventListener('click', onClick)
+
+  return () => {
+    cancelPendingShow()
+    root.removeEventListener('pointerover', onPointerOver)
+    root.removeEventListener('pointerout', onPointerOut)
+    root.removeEventListener('click', onClick)
+    if (activeHost) activeHost.removeAttribute('data-tip-visible')
+  }
 }

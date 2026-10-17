@@ -1,0 +1,337 @@
+{
+  "catalogVersion": 1,
+  "manufacturer": "Queclink",
+  "model": "GV300",
+  "status": "research",
+  "fields": [
+    {
+      "key": "adc1",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "GTFRI Analog Input 1",
+      "applicability": {
+        "manufacturer": "Queclink",
+        "model": "GV300"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Queclink GV300 protocol document (third-party host)",
+            "url": "https://www.controlsatperu.com/Manuales/GV300%202/SMS%20comandos%20GV300%20quecklink.pdf",
+            "supports": "Documented field name: GTFRI Analog Input 1."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/Gl200TextProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"adc1\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          },
+          {
+            "title": "Queclink GV300 product specification",
+            "url": "https://www.queclink.com/sites/default/files/GV300%20EN%2020140529_1.pdf",
+            "supports": "Confirms one analog input and one configurable input that can be set as analog; it does not define Traccar position keys or the protocol value representation."
+          }
+        ],
+        "knownLimitations": [
+          "pin mode/configuration dependent",
+          "The Queclink protocol document cited here is hosted by a third party; keep this as a label-only suggestion until a vendor-issued protocol copy or a matching device sample is verified."
+        ]
+      },
+      "suggestionReason": "Documentation names this field 'GTFRI Analog Input 1' for GV300. pin mode/configuration dependent This is a label-only guess; confirm the raw Traccar key and device configuration."
+    },
+    {
+      "key": "adc2",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "GTFRI Analog Input 2",
+      "applicability": {
+        "manufacturer": "Queclink",
+        "model": "GV300"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Queclink GV300 protocol document (third-party host)",
+            "url": "https://www.controlsatperu.com/Manuales/GV300%202/SMS%20comandos%20GV300%20quecklink.pdf",
+            "supports": "Documented field name: GTFRI Analog Input 2."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/Gl200TextProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"adc2\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          },
+          {
+            "title": "Queclink GV300 product specification",
+            "url": "https://www.queclink.com/sites/default/files/GV300%20EN%2020140529_1.pdf",
+            "supports": "Confirms one analog input and one configurable input that can be set as analog; it does not define Traccar position keys or the protocol value representation."
+          }
+        ],
+        "knownLimitations": [
+          "pin mode/configuration dependent",
+          "The Queclink protocol document cited here is hosted by a third party; keep this as a label-only suggestion until a vendor-issued protocol copy or a matching device sample is verified."
+        ]
+      },
+      "suggestionReason": "Documentation names this field 'GTFRI Analog Input 2' for GV300. pin mode/configuration dependent This is a label-only guess; confirm the raw Traccar key and device configuration."
+    },
+    {
+      "key": "battery",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "GTINF Backup Battery VCC",
+      "applicability": {
+        "manufacturer": "Queclink",
+        "model": "GV300"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Queclink GV300 protocol document (third-party host)",
+            "url": "https://www.controlsatperu.com/Manuales/GV300%202/SMS%20comandos%20GV300%20quecklink.pdf",
+            "supports": "Documented field name: GTINF Backup Battery VCC."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/Gl200TextProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"battery\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "manufacturer protocol + decoder",
+          "The Queclink protocol document cited here is hosted by a third party; keep this as a label-only suggestion until a vendor-issued protocol copy or a matching device sample is verified."
+        ]
+      },
+      "suggestionReason": "Documentation names this field 'GTINF Backup Battery VCC' for GV300. manufacturer protocol + decoder This is a label-only guess; confirm the raw Traccar key and device configuration."
+    },
+    {
+      "key": "batteryLevel",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "GTFRI Backup Battery Percentage",
+      "applicability": {
+        "manufacturer": "Queclink",
+        "model": "GV300"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Queclink GV300 protocol document (third-party host)",
+            "url": "https://www.controlsatperu.com/Manuales/GV300%202/SMS%20comandos%20GV300%20quecklink.pdf",
+            "supports": "Documented field name: GTFRI Backup Battery Percentage."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/Gl200TextProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"batteryLevel\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "manufacturer protocol + decoder",
+          "The Queclink protocol document cited here is hosted by a third party; keep this as a label-only suggestion until a vendor-issued protocol copy or a matching device sample is verified."
+        ]
+      },
+      "suggestionReason": "Documentation names this field 'GTFRI Backup Battery Percentage' for GV300. manufacturer protocol + decoder This is a label-only guess; confirm the raw Traccar key and device configuration."
+    },
+    {
+      "key": "hdop",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "GPS Accuracy HDOP",
+      "applicability": {
+        "manufacturer": "Queclink",
+        "model": "GV300"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Queclink GV300 protocol document (third-party host)",
+            "url": "https://www.controlsatperu.com/Manuales/GV300%202/SMS%20comandos%20GV300%20quecklink.pdf",
+            "supports": "Documented field name: GPS Accuracy HDOP."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/Gl200TextProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"hdop\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "decoder also marks fix validity",
+          "The Queclink protocol document cited here is hosted by a third party; keep this as a label-only suggestion until a vendor-issued protocol copy or a matching device sample is verified."
+        ]
+      },
+      "suggestionReason": "Documentation names this field 'GPS Accuracy HDOP' for GV300. decoder also marks fix validity This is a label-only guess; confirm the raw Traccar key and device configuration."
+    },
+    {
+      "key": "hours",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "GTFRI Hour Meter Count",
+      "applicability": {
+        "manufacturer": "Queclink",
+        "model": "GV300"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Queclink GV300 protocol document (third-party host)",
+            "url": "https://www.controlsatperu.com/Manuales/GV300%202/SMS%20comandos%20GV300%20quecklink.pdf",
+            "supports": "Documented field name: GTFRI Hour Meter Count."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/Gl200TextProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"hours\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "configured engine-on hour meter",
+          "The Queclink protocol document cited here is hosted by a third party; keep this as a label-only suggestion until a vendor-issued protocol copy or a matching device sample is verified."
+        ]
+      },
+      "suggestionReason": "Documentation names this field 'GTFRI Hour Meter Count' for GV300. configured engine-on hour meter This is a label-only guess; confirm the raw Traccar key and device configuration."
+    },
+    {
+      "key": "ignition",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "GTINF State or device I/O status",
+      "applicability": {
+        "manufacturer": "Queclink",
+        "model": "GV300"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Queclink GV300 protocol document (third-party host)",
+            "url": "https://www.controlsatperu.com/Manuales/GV300%202/SMS%20comandos%20GV300%20quecklink.pdf",
+            "supports": "Documented field name: GTINF State or device I/O status."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/Gl200TextProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"ignition\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "check report and ignition wiring/config",
+          "The Queclink protocol document cited here is hosted by a third party; keep this as a label-only suggestion until a vendor-issued protocol copy or a matching device sample is verified."
+        ]
+      },
+      "suggestionReason": "Documentation names this field 'GTINF State or device I/O status' for GV300. check report and ignition wiring/config This is a label-only guess; confirm the raw Traccar key and device configuration."
+    },
+    {
+      "key": "motion",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "GTINF State",
+      "applicability": {
+        "manufacturer": "Queclink",
+        "model": "GV300"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Queclink GV300 protocol document (third-party host)",
+            "url": "https://www.controlsatperu.com/Manuales/GV300%202/SMS%20comandos%20GV300%20quecklink.pdf",
+            "supports": "Documented field name: GTINF State."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/Gl200TextProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"motion\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "motion state rather than g-force",
+          "The Queclink protocol document cited here is hosted by a third party; keep this as a label-only suggestion until a vendor-issued protocol copy or a matching device sample is verified."
+        ]
+      },
+      "suggestionReason": "Documentation names this field 'GTINF State' for GV300. motion state rather than g-force This is a label-only guess; confirm the raw Traccar key and device configuration."
+    },
+    {
+      "key": "odometer",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "GTFRI Mileage",
+      "applicability": {
+        "manufacturer": "Queclink",
+        "model": "GV300"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Queclink GV300 protocol document (third-party host)",
+            "url": "https://www.controlsatperu.com/Manuales/GV300%202/SMS%20comandos%20GV300%20quecklink.pdf",
+            "supports": "Documented field name: GTFRI Mileage."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/Gl200TextProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"odometer\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "decoder emits metres",
+          "The Queclink protocol document cited here is hosted by a third party; keep this as a label-only suggestion until a vendor-issued protocol copy or a matching device sample is verified."
+        ]
+      },
+      "suggestionReason": "Documentation names this field 'GTFRI Mileage' for GV300. decoder emits metres This is a label-only guess; confirm the raw Traccar key and device configuration."
+    },
+    {
+      "key": "power",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "GTFRI External Power Supply",
+      "applicability": {
+        "manufacturer": "Queclink",
+        "model": "GV300"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Queclink GV300 protocol document (third-party host)",
+            "url": "https://www.controlsatperu.com/Manuales/GV300%202/SMS%20comandos%20GV300%20quecklink.pdf",
+            "supports": "Documented field name: GTFRI External Power Supply."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/Gl200TextProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"power\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "manufacturer protocol + decoder",
+          "The Queclink protocol document cited here is hosted by a third party; keep this as a label-only suggestion until a vendor-issued protocol copy or a matching device sample is verified."
+        ]
+      },
+      "suggestionReason": "Documentation names this field 'GTFRI External Power Supply' for GV300. manufacturer protocol + decoder This is a label-only guess; confirm the raw Traccar key and device configuration."
+    },
+    {
+      "key": "rssi",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "GTINF CSQ RSSI",
+      "applicability": {
+        "manufacturer": "Queclink",
+        "model": "GV300"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Queclink GV300 protocol document (third-party host)",
+            "url": "https://www.controlsatperu.com/Manuales/GV300%202/SMS%20comandos%20GV300%20quecklink.pdf",
+            "supports": "Documented field name: GTINF CSQ RSSI."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/Gl200TextProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"rssi\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "manufacturer CSQ range 0..31 or 99",
+          "The Queclink protocol document cited here is hosted by a third party; keep this as a label-only suggestion until a vendor-issued protocol copy or a matching device sample is verified."
+        ]
+      },
+      "suggestionReason": "Documentation names this field 'GTINF CSQ RSSI' for GV300. manufacturer CSQ range 0..31 or 99 This is a label-only guess; confirm the raw Traccar key and device configuration."
+    }
+  ]
+}

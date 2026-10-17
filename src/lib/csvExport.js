@@ -64,8 +64,9 @@ function metersToFeet(value) {
   return Number.isFinite(n) ? (n * 3.28084).toFixed(2) : ''
 }
 
-export function buildRangeCsv({ dayKey, deviceName, points, carProfile, headerMode = 'translated', unitSystem = carProfile?.unitSystem || 'imperial' }) {
+export function buildRangeCsv({ dayKey, deviceName, points, carProfile, profileForPoint = null, headerMode = 'translated', unitSystem = carProfile?.unitSystem || 'imperial' }) {
   const metric = unitSystem === 'metric'
+  const headerProfile = points.length > 0 ? profileForPoint?.(points[0]) || carProfile : carProfile
   const attributeKeys = new Set()
 
   points.forEach((point) => {
@@ -86,7 +87,7 @@ export function buildRangeCsv({ dayKey, deviceName, points, carProfile, headerMo
     metric ? 'altitudeM' : 'altitudeFt',
     ...sortedAttributeKeys.map((key) => {
       if (headerMode === 'teltonika') return key
-      if (carProfile) return carProfile.getAttributeHeader(key)
+      if (headerProfile) return headerProfile.getAttributeHeader(key)
       return `attr_${key}`
     }),
     ...(headerMode === 'teltonika' ? [] : sortedAttributeKeys.map((key) => `raw_attr_${key}`)),
@@ -95,6 +96,7 @@ export function buildRangeCsv({ dayKey, deviceName, points, carProfile, headerMo
   const rows = points.map((point) => {
     const attrs = point.attributes || {}
     const speedKnots = Number(point.speed || 0)
+    const pointProfile = profileForPoint?.(point) || carProfile
 
     return [
       point.timestamp.toISOString(),
@@ -107,9 +109,9 @@ export function buildRangeCsv({ dayKey, deviceName, points, carProfile, headerMo
       metric ? (Number.isFinite(Number(point.altitude)) ? Number(point.altitude).toFixed(2) : '') : metersToFeet(point.altitude),
       ...sortedAttributeKeys.map((key) => {
         const raw = attrs[key] ?? ''
-        return headerMode === 'teltonika' || !carProfile
+        return headerMode === 'teltonika' || !pointProfile
           ? raw
-          : translateAttribute(carProfile, key, raw).value
+          : translateAttribute(pointProfile, key, raw).value
       }),
       ...(headerMode === 'teltonika' ? [] : sortedAttributeKeys.map((key) => attrs[key] ?? '')),
     ]

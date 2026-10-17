@@ -1,13 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { DEFAULT_SPEED_BANDS } from '../lib/speedBands'
-import { DEFAULT_MAP_POPUP_FIELDS, DEFAULT_STATUS_CARD_FIELDS, STATUS_CARD_FIELDS, normalizeStatusCardFields } from '../lib/statusCardFields'
-import { fetchVehicleEmailSender, fetchVehicleSpeedBands, saveVehicleEmailSender, saveVehicleSpeedBands as persistVehicleSpeedBands } from '../lib/vehicleAppApi'
+import { DEFAULT_MAP_POPUP_FIELDS, DEFAULT_STATUS_CARD_FIELDS, getStatusCardFieldOptions, normalizeStatusCardFields } from '../lib/statusCardFields'
+import { fetchTelemetryFieldInventory, fetchVehicleEmailSender, fetchVehicleSpeedBands, saveVehicleEmailSender, saveVehicleSpeedBands as persistVehicleSpeedBands } from '../lib/vehicleAppApi'
 import AdminAccessPanel from './AdminAccessPanel'
 import EmailAlertsSettings from './EmailAlertsSettings'
 import SmsTestSettings from './SmsTestSettings'
 import SmsAlertsSettings from './SmsAlertsSettings'
+import DeploymentTestTransferPanel from './DeploymentTestTransferPanel'
 import { getMappingPropertyDifferences, getProfileMappingDifferences } from '../lib/profileImport'
-import { addSettingsFieldTips } from '../lib/settingsFieldTips'
+import { addSettingsFieldTips, bindSettingsTooltipBehavior } from '../lib/settingsFieldTips'
 
 function formatProfileDifferenceValue(value) {
   if (value === undefined) return '—'
@@ -28,6 +29,8 @@ function SettingsModal({
   startLocationPicker,
   settings,
   updateSetting,
+  canEditGeneralSettings = false,
+  onSaveGlobalGeneralSettings,
   closeModal,
   refreshDevices,
   profileOptions,
@@ -67,6 +70,8 @@ function SettingsModal({
   setVehicleNotes,
   vehicleProfileId,
   setVehicleProfileId,
+  vehicleProfileEffectiveFrom,
+  setVehicleProfileEffectiveFrom,
   vehicleDeviceId,
   setVehicleDeviceId,
   vehicleEffectiveFrom,
@@ -152,6 +157,18 @@ function SettingsModal({
   vehicleAuth,
 }) {
   const modalRef = useRef(null)
+  const [traccarPasswordDraft, setTraccarPasswordDraft] = useState('')
+  const [globalGeneralStatus, setGlobalGeneralStatus] = useState('')
+  const saveGeneralSettings = async () => {
+    setGlobalGeneralStatus('Saving shared settings…')
+    try {
+      await onSaveGlobalGeneralSettings(traccarPasswordDraft)
+      setTraccarPasswordDraft('')
+      setGlobalGeneralStatus('General settings saved for all users.')
+    } catch (error) {
+      setGlobalGeneralStatus(error instanceof Error ? error.message : 'Unable to save global settings.')
+    }
+  }
   const [speedBandVehicleId, setSpeedBandVehicleId] = useState(vehicleEditId || bindingVehicles[0]?.id || '')
   const [speedBands, setSpeedBands] = useState(DEFAULT_SPEED_BANDS)
   const [speedBandCopySourceId, setSpeedBandCopySourceId] = useState('')
@@ -159,6 +176,10 @@ function SettingsModal({
   const [cardFields, setCardFields] = useState(DEFAULT_STATUS_CARD_FIELDS)
   const [mapPopupFields, setMapPopupFields] = useState(DEFAULT_MAP_POPUP_FIELDS)
   const [cardFieldsStatus, setCardFieldsStatus] = useState('')
+  const [statusCardInventory, setStatusCardInventory] = useState(null)
+  const [statusCardInventoryError, setStatusCardInventoryError] = useState('')
+  const [statusCardInventoryLoading, setStatusCardInventoryLoading] = useState(false)
+  const [statusCardFieldSearch, setStatusCardFieldSearch] = useState('')
   const [vehicleEmailSender, setVehicleEmailSender] = useState('')
   const [vehicleEmailSenderStatus, setVehicleEmailSenderStatus] = useState('')
   const [bundledProfileDialogOpen, setBundledProfileDialogOpen] = useState(false)
@@ -168,10 +189,9 @@ function SettingsModal({
   const [bundledProfileDiffs, setBundledProfileDiffs] = useState([])
   const [selectedBundledProperties, setSelectedBundledProperties] = useState({})
   const selectedStatusProfile = profileOptions.find((profile) => profile.id === vehicleProfileId)
-  const statusCardFieldOptions = STATUS_CARD_FIELDS.map((field) => {
-    const mapping = Object.entries(selectedStatusProfile?.attributeMap || {}).find(([, info]) => info?.statusCardField === field)
-    return mapping ? [field, mapping[1].label || field] : null
-  }).filter(Boolean)
+  const availableStatusCardFieldOptions = useMemo(() => getStatusCardFieldOptions(selectedStatusProfile, statusCardInventory?.fields || []), [selectedStatusProfile, statusCardInventory?.fields])
+  const statusCardFieldOptions = useMemo(() => availableStatusCardFieldOptions
+    .filter(({ field, label, key }) => `${field} ${label} ${key}`.toLocaleLowerCase().includes(statusCardFieldSearch.trim().toLocaleLowerCase())), [availableStatusCardFieldOptions, statusCardFieldSearch])
   const trackNameSuggestions = [...new Map((namedPlaces || [])
     .map((place) => String(place.trackName || '').trim())
     .filter(Boolean)
@@ -181,9 +201,13 @@ function SettingsModal({
     const root = modalRef.current
     if (!root) return undefined
     addSettingsFieldTips(root)
+    const unbindTooltips = bindSettingsTooltipBehavior(root)
     const observer = new MutationObserver(() => addSettingsFieldTips(root))
     observer.observe(root, { childList: true, characterData: true, subtree: true })
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      unbindTooltips()
+    }
   }, [])
   const openBundledProfileSearch = () => {
     const found = (onDiscoverBundledProfiles?.() || bundledProfileOptions)
@@ -289,6 +313,42 @@ function SettingsModal({
   useEffect(() => {
     setMapPopupFields(normalizeStatusCardFields(mapPopupFieldsByVehicle?.[vehicleEditId] || DEFAULT_MAP_POPUP_FIELDS))
   }, [mapPopupFieldsByVehicle, vehicleEditId])
+  useEffect(() => {
+    if (!vehicleDeviceId || !vehicleApiBaseUrl) {
+      setStatusCardInventory(null)
+      setStatusCardInventoryError('')
+      return undefined
+    }
+    let active = true
+    setStatusCardInventory(null)
+    setStatusCardInventoryError('')
+    setStatusCardInventoryLoading(true)
+    fetchTelemetryFieldInventory(vehicleApiBaseUrl, vehicleDeviceId)
+      .then((inventory) => { if (active) setStatusCardInventory(inventory) })
+      .catch((error) => { if (active) setStatusCardInventoryError(error instanceof Error ? error.message : 'Could not load fields observed on this vehicle.') })
+      .finally(() => { if (active) setStatusCardInventoryLoading(false) })
+    return () => { active = false }
+  }, [vehicleApiBaseUrl, vehicleDeviceId])
+  useEffect(() => {
+    if (!vehicleDeviceId || !vehicleApiBaseUrl || !['queued', 'scanning'].includes(statusCardInventory?.status)) return undefined
+    let active = true
+    let timer = null
+    const poll = async () => {
+      try {
+        const inventory = await fetchTelemetryFieldInventory(vehicleApiBaseUrl, vehicleDeviceId)
+        if (!active) return
+        setStatusCardInventory(inventory)
+        if (['queued', 'scanning'].includes(inventory.status)) timer = window.setTimeout(poll, 3000)
+      } catch (error) {
+        if (active) {
+          setStatusCardInventoryError(error instanceof Error ? error.message : 'Could not refresh fields observed on this vehicle.')
+          timer = window.setTimeout(poll, 5000)
+        }
+      }
+    }
+    timer = window.setTimeout(poll, 3000)
+    return () => { active = false; if (timer) window.clearTimeout(timer) }
+  }, [statusCardInventory?.status, vehicleApiBaseUrl, vehicleDeviceId])
   useEffect(() => {
     setVehicleEmailSender('')
     setVehicleEmailSenderStatus('')
@@ -457,6 +517,7 @@ function SettingsModal({
         )}
         <div className="profile-editor">
         <h4>General</h4>
+        <p className="profile-editor-help">These settings are shared by all users. Only administrators can change them.</p>
         <label>
           API Base URL
           <input
@@ -464,6 +525,7 @@ function SettingsModal({
             value={settings.apiBaseUrl}
             onChange={(event) => updateSetting('apiBaseUrl', event.target.value)}
             placeholder="/api or http://host:8082/api"
+            disabled={!canEditGeneralSettings}
           />
         </label>
         <label>
@@ -473,26 +535,30 @@ function SettingsModal({
             value={settings.vehicleApiBaseUrl || '/vehicle-api'}
             onChange={(event) => updateSetting('vehicleApiBaseUrl', event.target.value)}
             placeholder="/vehicle-api or http://localhost:5124"
+            disabled={!canEditGeneralSettings}
           />
         </label>
         <label>
-          Username (email)
+          Shared Traccar Username
           <input
             type="text"
             name="traccar-api-username"
             autoComplete="off"
             value={settings.username}
             onChange={(event) => updateSetting('username', event.target.value)}
+            disabled={!canEditGeneralSettings}
           />
         </label>
         <label>
-          Password
+          Shared Traccar Password
           <input
             type="password"
             name="traccar-api-password"
-            autoComplete="off"
-            value={settings.password}
-            onChange={(event) => updateSetting('password', event.target.value)}
+            autoComplete="new-password"
+            placeholder={canEditGeneralSettings ? (settings.hasTraccarPassword ? 'Saved; leave blank to keep current password' : 'Enter shared Traccar password') : (settings.hasTraccarPassword ? 'Managed by an administrator' : 'Not configured')}
+            value={traccarPasswordDraft}
+            onChange={(event) => setTraccarPasswordDraft(event.target.value)}
+            disabled={!canEditGeneralSettings}
           />
         </label>
         <div className="settings-grid">
@@ -504,6 +570,7 @@ function SettingsModal({
               step="1000"
               value={settings.pollIntervalMs}
               onChange={(event) => updateSetting('pollIntervalMs', Number(event.target.value) || 5000)}
+              disabled={!canEditGeneralSettings}
             />
           </label>
           <label>
@@ -514,6 +581,7 @@ function SettingsModal({
               max="24"
               value={settings.realtimeHours}
               onChange={(event) => updateSetting('realtimeHours', Number(event.target.value) || 3)}
+              disabled={!canEditGeneralSettings}
             />
           </label>
           <label>
@@ -523,18 +591,19 @@ function SettingsModal({
               min="1"
               value={settings.movementThresholdM}
               onChange={(event) => updateSetting('movementThresholdM', Number(event.target.value) || 20)}
+              disabled={!canEditGeneralSettings}
             />
           </label>
           <label>
             Display Units
-            <select value={settings.displayUnits || 'imperial'} onChange={(event) => updateSetting('displayUnits', event.target.value)}>
+            <select value={settings.displayUnits || 'imperial'} onChange={(event) => updateSetting('displayUnits', event.target.value)} disabled={!canEditGeneralSettings}>
               <option value="imperial">Imperial</option>
               <option value="metric">Metric</option>
             </select>
           </label>
           <label>
             Theme
-            <select value={settings.theme} onChange={(event) => updateSetting('theme', event.target.value)}>
+            <select value={settings.theme} onChange={(event) => updateSetting('theme', event.target.value)} disabled={!canEditGeneralSettings}>
               <option value="auto">Auto</option>
               <option value="light">Light</option>
               <option value="dark">Dark</option>
@@ -545,12 +614,18 @@ function SettingsModal({
             <select
               value={settings.useBackendVehicleCatalog ? 'backend' : 'traccar'}
               onChange={(event) => updateSetting('useBackendVehicleCatalog', event.target.value === 'backend')}
+              disabled={!canEditGeneralSettings}
             >
               <option value="traccar">Traccar /devices (default)</option>
               <option value="backend">Vehicle API /api/vehicles</option>
             </select>
           </label>
         </div>
+        {canEditGeneralSettings && <div className="actions">
+          <button type="button" onClick={saveGeneralSettings}>Save Global General Settings</button>
+          {globalGeneralStatus && <span role="status">{globalGeneralStatus}</span>}
+        </div>}
+        {!canEditGeneralSettings && settings.hasTraccarPassword && <p className="profile-editor-help">Shared Traccar connection is configured by an administrator.</p>}
 
         </div>
         <hr className="settings-divider" />
@@ -558,6 +633,7 @@ function SettingsModal({
         <EmailAlertsSettings baseUrl={vehicleApiBaseUrl} vehicleAuth={vehicleAuth} vehicles={bindingVehicles} />
         <SmsAlertsSettings baseUrl={vehicleApiBaseUrl} vehicleAuth={vehicleAuth} vehicles={bindingVehicles} />
         {vehicleAuth?.role === 'admin' && <SmsTestSettings baseUrl={vehicleApiBaseUrl} vehicles={bindingVehicles} />}
+        {vehicleAuth?.role === 'admin' && <DeploymentTestTransferPanel baseUrl={vehicleApiBaseUrl} isAdmin />}
         <hr className="settings-divider" />
 
         <div className="profile-editor">
@@ -582,16 +658,20 @@ function SettingsModal({
                 {profileOptions.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
               </select>
             </label>
+            <label>Profile effective from
+              <input type="datetime-local" value={vehicleProfileEffectiveFrom} onChange={(event) => setVehicleProfileEffectiveFrom(event.target.value)} />
+            </label>
             <label>Traccar Device
               <select value={vehicleDeviceId} onChange={(event) => setVehicleDeviceId(event.target.value)}>
                 <option value="">None (unassigned)</option>
                 {bindingDevices.map((device) => <option key={device.id} value={device.id}>{device.name} (id {device.id})</option>)}
               </select>
             </label>
-            <label>Effective From
+            <label>Device binding effective from
               <input type="datetime-local" value={vehicleEffectiveFrom} onChange={(event) => setVehicleEffectiveFrom(event.target.value)} />
             </label>
           </div>
+          <small>Profile assignments use their effective time when resolving historical telemetry; changing a profile does not reinterpret records before its effective date.</small>
           <label>Notes<textarea rows={3} value={vehicleNotes} onChange={(event) => setVehicleNotes(event.target.value)} /></label>
           {vehicleEditId && vehicleAuth?.role === 'admin' && <div className="profile-editor-subsection">
             <h5>Email sender for this vehicle</h5>
@@ -603,16 +683,24 @@ function SettingsModal({
           {vehicleEditorStatus && <div className="profile-editor-status">{vehicleEditorStatus}</div>}
           <div className="actions"><button type="button" onClick={saveVehicle}>Save Vehicle</button></div>
           {vehicleEditId && <>
-            <p className="profile-editor-help">The checkbox controls the Vehicle Status card. The switch controls map point popups; enabling it will show the corresponding field in the map point popups.</p>
+            <p className="profile-editor-help">Every field in the selected profile and every field found in this vehicle's history can be shown on the Vehicle Status card. Unmapped fields display with their received key until you add a description in the Device Protocol Profile. The switch separately controls map point popups.</p>
+            {vehicleDeviceId && <small className="profile-editor-help" role="status">{statusCardInventoryLoading && !statusCardInventory ? 'Loading fields seen in vehicle history…' : statusCardInventoryError || (
+              statusCardInventory?.status === 'queued' ? 'Scanning vehicle history for additional fields…' :
+              statusCardInventory?.status === 'scanning' ? `Scanning vehicle history${statusCardInventory.progressPercent == null ? '…' : `… ${Math.round(statusCardInventory.progressPercent)}%`}` :
+              statusCardInventory?.status === 'complete' ? `${statusCardInventory.fields.length} fields found in this vehicle's history.` :
+              'Vehicle history field inventory will load automatically.'
+            )}</small>}
+            <label className="status-card-field-search">Filter available fields<input type="search" value={statusCardFieldSearch} onChange={(event) => setStatusCardFieldSearch(event.target.value)} placeholder="Field name or received key" /></label>
+            <small className="profile-editor-help">{statusCardFieldSearch ? `${statusCardFieldOptions.length} of ${availableStatusCardFieldOptions.length} field choices match this filter.` : `${availableStatusCardFieldOptions.length} field choices available. When an observed AVL key matches a profile field, they share one choice.`}</small>
             <div className="status-card-field-grid" data-vehicle-id={vehicleEditId}>
-               {statusCardFieldOptions.map(([field, label]) => <div key={field} className="status-card-field-option">
+               {statusCardFieldOptions.map(({ field, label }) => <div key={field} className="status-card-field-option">
                  <label className="checkbox-row"><input type="checkbox" aria-checked={cardFields.includes(field)} checked={cardFields.includes(field)} onChange={() => toggleCardField(field)} />{label}</label>
                  <label className="status-card-popup-switch" title={`Show ${label} on map point popups`}>
                    <input type="checkbox" role="switch" aria-label={`Show ${label} on map point popups`} aria-checked={mapPopupFields.includes(field)} checked={mapPopupFields.includes(field)} onChange={() => toggleMapPopupField(field)} />
                    <span className="status-card-popup-switch-track" aria-hidden="true" />
                  </label>
                </div>)}
-               {statusCardFieldOptions.length === 0 && <span className="profile-editor-help">Choose a device profile with status fields to configure this card.</span>}
+                {statusCardFieldOptions.length === 0 && <span className="profile-editor-help">No available fields match this filter. Choose a device profile or clear the filter.</span>}
             </div>
             {cardFieldsStatus && <div className="profile-editor-status">{cardFieldsStatus}</div>}
             <div className="actions"><button type="button" className="secondary" onClick={saveCardFields}>Save Status Card Fields</button></div>
@@ -912,7 +1000,7 @@ function SettingsModal({
           <div className="profile-mapping-open-row">
             <button id="open-device-protocol-profile-editor" type="button" className="secondary" onClick={onOpenProfileMappingEditor}>Open Visual Field Mapping Editor</button>
           </div>
-          <p className="profile-editor-help">Each field may define its label and display units, source/canonical units, <code>canonicalScale</code> and optional <code>canonicalOffset</code> (raw × scale + offset), AVL ID, semantic <code>quantity</code>, optional <code>statusCardField</code>, sentinels, precision, and a legacy conversion. Canonical mappings convert to the user's Imperial or Metric preference. Reports and the status card use the assigned profile's labels and units. AVL 12/13 remain raw until their meaning is confirmed. Only set source/canonical units when confirmed against Traccar data.</p>
+          <p className="profile-editor-help">Each field may define its label and display units, source/canonical units, <code>canonicalScale</code> and optional <code>canonicalOffset</code> (raw × scale + offset), AVL ID, semantic <code>quantity</code>, optional <code>statusCardField</code>, sentinels, precision, and a legacy conversion. Canonical mappings convert to the user's Imperial or Metric preference. Reports and the status card use the assigned profile's labels and units. Bundled FMM003/FMM00A mappings distinguish raw AVL counts from already decoded Traccar values. Keep source units and conversions matched to the received key.</p>
 
           {profileStorageNotice && <div className="profile-editor-status" role="status">{profileStorageNotice}</div>}
           {profileSyncStatus && <div className="profile-editor-status" role="status">{profileSyncStatus}</div>}

@@ -1,8 +1,23 @@
 import teltonikaFmm003 from '../../device-profiles/teltonika-fmm003.json' with { type: 'json' }
+import teltonikaFmm00a from '../../device-profiles/teltonika-fmm00a.json' with { type: 'json' }
+import teltonikaV15 from '../../device-profile-migrations/teltonika-v15.json' with { type: 'json' }
+import { getDisplayUnitDefinition } from './telemetryUnits.js'
 
 function toNumber(value) {
   const num = Number(value)
   return Number.isFinite(num) ? num : value
+}
+
+// Traccar's generic io fallback reads 1/2/4-byte values as unsigned integers.
+// Apply the documented signed width only to raw fields that explicitly opt in.
+function receivedNumber(info, value) {
+  const number = toNumber(value)
+  if (!info?.sourceSignedBits || typeof number !== 'number') return number
+  const bits = info.sourceSignedBits
+  if (![8, 16, 32].includes(bits) || !Number.isSafeInteger(number)) return NaN
+  const modulus = 2 ** bits
+  if (number < -modulus / 2 || number >= modulus) return NaN
+  return number >= modulus / 2 ? number - modulus : number
 }
 
 const CONVERTERS = {
@@ -135,6 +150,10 @@ const CANONICAL_DISPLAY = {
 }
 
 function canonicalDisplay(info, unitSystem) {
+  if (info?.displayUnit) {
+    const configured = getDisplayUnitDefinition(info.quantity, info.canonicalUnit, info.displayUnit, unitSystem)
+    if (configured) return { unit: configured.symbol, scale: configured.displayScale, offset: configured.displayOffset }
+  }
   if (info?.canonicalUnit && typeof info.canonicalScale === 'number') {
     const display = CANONICAL_DISPLAY[info.canonicalUnit]?.(unitSystem, info.quantity)
     if (display) return display
@@ -159,6 +178,9 @@ export function getAttributeMapValidationIssues(attributeMap) {
     if (info.sentinelValues && !Array.isArray(info.sentinelValues)) addIssue(key, `Sentinel values for ${key} must be an array.`)
     if (info.avlId !== undefined && (!Number.isInteger(Number(info.avlId)) || Number(info.avlId) < 0)) addIssue(key, `AVL ID for ${key} must be a non-negative integer.`)
     if (info.quantity !== undefined && (typeof info.quantity !== 'string' || !info.quantity.trim())) addIssue(key, `Quantity for ${key} must be a non-empty string.`)
+    if (info.sourceSignedBits !== undefined && ![8, 16, 32].includes(info.sourceSignedBits)) addIssue(key, 'Signed source width must be 8, 16, or 32 bits.')
+    if (['text', 'identifier'].includes(info.valueType) && info.sourceSignedBits !== undefined) addIssue(key, 'Text and identifier fields cannot use signed integer decoding.')
+    if (info.statusCardAliases !== undefined && (!Array.isArray(info.statusCardAliases) || info.statusCardAliases.some((alias) => typeof alias !== 'string' || !alias.trim()))) addIssue(key, 'Status-card aliases must be an array of non-empty strings.')
     if (info.valueType !== undefined && !['number', 'text', 'identifier'].includes(info.valueType)) addIssue(key, `Value type for ${key} must be number, text, or identifier.`)
     if (['text', 'identifier'].includes(info.valueType) && (info.conversion || info.canonicalScale !== undefined)) addIssue(key, `Text and identifier fields cannot use numeric conversions or canonical scaling.`)
     if (info.statusCardField !== undefined && (typeof info.statusCardField !== 'string' || !info.statusCardField.trim())) addIssue(key, `Status-card field for ${key} must be a non-empty string.`)
@@ -218,6 +240,7 @@ export class CarProfile {
 
   getAttributeUnit(key) {
     const info = this.getAttributeInfo(key)
+    if (info?.displayUnit) return info.displayUnit
     const canonical = canonicalDisplay(info, this.unitSystem)
     if (canonical) return canonical.unit
     if (typeof info?.canonicalScale === 'number' && info.canonicalUnit) return info.canonicalUnit
@@ -235,8 +258,11 @@ export class CarProfile {
       return ''
     }
 
+    const received = info.sourceSignedBits ? receivedNumber(info, value) : value
+    if (info.sourceSignedBits && !Number.isFinite(received)) return ''
+
     if (typeof info.canonicalScale === 'number') {
-      const raw = toNumber(value)
+      const raw = toNumber(received)
       if (typeof raw !== 'number') return value
       const canonical = raw * info.canonicalScale + (info.canonicalOffset || 0)
       const display = canonicalDisplay(info, this.unitSystem)
@@ -246,10 +272,10 @@ export class CarProfile {
     const metricDisplay = this.unitSystem === 'metric' ? METRIC_DISPLAY[info.conversion] : null
     const conversion = metricDisplay ? metricDisplay.conversion : info.conversion
     if (conversion && CONVERTERS[conversion]) {
-      return CONVERTERS[conversion](value)
+      return CONVERTERS[conversion](received)
     }
 
-    return value
+    return received
   }
 }
 
@@ -261,7 +287,7 @@ export function translateAttribute(profile, key, rawValue) {
   const metadata = { unit, sourceUnit: info?.sourceUnit || null, canonicalUnit: info?.canonicalUnit || null, canonicalScale: Number.isFinite(info?.canonicalScale) ? info.canonicalScale : null, canonicalOffset: Number.isFinite(info?.canonicalOffset) ? info.canonicalOffset : null, precision: Number.isInteger(info?.precision) ? info.precision : null, quantity: info?.quantity || null }
   if (rawValue === undefined || rawValue === null || rawValue === '') return { key, label, rawValue, value: null, ...metadata, status: 'missing', source }
   if (typeof rawValue === 'boolean') {
-    const status = (info?.valueType === 'text' || info?.valueType === 'identifier' || info?.conversion || typeof info?.canonicalScale === 'number') ? 'invalid' : (info ? 'mapped' : 'unmapped')
+    const status = (info?.valueType === 'text' || info?.valueType === 'identifier' || info?.conversion || info?.sourceSignedBits || typeof info?.canonicalScale === 'number') ? 'invalid' : (info ? 'mapped' : 'unmapped')
     return { key, label, rawValue, value: status === 'invalid' ? null : rawValue, ...metadata, status, source }
   }
 
@@ -273,8 +299,8 @@ export function translateAttribute(profile, key, rawValue) {
     return { key, label, rawValue, value: invalidNumericMapping ? null : String(rawValue), ...metadata, canonicalValue: null, status: invalidNumericMapping ? 'invalid' : 'mapped', source }
   }
 
-  const rawNumber = typeof rawValue === 'number' ? rawValue : (typeof rawValue === 'string' && rawValue.trim() !== '' ? Number(rawValue) : NaN)
-  if (typeof info?.canonicalScale === 'number' && !Number.isFinite(rawNumber)) {
+  const rawNumber = receivedNumber(info, typeof rawValue === 'number' ? rawValue : (typeof rawValue === 'string' && rawValue.trim() !== '' ? Number(rawValue) : NaN))
+  if ((typeof info?.canonicalScale === 'number' || info?.sourceSignedBits) && !Number.isFinite(rawNumber)) {
     return { key, label, rawValue, value: null, ...metadata, canonicalValue: null, status: 'invalid', source }
   }
 
@@ -417,7 +443,7 @@ export function migrateProfileDefinition(definition) {
     const field = DEFAULT_PROFILE_DEFINITIONS[DEFAULT_PROFILE_ID]?.attributeMap?.io31
     if (field) {
       attributeMap.io31 = field
-      changes.push('Added the tentative AVL 31 Engine Load?? mapping without replacing a saved mapping.')
+      changes.push('Added the bundled AVL 31 Engine Load mapping without replacing a saved mapping.')
     }
   }
   if (version < 11) {
@@ -452,7 +478,7 @@ export function migrateProfileDefinition(definition) {
     if (addedKeys.length) changes.push(`Added documented FMM003 mappings without replacing saved fields: ${addedKeys.join(', ')}.`)
   }
   if (version < 14 && definition.id === DEFAULT_PROFILE_ID && attributeMap) {
-    const fields = DEFAULT_PROFILE_DEFINITIONS[DEFAULT_PROFILE_ID]?.attributeMap || {}
+    const fields = teltonikaV15[DEFAULT_PROFILE_ID]?.attributeMap || {}
     const updatedKeys = []
     const identifierKeys = Object.entries(fields).filter(([, field]) => field?.valueType === 'identifier').map(([key]) => key)
     for (const key of identifierKeys) {
@@ -461,6 +487,36 @@ export function migrateProfileDefinition(definition) {
       updatedKeys.push(key)
     }
     if (updatedKeys.length) changes.push(`Marked FMM003 identifier fields as text without changing their saved mapping: ${updatedKeys.join(', ')}.`)
+  }
+  if (version < 15 && definition.id === 'teltonika-fmm003' && definition.name === 'Teltonika FMM00A' && attributeMap) {
+    const defaults = DEFAULT_PROFILE_DEFINITIONS['teltonika-fmm003']?.attributeMap || {}
+    const addedKeys = []
+    for (const key of ['engineLoad', 'coolantTemp', 'rpm']) {
+      if (attributeMap[key] || !defaults[key]) continue
+      attributeMap[key] = defaults[key]
+      addedKeys.push(key)
+    }
+    if (addedKeys.length) changes.push(`Added normalized FMM00A telemetry mappings without replacing saved fields: ${addedKeys.join(', ')}.`)
+  }
+  if (version < 16 && attributeMap && teltonikaV15[definition.id]) {
+    const previous = teltonikaV15[definition.id]
+    const defaults = DEFAULT_PROFILE_DEFINITIONS[definition.id]?.attributeMap || {}
+    const stable = (value) => JSON.stringify(value, Object.keys(value || {}).sort())
+    const changed = []
+    for (const [key, field] of Object.entries(defaults)) {
+      if (!attributeMap[key] || (previous.attributeMap[key] && stable(attributeMap[key]) === stable(previous.attributeMap[key]))) {
+        attributeMap[key] = field
+        changed.push(key)
+      }
+    }
+    for (const [key, field] of Object.entries(previous.attributeMap)) {
+      if (!defaults[key] && stable(attributeMap[key]) === stable(field)) {
+        delete attributeMap[key]
+        changed.push(key)
+      }
+    }
+    if (changed.length) changes.push('Updated ' + changed.length + ' unchanged or missing Teltonika fields from the 2026-10-16 manufacturer reference; custom mappings were preserved.')
+    if (definition.name === previous.name) definition = { ...definition, name: DEFAULT_PROFILE_DEFINITIONS[definition.id].name }
   }
   return {
     definition: { ...definition, schemaVersion: PROFILE_DEFINITION_SCHEMA_VERSION, attributeMap },
@@ -472,7 +528,7 @@ export function migrateProfileDefinition(definition) {
 // explicit vehicle first, then use its active device binding for live device
 // contexts. An empty profileId means "no translation" and must not fall
 // through to the legacy browser-only device assignment or the default profile.
-export function resolveProfileContext({ vehicleId = null, deviceId = null, at = null, vehicles = [], bindings = [], profileMap = {} } = {}) {
+export function resolveProfileContext({ vehicleId = null, deviceId = null, at = null, vehicles = [], bindings = [], profileAssignments = [], profileMap = {} } = {}) {
   const sameId = (left, right) => left != null && right != null && String(left) === String(right)
   let vehicle = vehicleId == null ? null : vehicles.find((item) => sameId(item.id, vehicleId)) || null
 
@@ -491,7 +547,21 @@ export function resolveProfileContext({ vehicleId = null, deviceId = null, at = 
 
   if (!vehicle) return { vehicle: null, profileId: null, profile: null, status: 'unbound' }
 
-  const profileId = vehicle.profileId ?? vehicle.profile_id ?? null
+  let profileId = vehicle.profileId ?? vehicle.profile_id ?? null
+  {
+    const sampleTime = at == null ? Date.now() : new Date(at).getTime()
+    const hasHistory = profileAssignments.some((assignment) => sameId(assignment.vehicleId, vehicle.id))
+    if (hasHistory && Number.isFinite(sampleTime)) {
+      const effective = profileAssignments
+        .filter((assignment) => sameId(assignment.vehicleId, vehicle.id)
+          && Number.isFinite(new Date(assignment.effectiveAt).getTime())
+          && new Date(assignment.effectiveAt).getTime() <= sampleTime)
+        .sort((left, right) => new Date(right.effectiveAt).getTime() - new Date(left.effectiveAt).getTime()
+          || Number(right.revisionOrder || 0) - Number(left.revisionOrder || 0)
+          || new Date(right.recordedAt || 0).getTime() - new Date(left.recordedAt || 0).getTime())[0]
+      profileId = effective?.profileId ?? null
+    }
+  }
   if (profileId == null || profileId === '') return { vehicle, profileId: null, profile: null, status: 'none' }
 
   const profile = profileMap[profileId] || null
@@ -505,7 +575,7 @@ const bundledProfileModules = typeof import.meta.glob === 'function'
 const bundledProfiles = Object.values(bundledProfileModules)
 const profileFiles = bundledProfiles.some((profile) => profile?.id === teltonikaFmm003.id)
   ? bundledProfiles
-  : [...bundledProfiles, teltonikaFmm003]
+  : [...bundledProfiles, teltonikaFmm003, teltonikaFmm00a]
 
 export const DEFAULT_PROFILE_DEFINITIONS = Object.fromEntries(
   profileFiles
@@ -514,7 +584,7 @@ export const DEFAULT_PROFILE_DEFINITIONS = Object.fromEntries(
 )
 
 export const DEFAULT_PROFILE_ID = 'buick-enclave-2010'
-export const PROFILE_DEFINITION_SCHEMA_VERSION = 14
+export const PROFILE_DEFINITION_SCHEMA_VERSION = 16
 
 export function getDefaultProfile() {
   return createCarProfile(DEFAULT_PROFILE_DEFINITIONS[DEFAULT_PROFILE_ID])

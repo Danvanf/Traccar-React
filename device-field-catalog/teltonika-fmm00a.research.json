@@ -1,0 +1,288 @@
+{
+  "catalogVersion": 2,
+  "manufacturer": "Teltonika",
+  "model": "FMM00A",
+  "status": "research",
+  "fields": [
+    {
+      "key": "io13201",
+      "manufacturerFieldId": 13201,
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Tracker PCB Temperature",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMM00A"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMM00A Teltonika Data Sending Parameters ID",
+            "url": "https://wiki.teltonika-gps.com/view/FMM00A_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Manufacturer definition for AVL 13201; reviewed 2026-10-16."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"io13201\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ]
+      },
+      "suggestionReason": "Teltonika documents Tracker PCB Temperature as AVL 13201. The bundled FMM00A profile includes the reviewed interpretation. This fallback supplies a name for a custom profile without changing its units or conversions."
+    },
+    {
+      "key": "io540",
+      "manufacturerFieldId": 540,
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Throttle Position Group",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMM00A"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMM00A Teltonika Data Sending Parameters ID",
+            "url": "https://wiki.teltonika-gps.com/view/FMM00A_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Manufacturer definition for AVL 540; reviewed 2026-10-16."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"io540\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ]
+      },
+      "suggestionReason": "Teltonika documents Throttle Position Group as AVL 540. The bundled FMM00A profile includes the reviewed interpretation. This fallback supplies a name for a custom profile without changing its units or conversions."
+    },
+    {
+      "key": "io541",
+      "manufacturerFieldId": 541,
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Commanded Equivalence Ratio",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMM00A"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMM00A Teltonika Data Sending Parameters ID",
+            "url": "https://wiki.teltonika-gps.com/view/FMM00A_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Manufacturer definition for AVL 541; reviewed 2026-10-16."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"io541\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ]
+      },
+      "suggestionReason": "Teltonika documents Commanded Equivalence Ratio as AVL 541. The bundled FMM00A profile includes the reviewed interpretation. This fallback supplies a name for a custom profile without changing its units or conversions."
+    },
+    {
+      "key": "io542",
+      "manufacturerFieldId": 542,
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Intake Manifold Absolute Pressure (2-byte)",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMM00A"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMM00A Teltonika Data Sending Parameters ID",
+            "url": "https://wiki.teltonika-gps.com/view/FMM00A_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Manufacturer definition for AVL 542; reviewed 2026-10-16."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"io542\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ]
+      },
+      "suggestionReason": "Teltonika documents Intake Manifold Absolute Pressure (2-byte) as AVL 542. The bundled FMM00A profile includes the reviewed interpretation. This fallback supplies a name for a custom profile without changing its units or conversions."
+    },
+    {
+      "key": "io1593",
+      "manufacturerFieldId": 1593,
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Calculated Remaining Distance",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMM00A"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMM00A Teltonika Data Sending Parameters ID",
+            "url": "https://wiki.teltonika-gps.com/view/FMM00A_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Manufacturer definition for AVL 1593; reviewed 2026-10-16."
+          }
+        ]
+      },
+      "suggestionReason": "Teltonika documents Calculated Remaining Distance as AVL 1593. The bundled FMM00A profile includes the reviewed interpretation. This fallback supplies a name for a custom profile without changing its units or conversions."
+    },
+    {
+      "key": "io31",
+      "manufacturerFieldId": 31,
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Engine Load",
+      "alternateTraccarKeys": [
+        "engineLoad"
+      ],
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMM00A"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMM00A Teltonika Data Sending Parameters ID",
+            "url": "https://wiki.teltonika-gps.com/view/FMM00A_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Manufacturer definition for AVL 31; reviewed 2026-10-16."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"io31\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ]
+      },
+      "suggestionReason": "Teltonika documents Engine Load as AVL 31. The bundled FMM00A profile includes the reviewed interpretation. This fallback supplies a name for a custom profile without changing its units or conversions."
+    },
+    {
+      "key": "io32",
+      "manufacturerFieldId": 32,
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Coolant Temperature",
+      "alternateTraccarKeys": [
+        "coolantTemp"
+      ],
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMM00A"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMM00A Teltonika Data Sending Parameters ID",
+            "url": "https://wiki.teltonika-gps.com/view/FMM00A_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Manufacturer definition for AVL 32; reviewed 2026-10-16."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"io32\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ]
+      },
+      "suggestionReason": "Teltonika documents Coolant Temperature as AVL 32. The bundled FMM00A profile includes the reviewed interpretation. This fallback supplies a name for a custom profile without changing its units or conversions."
+    },
+    {
+      "key": "io33",
+      "manufacturerFieldId": 33,
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Short Fuel Trim",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMM00A"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMM00A Teltonika Data Sending Parameters ID",
+            "url": "https://wiki.teltonika-gps.com/view/FMM00A_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Manufacturer definition for AVL 33; reviewed 2026-10-16."
+          }
+        ]
+      },
+      "suggestionReason": "Teltonika documents Short Fuel Trim as AVL 33. The bundled FMM00A profile includes the reviewed interpretation. This fallback supplies a name for a custom profile without changing its units or conversions."
+    },
+    {
+      "key": "io34",
+      "manufacturerFieldId": 34,
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Fuel Pressure",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMM00A"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMM00A Teltonika Data Sending Parameters ID",
+            "url": "https://wiki.teltonika-gps.com/view/FMM00A_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Manufacturer definition for AVL 34; reviewed 2026-10-16."
+          }
+        ]
+      },
+      "suggestionReason": "Teltonika documents Fuel Pressure as AVL 34. The bundled FMM00A profile includes the reviewed interpretation. This fallback supplies a name for a custom profile without changing its units or conversions."
+    },
+    {
+      "key": "io35",
+      "manufacturerFieldId": 35,
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Intake Manifold Absolute Pressure",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMM00A"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMM00A Teltonika Data Sending Parameters ID",
+            "url": "https://wiki.teltonika-gps.com/view/FMM00A_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Manufacturer definition for AVL 35; reviewed 2026-10-16."
+          }
+        ]
+      },
+      "suggestionReason": "Teltonika documents Intake Manifold Absolute Pressure as AVL 35. The bundled FMM00A profile includes the reviewed interpretation. This fallback supplies a name for a custom profile without changing its units or conversions."
+    },
+    {
+      "key": "io36",
+      "manufacturerFieldId": 36,
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Engine RPM",
+      "alternateTraccarKeys": [
+        "rpm"
+      ],
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMM00A"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMM00A Teltonika Data Sending Parameters ID",
+            "url": "https://wiki.teltonika-gps.com/view/FMM00A_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Manufacturer definition for AVL 36; reviewed 2026-10-16."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"io36\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ]
+      },
+      "suggestionReason": "Teltonika documents Engine RPM as AVL 36. The bundled FMM00A profile includes the reviewed interpretation. This fallback supplies a name for a custom profile without changing its units or conversions."
+    }
+  ],
+  "unresolvedObservedKeys": [],
+  "evidence": {
+    "reviewedOn": "2026-10-16",
+    "notes": "Confirmed definitions have been incorporated into the bundled profile. This catalog remains a label-only fallback for custom profiles."
+  }
+}

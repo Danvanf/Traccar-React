@@ -1,0 +1,518 @@
+{
+  "catalogVersion": 1,
+  "manufacturer": "Teltonika",
+  "model": "FMB120",
+  "status": "research",
+  "fields": [
+    {
+      "key": "adc1",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Analog Input 1",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMB120"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Teltonika FMB-family hardware support table (FMB120 listed)",
+            "url": "https://wiki.teltonika-gps.com/view/FMB001_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "The row for AVL 9 explicitly lists FMB120 in its hardware-support column; this is cross-model family-table evidence, not a firmware-specific device observation."
+          },
+          {
+            "title": "FMB120 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMB120_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Analog Input 1."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"adc1\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "Voltage only; do not infer fuel or another sensor without wiring/calibration."
+        ]
+      },
+      "suggestionReason": "Teltonika documents AVL 9 (Analog Input 1) for FMB120. Voltage only; do not infer fuel or another sensor without wiring/calibration. This stays a yellow label suggestion until this device's firmware/configuration and received Traccar attribute are confirmed.",
+      "manufacturerFieldId": 9
+    },
+    {
+      "key": "axisX",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Accelerometer Axis X",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMB120"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Teltonika FMB-family hardware support table (FMB120 listed)",
+            "url": "https://wiki.teltonika-gps.com/view/FMB001_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "The row for AVL 17 explicitly lists FMB120 in its hardware-support column; this is cross-model family-table evidence, not a firmware-specific device observation."
+          },
+          {
+            "title": "FMB120 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMB120_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Accelerometer Axis X."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"axisX\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "Orientation depends on mounting; this is sensor acceleration, not a crash g-force verdict."
+        ]
+      },
+      "suggestionReason": "Teltonika documents AVL 17 (Accelerometer Axis X) for FMB120. Orientation depends on mounting; this is sensor acceleration, not a crash g-force verdict. This stays a yellow label suggestion until this device's firmware/configuration and received Traccar attribute are confirmed.",
+      "manufacturerFieldId": 17
+    },
+    {
+      "key": "axisY",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Accelerometer Axis Y",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMB120"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Teltonika FMB-family hardware support table (FMB120 listed)",
+            "url": "https://wiki.teltonika-gps.com/view/FMB001_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "The row for AVL 18 explicitly lists FMB120 in its hardware-support column; this is cross-model family-table evidence, not a firmware-specific device observation."
+          },
+          {
+            "title": "FMB120 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMB120_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Accelerometer Axis Y."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"axisY\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "Orientation depends on mounting; this is sensor acceleration, not a crash g-force verdict."
+        ]
+      },
+      "suggestionReason": "Teltonika documents AVL 18 (Accelerometer Axis Y) for FMB120. Orientation depends on mounting; this is sensor acceleration, not a crash g-force verdict. This stays a yellow label suggestion until this device's firmware/configuration and received Traccar attribute are confirmed.",
+      "manufacturerFieldId": 18
+    },
+    {
+      "key": "axisZ",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Accelerometer Axis Z",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMB120"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Teltonika FMB-family hardware support table (FMB120 listed)",
+            "url": "https://wiki.teltonika-gps.com/view/FMB001_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "The row for AVL 19 explicitly lists FMB120 in its hardware-support column; this is cross-model family-table evidence, not a firmware-specific device observation."
+          },
+          {
+            "title": "FMB120 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMB120_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Accelerometer Axis Z."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"axisZ\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "Orientation depends on mounting; this is sensor acceleration, not a crash g-force verdict."
+        ]
+      },
+      "suggestionReason": "Teltonika documents AVL 19 (Accelerometer Axis Z) for FMB120. Orientation depends on mounting; this is sensor acceleration, not a crash g-force verdict. This stays a yellow label suggestion until this device's firmware/configuration and received Traccar attribute are confirmed.",
+      "manufacturerFieldId": 19
+    },
+    {
+      "key": "battery",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Tracker Battery Voltage",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMB120"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Teltonika FMB-family hardware support table (FMB120 listed)",
+            "url": "https://wiki.teltonika-gps.com/view/FMB001_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "The row for AVL 67 explicitly lists FMB120 in its hardware-support column; this is cross-model family-table evidence, not a firmware-specific device observation."
+          },
+          {
+            "title": "FMB120 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMB120_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Tracker Battery Voltage."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"battery\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "Enable in tracker; verify firmware and tc_positions.attributes."
+        ]
+      },
+      "suggestionReason": "Teltonika documents AVL 67 (Tracker Battery Voltage) for FMB120. Enable in tracker; verify firmware and tc_positions.attributes. This stays a yellow label suggestion until this device's firmware/configuration and received Traccar attribute are confirmed.",
+      "manufacturerFieldId": 67
+    },
+    {
+      "key": "batteryCurrent",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Tracker Battery Current",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMB120"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Teltonika FMB-family hardware support table (FMB120 listed)",
+            "url": "https://wiki.teltonika-gps.com/view/FMB001_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "The row for AVL 68 explicitly lists FMB120 in its hardware-support column; this is cross-model family-table evidence, not a firmware-specific device observation."
+          },
+          {
+            "title": "FMB120 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMB120_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Tracker Battery Current."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"batteryCurrent\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "Enable in tracker; verify firmware and tc_positions.attributes."
+        ]
+      },
+      "suggestionReason": "Teltonika documents AVL 68 (Tracker Battery Current) for FMB120. Enable in tracker; verify firmware and tc_positions.attributes. This stays a yellow label suggestion until this device's firmware/configuration and received Traccar attribute are confirmed.",
+      "manufacturerFieldId": 68
+    },
+    {
+      "key": "batteryLevel",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Tracker Battery Level",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMB120"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Teltonika FMB-family hardware support table (FMB120 listed)",
+            "url": "https://wiki.teltonika-gps.com/view/FMB001_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "The row for AVL 113 explicitly lists FMB120 in its hardware-support column; this is cross-model family-table evidence, not a firmware-specific device observation."
+          },
+          {
+            "title": "FMB120 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMB120_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Tracker Battery Level."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"batteryLevel\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "Enable in tracker; verify firmware and tc_positions.attributes."
+        ]
+      },
+      "suggestionReason": "Teltonika documents AVL 113 (Tracker Battery Level) for FMB120. Enable in tracker; verify firmware and tc_positions.attributes. This stays a yellow label suggestion until this device's firmware/configuration and received Traccar attribute are confirmed.",
+      "manufacturerFieldId": 113
+    },
+    {
+      "key": "hdop",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "GNSS HDOP",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMB120"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Teltonika FMB-family hardware support table (FMB120 listed)",
+            "url": "https://wiki.teltonika-gps.com/view/FMB001_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "The row for AVL 182 explicitly lists FMB120 in its hardware-support column; this is cross-model family-table evidence, not a firmware-specific device observation."
+          },
+          {
+            "title": "FMB120 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMB120_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: GNSS HDOP."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"hdop\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "Enable in tracker; verify firmware and tc_positions.attributes."
+        ]
+      },
+      "suggestionReason": "Teltonika documents AVL 182 (GNSS HDOP) for FMB120. Enable in tracker; verify firmware and tc_positions.attributes. This stays a yellow label suggestion until this device's firmware/configuration and received Traccar attribute are confirmed.",
+      "manufacturerFieldId": 182
+    },
+    {
+      "key": "ignition",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Configured Ignition State",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMB120"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Teltonika FMB-family hardware support table (FMB120 listed)",
+            "url": "https://wiki.teltonika-gps.com/view/FMB001_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "The row for AVL 239 explicitly lists FMB120 in its hardware-support column; this is cross-model family-table evidence, not a firmware-specific device observation."
+          },
+          {
+            "title": "FMB120 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMB120_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Configured Ignition State."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"ignition\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "Ignition source can be DIN, movement or voltage; check configuration."
+        ]
+      },
+      "suggestionReason": "Teltonika documents AVL 239 (Configured Ignition State) for FMB120. Ignition source can be DIN, movement or voltage; check configuration. This stays a yellow label suggestion until this device's firmware/configuration and received Traccar attribute are confirmed.",
+      "manufacturerFieldId": 239
+    },
+    {
+      "key": "io6",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Analog Input 2",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMB120"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Teltonika FMB-family hardware support table (FMB120 listed)",
+            "url": "https://wiki.teltonika-gps.com/view/FMB001_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "The row for AVL 6 explicitly lists FMB120 in its hardware-support column; this is cross-model family-table evidence, not a firmware-specific device observation."
+          },
+          {
+            "title": "FMB120 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMB120_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Analog Input 2."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"io6\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "Traccar fallback io6 is raw millivolts. Pin can be multiplexed; confirm analog mode. No sensor meaning inferred."
+        ]
+      },
+      "suggestionReason": "Teltonika documents AVL 6 (Analog Input 2) for FMB120. Traccar fallback io6 is raw millivolts. Pin can be multiplexed; confirm analog mode. No sensor meaning inferred. This stays a yellow label suggestion until this device's firmware/configuration and received Traccar attribute are confirmed.",
+      "manufacturerFieldId": 6
+    },
+    {
+      "key": "motion",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Movement",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMB120"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Teltonika FMB-family hardware support table (FMB120 listed)",
+            "url": "https://wiki.teltonika-gps.com/view/FMB001_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "The row for AVL 240 explicitly lists FMB120 in its hardware-support column; this is cross-model family-table evidence, not a firmware-specific device observation."
+          },
+          {
+            "title": "FMB120 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMB120_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Movement."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"motion\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "Enable in tracker; verify firmware and tc_positions.attributes."
+        ]
+      },
+      "suggestionReason": "Teltonika documents AVL 240 (Movement) for FMB120. Enable in tracker; verify firmware and tc_positions.attributes. This stays a yellow label suggestion until this device's firmware/configuration and received Traccar attribute are confirmed.",
+      "manufacturerFieldId": 240
+    },
+    {
+      "key": "odometer",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Virtual Total Odometer",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMB120"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Teltonika FMB-family hardware support table (FMB120 listed)",
+            "url": "https://wiki.teltonika-gps.com/view/FMB001_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "The row for AVL 16 explicitly lists FMB120 in its hardware-support column; this is cross-model family-table evidence, not a firmware-specific device observation."
+          },
+          {
+            "title": "FMB120 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMB120_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Virtual Total Odometer."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"odometer\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "Virtual odometer is configured in tracker; not vehicle OBD mileage."
+        ]
+      },
+      "suggestionReason": "Teltonika documents AVL 16 (Virtual Total Odometer) for FMB120. Virtual odometer is configured in tracker; not vehicle OBD mileage. This stays a yellow label suggestion until this device's firmware/configuration and received Traccar attribute are confirmed.",
+      "manufacturerFieldId": 16
+    },
+    {
+      "key": "pdop",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "GNSS PDOP",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMB120"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Teltonika FMB-family hardware support table (FMB120 listed)",
+            "url": "https://wiki.teltonika-gps.com/view/FMB001_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "The row for AVL 181 explicitly lists FMB120 in its hardware-support column; this is cross-model family-table evidence, not a firmware-specific device observation."
+          },
+          {
+            "title": "FMB120 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMB120_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: GNSS PDOP."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"pdop\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "Enable in tracker; verify firmware and tc_positions.attributes."
+        ]
+      },
+      "suggestionReason": "Teltonika documents AVL 181 (GNSS PDOP) for FMB120. Enable in tracker; verify firmware and tc_positions.attributes. This stays a yellow label suggestion until this device's firmware/configuration and received Traccar attribute are confirmed.",
+      "manufacturerFieldId": 181
+    },
+    {
+      "key": "power",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "External Voltage",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMB120"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Teltonika FMB-family hardware support table (FMB120 listed)",
+            "url": "https://wiki.teltonika-gps.com/view/FMB001_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "The row for AVL 66 explicitly lists FMB120 in its hardware-support column; this is cross-model family-table evidence, not a firmware-specific device observation."
+          },
+          {
+            "title": "FMB120 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMB120_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: External Voltage."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"power\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "Enable in tracker; verify firmware and tc_positions.attributes."
+        ]
+      },
+      "suggestionReason": "Teltonika documents AVL 66 (External Voltage) for FMB120. Enable in tracker; verify firmware and tc_positions.attributes. This stays a yellow label suggestion until this device's firmware/configuration and received Traccar attribute are confirmed.",
+      "manufacturerFieldId": 66
+    },
+    {
+      "key": "rssi",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Cellular Signal Level",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMB120"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "Teltonika FMB-family hardware support table (FMB120 listed)",
+            "url": "https://wiki.teltonika-gps.com/view/FMB001_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "The row for AVL 21 explicitly lists FMB120 in its hardware-support column; this is cross-model family-table evidence, not a firmware-specific device observation."
+          },
+          {
+            "title": "FMB120 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMB120_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Cellular Signal Level."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"rssi\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "Do not interpret as dBm."
+        ]
+      },
+      "suggestionReason": "Teltonika documents AVL 21 (Cellular Signal Level) for FMB120. Do not interpret as dBm. This stays a yellow label suggestion until this device's firmware/configuration and received Traccar attribute are confirmed.",
+      "manufacturerFieldId": 21
+    }
+  ]
+}

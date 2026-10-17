@@ -1,7 +1,7 @@
 {
   "id": "queclink-gv55-experimental",
   "name": "Queclink GV55 (experimental; @Track text V1.05)",
-  "schemaVersion": 14,
+  "schemaVersion": 16,
   "attributeMap": {
     "power": {
       "label": "External Supply Voltage",

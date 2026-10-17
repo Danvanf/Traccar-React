@@ -1,0 +1,443 @@
+{
+  "catalogVersion": 1,
+  "manufacturer": "Teltonika",
+  "model": "FMC130",
+  "status": "research",
+  "fields": [
+    {
+      "key": "adc1",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Analog Input 1",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC130"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC130 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC130_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Analog Input 1."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"adc1\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "Voltage only; do not infer fuel or another sensor without wiring/calibration.; check this model and its firmware support table"
+        ]
+      },
+      "suggestionReason": "Documentation names this field 'Analog Input 1' for FMC130. Voltage only; do not infer fuel or another sensor without wiring/calibration.; check this model and its firmware support table This is a label-only guess; confirm the raw Traccar key and device configuration.",
+      "manufacturerFieldId": 9
+    },
+    {
+      "key": "axisX",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Accelerometer Axis X",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC130"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC130 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC130_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Accelerometer Axis X."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"axisX\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "Orientation depends on mounting; this is sensor acceleration, not a crash g-force verdict.; check this model and its firmware support table",
+          "Teltonika's FMC130 hardware-support table does not list this exact model for AVL 17; this suggestion does not link the observed API key to that AVL ID."
+        ]
+      },
+      "suggestionReason": "The shared Teltonika reference describes “Accelerometer Axis X”, but the FMC130 hardware-support table omits this model for AVL 17. Keep this as an unconfirmed label suggestion only; no AVL link, source unit, or conversion is asserted."
+    },
+    {
+      "key": "axisY",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Accelerometer Axis Y",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC130"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC130 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC130_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Accelerometer Axis Y."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"axisY\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "Orientation depends on mounting; this is sensor acceleration, not a crash g-force verdict.; check this model and its firmware support table",
+          "Teltonika's FMC130 hardware-support table does not list this exact model for AVL 18; this suggestion does not link the observed API key to that AVL ID."
+        ]
+      },
+      "suggestionReason": "The shared Teltonika reference describes “Accelerometer Axis Y”, but the FMC130 hardware-support table omits this model for AVL 18. Keep this as an unconfirmed label suggestion only; no AVL link, source unit, or conversion is asserted."
+    },
+    {
+      "key": "axisZ",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Accelerometer Axis Z",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC130"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC130 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC130_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Accelerometer Axis Z."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"axisZ\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "Orientation depends on mounting; this is sensor acceleration, not a crash g-force verdict.; check this model and its firmware support table",
+          "Teltonika's FMC130 hardware-support table does not list this exact model for AVL 19; this suggestion does not link the observed API key to that AVL ID."
+        ]
+      },
+      "suggestionReason": "The shared Teltonika reference describes “Accelerometer Axis Z”, but the FMC130 hardware-support table omits this model for AVL 19. Keep this as an unconfirmed label suggestion only; no AVL link, source unit, or conversion is asserted."
+    },
+    {
+      "key": "battery",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Tracker Battery Voltage",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC130"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC130 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC130_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Tracker Battery Voltage."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"battery\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "enable in tracker; verify firmware and tc_positions.attributes; check this model and its firmware support table",
+          "Teltonika's FMC130 hardware-support table does not list this exact model for AVL 67; this suggestion does not link the observed API key to that AVL ID."
+        ]
+      },
+      "suggestionReason": "The shared Teltonika reference describes “Tracker Battery Voltage”, but the FMC130 hardware-support table omits this model for AVL 67. Keep this as an unconfirmed label suggestion only; no AVL link, source unit, or conversion is asserted."
+    },
+    {
+      "key": "batteryCurrent",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Tracker Battery Current",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC130"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC130 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC130_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Tracker Battery Current."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"batteryCurrent\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "enable in tracker; verify firmware and tc_positions.attributes; check this model and its firmware support table"
+        ]
+      },
+      "suggestionReason": "Documentation names this field 'Tracker Battery Current' for FMC130. enable in tracker; verify firmware and tc_positions.attributes; check this model and its firmware support table This is a label-only guess; confirm the raw Traccar key and device configuration.",
+      "manufacturerFieldId": 68
+    },
+    {
+      "key": "batteryLevel",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Tracker Battery Level",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC130"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC130 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC130_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Tracker Battery Level."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"batteryLevel\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "enable in tracker; verify firmware and tc_positions.attributes; check this model and its firmware support table",
+          "Teltonika's FMC130 hardware-support table does not list this exact model for AVL 113; this suggestion does not link the observed API key to that AVL ID."
+        ]
+      },
+      "suggestionReason": "The shared Teltonika reference describes “Tracker Battery Level”, but the FMC130 hardware-support table omits this model for AVL 113. Keep this as an unconfirmed label suggestion only; no AVL link, source unit, or conversion is asserted."
+    },
+    {
+      "key": "hdop",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "GNSS HDOP",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC130"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC130 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC130_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: GNSS HDOP."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"hdop\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "enable in tracker; verify firmware and tc_positions.attributes; check this model and its firmware support table",
+          "Teltonika's FMC130 hardware-support table does not list this exact model for AVL 182; this suggestion does not link the observed API key to that AVL ID."
+        ]
+      },
+      "suggestionReason": "The shared Teltonika reference describes “GNSS HDOP”, but the FMC130 hardware-support table omits this model for AVL 182. Keep this as an unconfirmed label suggestion only; no AVL link, source unit, or conversion is asserted."
+    },
+    {
+      "key": "ignition",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Configured Ignition State",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC130"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC130 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC130_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Configured Ignition State."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"ignition\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "Ignition source can be DIN, movement or voltage; check configuration.; check this model and its firmware support table",
+          "Teltonika's FMC130 hardware-support table does not list this exact model for AVL 239; this suggestion does not link the observed API key to that AVL ID."
+        ]
+      },
+      "suggestionReason": "The shared Teltonika reference describes “Configured Ignition State”, but the FMC130 hardware-support table omits this model for AVL 239. Keep this as an unconfirmed label suggestion only; no AVL link, source unit, or conversion is asserted."
+    },
+    {
+      "key": "io6",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Analog Input 2",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC130"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC130 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC130_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Analog Input 2."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"io6\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "Traccar fallback io6 is raw millivolts. Pin can be multiplexed; confirm analog mode. No sensor meaning inferred."
+        ]
+      },
+      "suggestionReason": "Documentation names this field 'Analog Input 2' for FMC130. Traccar fallback io6 is raw millivolts. Pin can be multiplexed; confirm analog mode. No sensor meaning inferred. This is a label-only guess; confirm the raw Traccar key and device configuration.",
+      "manufacturerFieldId": 6
+    },
+    {
+      "key": "motion",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Movement",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC130"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC130 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC130_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Movement."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"motion\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "enable in tracker; verify firmware and tc_positions.attributes; check this model and its firmware support table",
+          "Teltonika's FMC130 hardware-support table does not list this exact model for AVL 240; this suggestion does not link the observed API key to that AVL ID."
+        ]
+      },
+      "suggestionReason": "The shared Teltonika reference describes “Movement”, but the FMC130 hardware-support table omits this model for AVL 240. Keep this as an unconfirmed label suggestion only; no AVL link, source unit, or conversion is asserted."
+    },
+    {
+      "key": "odometer",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Virtual Total Odometer",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC130"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC130 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC130_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Virtual Total Odometer."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"odometer\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "Virtual odometer is configured in tracker; not vehicle OBD mileage.; check this model and its firmware support table",
+          "Teltonika's FMC130 hardware-support table does not list this exact model for AVL 16; this suggestion does not link the observed API key to that AVL ID."
+        ]
+      },
+      "suggestionReason": "The shared Teltonika reference describes “Virtual Total Odometer”, but the FMC130 hardware-support table omits this model for AVL 16. Keep this as an unconfirmed label suggestion only; no AVL link, source unit, or conversion is asserted."
+    },
+    {
+      "key": "pdop",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "GNSS PDOP",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC130"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC130 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC130_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: GNSS PDOP."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"pdop\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "enable in tracker; verify firmware and tc_positions.attributes; check this model and its firmware support table",
+          "Teltonika's FMC130 hardware-support table does not list this exact model for AVL 181; this suggestion does not link the observed API key to that AVL ID."
+        ]
+      },
+      "suggestionReason": "The shared Teltonika reference describes “GNSS PDOP”, but the FMC130 hardware-support table omits this model for AVL 181. Keep this as an unconfirmed label suggestion only; no AVL link, source unit, or conversion is asserted."
+    },
+    {
+      "key": "power",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "External Voltage",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC130"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC130 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC130_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: External Voltage."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"power\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "enable in tracker; verify firmware and tc_positions.attributes; check this model and its firmware support table",
+          "Teltonika's FMC130 hardware-support table does not list this exact model for AVL 66; this suggestion does not link the observed API key to that AVL ID."
+        ]
+      },
+      "suggestionReason": "The shared Teltonika reference describes “External Voltage”, but the FMC130 hardware-support table omits this model for AVL 66. Keep this as an unconfirmed label suggestion only; no AVL link, source unit, or conversion is asserted."
+    },
+    {
+      "key": "rssi",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Cellular Signal Level",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC130"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC130 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC130_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Cellular Signal Level."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"rssi\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "Do not interpret as dBm.; check this model and its firmware support table",
+          "Teltonika's FMC130 hardware-support table does not list this exact model for AVL 21; this suggestion does not link the observed API key to that AVL ID."
+        ]
+      },
+      "suggestionReason": "The shared Teltonika reference describes “Cellular Signal Level”, but the FMC130 hardware-support table omits this model for AVL 21. Keep this as an unconfirmed label suggestion only; no AVL link, source unit, or conversion is asserted."
+    }
+  ]
+}

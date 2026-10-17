@@ -6,7 +6,9 @@ Before every production build, npm prints a reminder to export the current FMM00
 
 ## Currently bundled options
 
-The current FMM003 profile remains the existing default definition. Additional optional definitions are bundled for Teltonika FMB120, FMC003, FMC130, and Queclink GV300 and GV55. These profiles are marked experimental and are available for manual assignment in Vehicle Catalog; bundling them does not assign them to any vehicle. Their definitions pass the app schema and mapping validation, but their model-specific Traccar output and measurements have not been confirmed with live devices. Check the Traccar attributes and values for a device before relying on its profile. An FMM00A profile can be added when its Traccar output and a suitable definition are available.
+The FMM003 and FMM00A profiles are generated from a shared, scoped [Teltonika FMX003 dictionary](../device-field-catalog/teltonika/fmx003-mappings.json). Each contains 348 mappings: 296 raw AVL definitions and 52 decoded/derived keys, reviewed against the official model pages and Traccar v6.14.5. See the [complete 349-ID reference](../docs/TELTONIKA_FMM003_FMM00A_AVL_REFERENCE.md), [FMM003 catalog](../docs/TELTONIKA_FMM003_DATA_CATALOG.md), and [FMM00A catalog](../docs/TELTONIKA_FMM00A_DATA_CATALOG.md). A defined field is not a promise that every vehicle reports it. The optional FMB120, FMC003, FMC130 and Queclink GV300/GV55 profiles remain experimental; their mappings are not automatically promoted by this review.
+
+The FMM00A file retains the stable ID `teltonika-fmm003` because that is the ID already assigned to the live Silverado profile. Do not rename the ID without migrating saved vehicle assignments.
 
 ## Add a profile
 
@@ -22,7 +24,7 @@ Example shape:
 {
   "id": "vendor-model",
   "name": "Vendor Model",
-  "schemaVersion": 14,
+  "schemaVersion": 16,
   "attributeMap": {
     "io123": {
       "label": "Example sensor",
@@ -38,3 +40,11 @@ Example shape:
 ```
 
 The app still needs a supported conversion implementation when a mapping names a legacy `conversion`. Adding new conversion code is a developer change; prefer canonical unit metadata and existing supported conversions. Do not reuse a profile ID for a materially different device/configuration, because saved vehicle assignments and user edits are keyed by that ID.
+
+## Shared manufacturer dictionaries
+
+Edit the reviewed FMX003 mapping dictionary and model overrides, then run **node scripts/build_teltonika_profiles.mjs**. Verify generated files with **node scripts/build_teltonika_profiles.mjs --check**. Keep the generated profile JSON files in source control so imports/exports stay portable. Runtime loading still uses complete profiles; a parent dictionary is not silently fetched or inherited.
+
+Schema 16 upgrades unchanged older Teltonika defaults and fills missing fields, while preserving custom mappings and stable IDs. The schema-15 baseline is stored in device-profile-migrations/teltonika-v15.json for exact comparisons. Historical profile revisions keep their recorded definitions.
+
+Brand/family dictionaries live under separate namespaces. Numeric AVL IDs are not universal across Teltonika families, and never across different manufacturers. Verify exact model/firmware/decoder behavior before extending a family’s scope.

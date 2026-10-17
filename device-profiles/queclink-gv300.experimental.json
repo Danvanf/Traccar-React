@@ -1,7 +1,7 @@
 {
   "id": "queclink-gv300-experimental",
   "name": "Queclink GV300 (experimental; @Track GV300 V2 protocol)",
-  "schemaVersion": 14,
+  "schemaVersion": 16,
   "attributeMap": {
     "power": {
       "label": "External Supply Voltage",

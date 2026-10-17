@@ -1,507 +1,804 @@
 {
   "id": "buick-enclave-2010",
-  "name": "Teltonika FM / OBD2 standard mapping",
-  "schemaVersion": 14,
+  "name": "Teltonika FMM003",
+  "schemaVersion": 16,
   "attributeMap": {
-    "battery": {
-      "label": "Tracker Battery Voltage",
-      "units": "V",
-      "quantity": "tracker_battery_voltage",
-      "statusCardField": "batteryVoltage"
+    "alarm": {
+      "label": "Alarm",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "quantity": "text",
+      "sourceUnitStatus": "none",
+      "valueType": "text"
     },
     "axisX": {
       "label": "Accelerometer X-axis",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "avlId": 17,
+      "quantity": "acceleration",
       "units": "mg",
+      "sourceUnit": "mg",
+      "canonicalUnit": "mg",
+      "canonicalScale": 1,
       "statusCardField": "accelerometerX"
     },
     "axisY": {
       "label": "Accelerometer Y-axis",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "avlId": 18,
+      "quantity": "acceleration",
       "units": "mg",
+      "sourceUnit": "mg",
+      "canonicalUnit": "mg",
+      "canonicalScale": 1,
       "statusCardField": "accelerometerY"
     },
     "axisZ": {
       "label": "Accelerometer Z-axis",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "avlId": 19,
+      "quantity": "acceleration",
       "units": "mg",
+      "sourceUnit": "mg",
+      "canonicalUnit": "mg",
+      "canonicalScale": 1,
       "statusCardField": "accelerometerZ"
+    },
+    "battery": {
+      "label": "Tracker Battery Voltage",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "avlId": 67,
+      "quantity": "voltage",
+      "units": "V",
+      "sourceUnit": "V",
+      "canonicalUnit": "V",
+      "canonicalScale": 1,
+      "statusCardField": "batteryVoltage"
+    },
+    "batteryCurrent": {
+      "label": "Tracker Battery Current",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "avlId": 68,
+      "quantity": "current",
+      "units": "A",
+      "sourceUnit": "A",
+      "canonicalUnit": "A",
+      "canonicalScale": 1,
+      "statusCardAliases": [
+        "batteryCurrent"
+      ]
+    },
+    "batteryLevel": {
+      "label": "Tracker Battery Level",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "avlId": 113,
+      "quantity": "percent",
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "statusCardAliases": [
+        "trackerBatteryLevel"
+      ]
     },
     "bleTemp1": {
       "label": "BLE Temperature #1",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
       "avlId": 25,
-      "units": "degF",
-      "sentinelValues": [
-        327.67
-      ],
-      "conversion": "cToF"
-    },
-    "bleTemp2": {
-      "label": "BLE Temperature #2",
-      "avlId": 26,
-      "units": "degF",
+      "quantity": "temperature",
+      "units": "°C",
       "sourceUnit": "°C",
       "canonicalUnit": "°C",
       "canonicalScale": 1,
-      "canonicalOffset": 0,
-      "quantity": "temperature",
       "sentinelValues": [
-        327.67
+        327.67,
+        327.66,
+        327.65
+      ]
+    },
+    "bleTemp2": {
+      "label": "BLE Temperature #2",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "avlId": 26,
+      "quantity": "temperature",
+      "units": "°C",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "sentinelValues": [
+        327.67,
+        327.66,
+        327.65
       ]
     },
     "bleTemp3": {
       "label": "BLE Temperature #3",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
       "avlId": 27,
-      "units": "degF",
+      "quantity": "temperature",
+      "units": "°C",
       "sourceUnit": "°C",
       "canonicalUnit": "°C",
       "canonicalScale": 1,
-      "canonicalOffset": 0,
-      "quantity": "temperature",
       "sentinelValues": [
-        327.67
+        327.67,
+        327.66,
+        327.65
       ]
     },
     "bleTemp4": {
       "label": "BLE Temperature #4",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
       "avlId": 28,
-      "units": "degF",
+      "quantity": "temperature",
+      "units": "°C",
       "sourceUnit": "°C",
       "canonicalUnit": "°C",
       "canonicalScale": 1,
-      "canonicalOffset": 0,
-      "quantity": "temperature",
       "sentinelValues": [
-        327.67
+        327.67,
+        327.66,
+        327.65
       ]
+    },
+    "coolantTemp": {
+      "label": "Coolant Temperature",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "avlId": 32,
+      "quantity": "temperature",
+      "units": "°C",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "statusCardAliases": [
+        "coolant"
+      ]
+    },
+    "dataMode": {
+      "label": "Tracker Data Mode",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "avlId": 80,
+      "sourceUnitStatus": "none"
     },
     "distance": {
       "label": "Segment Distance",
-      "units": "mi",
-      "conversion": "metersToMiles",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "quantity": "distance",
+      "units": "m",
       "sourceUnit": "m",
       "canonicalUnit": "m",
       "canonicalScale": 1,
-      "quantity": "distance",
       "statusCardField": "segmentDistance"
     },
-    "event": {
-      "label": "Event / Rule ID"
+    "dtcs": {
+      "label": "OBD Fault Codes",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "avlId": 281,
+      "quantity": "text",
+      "sourceUnitStatus": "none",
+      "valueType": "text"
     },
-    "vin": {
-      "label": "Vehicle Identification Number",
-      "valueType": "identifier"
+    "engineLoad": {
+      "label": "Engine Load",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "avlId": 31,
+      "quantity": "percent",
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "statusCardAliases": [
+        "engineLoad"
+      ]
+    },
+    "event": {
+      "label": "Event / Rule ID",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "quantity": "state",
+      "sourceUnitStatus": "none"
+    },
+    "eyeRoll1": {
+      "label": "EYE Roll 1",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "avlId": 10832,
+      "quantity": "angle",
+      "sourceUnitStatus": "none"
+    },
+    "eyeRoll2": {
+      "label": "EYE Roll 2",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "avlId": 10833,
+      "quantity": "angle",
+      "sourceUnitStatus": "none"
+    },
+    "eyeRoll3": {
+      "label": "EYE Roll 3",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "avlId": 10834,
+      "quantity": "angle",
+      "sourceUnitStatus": "none"
+    },
+    "eyeRoll4": {
+      "label": "EYE Roll 4",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "avlId": 10835,
+      "quantity": "angle",
+      "sourceUnitStatus": "none"
+    },
+    "eyeTemp1": {
+      "label": "EYE Temperature 1",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "avlId": 10800,
+      "quantity": "temperature",
+      "units": "°C",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1
+    },
+    "eyeTemp2": {
+      "label": "EYE Temperature 2",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "avlId": 10801,
+      "quantity": "temperature",
+      "units": "°C",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1
+    },
+    "eyeTemp3": {
+      "label": "EYE Temperature 3",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "avlId": 10802,
+      "quantity": "temperature",
+      "units": "°C",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1
+    },
+    "eyeTemp4": {
+      "label": "EYE Temperature 4",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "avlId": 10803,
+      "quantity": "temperature",
+      "units": "°C",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1
+    },
+    "faultCount": {
+      "label": "Diagnostic Trouble Code Count",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "avlId": 30,
+      "quantity": "count",
+      "units": "count",
+      "sourceUnit": "count",
+      "canonicalUnit": "count",
+      "canonicalScale": 1
+    },
+    "fuel": {
+      "label": "Fuel Volume",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "sourceAvlIds": [
+        84
+      ],
+      "quantity": "fuel_volume",
+      "units": "L",
+      "sourceUnit": "L",
+      "canonicalUnit": "L",
+      "canonicalScale": 1
+    },
+    "fuelConsumption": {
+      "label": "GPS Fuel Consumption",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "avlId": 13,
+      "quantity": "fuel_economy",
+      "units": "L/100km",
+      "sourceUnit": "L/100km",
+      "canonicalUnit": "L/100km",
+      "canonicalScale": 1,
+      "statusCardAliases": [
+        "avl13"
+      ]
+    },
+    "fuelLevel": {
+      "label": "Fuel Level",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "sourceAvlIds": [
+        89
+      ],
+      "quantity": "percent",
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "statusCardAliases": [
+        "fuelLevel"
+      ]
+    },
+    "fuelUsed": {
+      "label": "Fuel Used",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "sourceAvlIds": [
+        12,
+        83,
+        107
+      ],
+      "quantity": "fuel_volume",
+      "units": "L",
+      "sourceUnit": "L",
+      "canonicalUnit": "L",
+      "canonicalScale": 1,
+      "statusCardAliases": [
+        "avl12"
+      ]
     },
     "hdop": {
       "label": "GNSS HDOP",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
       "avlId": 182,
-      "units": "lower is more accurate",
       "quantity": "gnss_hdop",
+      "units": "ratio",
+      "sourceUnit": "ratio",
+      "canonicalUnit": "ratio",
+      "canonicalScale": 1,
       "statusCardField": "hdop"
     },
     "hours": {
       "label": "Engine/Ignition Hours",
-      "units": "ms"
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "quantity": "duration",
+      "units": "ms",
+      "sourceUnit": "ms",
+      "canonicalUnit": "s",
+      "canonicalScale": 0.001,
+      "displayUnit": "h"
+    },
+    "hybridBatteryLevel": {
+      "label": "Hybrid Battery Pack Life",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "avlId": 57,
+      "quantity": "percent",
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "statusCardField": "hybridBatteryLevel"
+    },
+    "iccid": {
+      "label": "SIM ICCID 1 (MSB)",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "avlId": 11,
+      "quantity": "identifier",
+      "sourceUnitStatus": "none",
+      "valueType": "identifier"
     },
     "ignition": {
       "label": "Ignition",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
       "avlId": 239,
+      "sourceUnitStatus": "none",
       "statusCardField": "ignition"
     },
-    "io113": {
-      "label": "Tracker Battery Level",
-      "avlId": 113,
-      "units": "%",
-      "statusCardField": "trackerBatteryLevel"
-    },
-    "io205": {
-      "label": "GSM Cell ID",
-      "avlId": 205
-    },
-    "io206": {
-      "label": "GSM Area Code",
-      "avlId": 206
+    "io11": {
+      "avlId": 11,
+      "label": "SIM ICCID 1 (MSB)",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "identifier",
+      "valueType": "identifier"
     },
     "io12": {
-      "label": "AVL 12 (device-configured value)",
       "avlId": 12,
+      "label": "GPS Fuel Used",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "L",
+      "sourceUnit": "0.001 L",
+      "canonicalUnit": "L",
+      "canonicalScale": 0.001,
+      "quantity": "fuel_volume",
       "statusCardField": "avl12"
     },
     "io13": {
-      "label": "AVL 13 (device-configured value)",
       "avlId": 13,
+      "label": "GPS Fuel Consumption",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "L/100km",
+      "sourceUnit": "0.01 L/100km",
+      "canonicalUnit": "L/100km",
+      "canonicalScale": 0.01,
+      "quantity": "fuel_economy",
       "statusCardField": "avl13"
     },
-    "io20": {
-      "label": "BLE Battery #2",
-      "avlId": 20,
-      "units": "%",
-      "sentinelValues": [
-        255
-      ],
-      "sourceGroup": "tracker"
-    },
-    "io22": {
-      "label": "BLE Battery #3",
-      "avlId": 22,
-      "units": "%",
-      "sentinelValues": [
-        255
-      ],
-      "sourceGroup": "tracker"
-    },
-    "io23": {
-      "label": "BLE Battery #4",
-      "avlId": 23,
-      "units": "%",
-      "sentinelValues": [
-        255
-      ],
-      "sourceGroup": "tracker"
-    },
-    "io80": {
-      "label": "Tracker Data Mode",
-      "avlId": 80,
-      "units": "code",
-      "sourceGroup": "tracker"
-    },
-    "io100": {
-      "label": "CAN Program ID",
-      "avlId": 100,
-      "units": "ID",
-      "sourceGroup": "obd",
+    "io14": {
+      "avlId": 14,
+      "label": "SIM ICCID 2 (LSB)",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "identifier",
       "valueType": "identifier"
-    },
-    "io101": {
-      "label": "CAN Module ID",
-      "avlId": 101,
-      "units": "ID",
-      "sourceGroup": "obd",
-      "valueType": "identifier"
-    },
-    "io388": {
-      "label": "CAN Module ID (hex)",
-      "avlId": 388,
-      "units": "hex",
-      "sourceGroup": "obd",
-      "valueType": "identifier"
-    },
-    "io529": {
-      "label": "CAN Module ID (hex)",
-      "avlId": 529,
-      "units": "hex",
-      "sourceGroup": "obd",
-      "valueType": "identifier"
-    },
-    "io30": {
-      "label": "Diagnostic Trouble Codes",
-      "avlId": 30,
-      "units": "count",
-      "quantity": "diagnostic_code_count"
-    },
-    "io31": {
-      "label": "Engine Load??",
-      "avlId": 31,
-      "units": "%",
-      "sourceGroup": "obd"
-    },
-    "io33": {
-      "label": "Short Fuel Trim",
-      "avlId": 33,
-      "units": "%",
-      "sourceGroup": "obd",
-      "statusCardField": "shortFuelTrim"
-    },
-    "io34": {
-      "label": "Fuel Pressure",
-      "avlId": 34,
-      "units": "psi",
-      "conversion": "kpaToPsi",
-      "sourceGroup": "obd",
-      "sourceUnit": "kPa",
-      "canonicalUnit": "kPa",
-      "canonicalScale": 1,
-      "quantity": "fuel_pressure",
-      "statusCardField": "fuelPressure"
     },
     "io15": {
-      "label": "Eco Score",
       "avlId": 15,
-      "units": "score",
-      "conversion": "hundredthsToNumber",
-      "sourceGroup": "permanent"
-    },
-    "io38": {
-      "label": "Timing Advance",
-      "avlId": 38,
-      "units": "deg",
-      "sourceGroup": "obd",
-      "statusCardField": "timingAdvance"
-    },
-    "io43": {
-      "label": "Distance With MIL On",
-      "avlId": 43,
-      "units": "mi",
-      "conversion": "kilometersToMiles",
-      "sourceGroup": "obd",
-      "sourceUnit": "km",
-      "canonicalUnit": "km",
-      "canonicalScale": 1,
-      "quantity": "distance"
-    },
-    "io44": {
-      "label": "Relative Fuel Rail Pressure",
-      "avlId": 44,
-      "units": "psi",
-      "conversion": "tenthsKpaToPsi",
-      "sourceGroup": "obd",
-      "sourceUnit": "0.1 kPa",
-      "canonicalUnit": "kPa",
-      "canonicalScale": 0.1,
-      "quantity": "fuel_pressure"
-    },
-    "io45": {
-      "label": "Direct Fuel Rail Pressure",
-      "avlId": 45,
-      "units": "psi",
-      "conversion": "timesTenKpaToPsi",
-      "sourceGroup": "obd",
-      "sourceUnit": "10 kPa",
-      "canonicalUnit": "kPa",
-      "canonicalScale": 10,
-      "quantity": "fuel_pressure",
-      "statusCardField": "fuelRailPressure"
-    },
-    "io46": {
-      "label": "Commanded EGR",
-      "avlId": 46,
-      "units": "%",
-      "sourceGroup": "obd"
-    },
-    "io47": {
-      "label": "EGR Error",
-      "avlId": 47,
-      "units": "%",
-      "sourceGroup": "obd"
-    },
-    "io49": {
-      "label": "Distance Since Codes Cleared",
-      "avlId": 49,
-      "units": "mi",
-      "conversion": "kilometersToMiles",
-      "sourceGroup": "obd",
-      "sourceUnit": "km",
-      "canonicalUnit": "km",
-      "canonicalScale": 1,
-      "quantity": "distance"
-    },
-    "io50": {
-      "label": "Barometric Pressure",
-      "avlId": 50,
-      "units": "inHg",
-      "sourceUnit": "kPa",
-      "conversion": "kpaToInHg",
-      "sourceGroup": "obd",
-      "canonicalUnit": "kPa",
-      "canonicalScale": 1,
-      "quantity": "barometric_pressure",
-      "statusCardField": "barometricPressure"
-    },
-    "io52": {
-      "label": "Absolute Load",
-      "avlId": 52,
-      "units": "%",
-      "sourceGroup": "obd",
-      "statusCardField": "absoluteLoad"
-    },
-    "io53": {
-      "label": "Ambient Air Temperature",
-      "avlId": 53,
-      "units": "degF",
-      "conversion": "cToF",
-      "sourceGroup": "obd",
-      "sourceUnit": "°C",
-      "canonicalUnit": "°C",
-      "canonicalScale": 1,
-      "quantity": "temperature",
-      "statusCardField": "ambientAir"
-    },
-    "io54": {
-      "label": "Time Run With MIL On",
-      "avlId": 54,
-      "units": "min",
-      "sourceGroup": "obd"
-    },
-    "io55": {
-      "label": "Time Since Codes Cleared",
-      "avlId": 55,
-      "units": "min",
-      "sourceGroup": "obd"
-    },
-    "io56": {
-      "label": "Absolute Fuel Rail Pressure",
-      "avlId": 56,
-      "units": "psi",
-      "conversion": "timesTenKpaToPsi",
-      "sourceGroup": "obd",
-      "sourceUnit": "10 kPa",
-      "canonicalUnit": "kPa",
-      "canonicalScale": 10,
-      "quantity": "fuel_pressure"
-    },
-    "io57": {
-      "label": "Hybrid Battery Pack Life",
-      "avlId": 57,
-      "units": "%",
-      "sourceGroup": "obd"
-    },
-    "io58": {
-      "label": "Engine Oil Temperature",
-      "avlId": 58,
-      "units": "degF",
-      "conversion": "cToF",
-      "sourceGroup": "obd",
-      "sourceUnit": "°C",
-      "canonicalUnit": "°C",
-      "canonicalScale": 1,
-      "quantity": "temperature"
-    },
-    "io59": {
-      "label": "Fuel Injection Timing",
-      "avlId": 59,
-      "units": "deg",
-      "conversion": "hundredthsToNumber",
-      "sourceGroup": "obd"
-    },
-    "io60": {
-      "label": "Fuel Rate",
-      "avlId": 60,
-      "units": "gal/hr",
-      "conversion": "centilitersPerHourToGallonsPerHour",
-      "sourceGroup": "obd",
-      "sourceUnit": "cL/h",
-      "canonicalUnit": "L/h",
-      "canonicalScale": 0.01,
-      "quantity": "fuel_flow"
-    },
-    "io281": {
-      "label": "OBD Fault Codes",
-      "avlId": 281,
-      "sourceGroup": "obd"
-    },
-    "io540": {
-      "label": "Throttle Position Group",
-      "avlId": 540,
-      "units": "%",
-      "sourceGroup": "obd"
-    },
-    "io541": {
-      "label": "Commanded Equivalence Ratio",
-      "avlId": 541,
+      "label": "Eco Score",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
       "units": "ratio",
-      "conversion": "hundredthsToNumber",
-      "sourceGroup": "obd"
+      "sourceUnit": "0.01 ratio",
+      "canonicalUnit": "ratio",
+      "canonicalScale": 0.01,
+      "quantity": "ratio"
     },
-    "io542": {
-      "label": "Intake Manifold Absolute Pressure",
-      "avlId": 542,
-      "units": "psi",
-      "conversion": "kpaToPsi",
-      "sourceGroup": "obd",
-      "sourceUnit": "kPa",
-      "canonicalUnit": "kPa",
+    "io16": {
+      "avlId": 16,
+      "label": "Teltonika Odometer",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "m",
+      "sourceUnit": "m",
+      "canonicalUnit": "m",
       "canonicalScale": 1,
-      "quantity": "manifold_pressure"
+      "quantity": "distance"
     },
-    "io759": {
-      "label": "Fuel Type",
-      "avlId": 759,
-      "sourceGroup": "obd"
+    "io17": {
+      "avlId": 17,
+      "label": "Accelerometer X-axis",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 16,
+      "units": "mg",
+      "sourceUnit": "mg",
+      "canonicalUnit": "mg",
+      "canonicalScale": 1,
+      "quantity": "acceleration"
     },
-    "io200": {
-      "label": "Eco-driving / harsh state",
-      "avlId": 200
+    "io18": {
+      "avlId": 18,
+      "label": "Accelerometer Y-axis",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 16,
+      "units": "mg",
+      "sourceUnit": "mg",
+      "canonicalUnit": "mg",
+      "canonicalScale": 1,
+      "quantity": "acceleration"
     },
-    "io256": {
-      "label": "Vehicle Identification Number",
-      "avlId": 256,
-      "valueType": "identifier"
+    "io19": {
+      "avlId": 19,
+      "label": "Accelerometer Z-axis",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 16,
+      "units": "mg",
+      "sourceUnit": "mg",
+      "canonicalUnit": "mg",
+      "canonicalScale": 1,
+      "quantity": "acceleration"
     },
-    "io389": {
-      "label": "OBD OEM Total Mileage",
-      "avlId": 389,
-      "units": "km"
+    "io20": {
+      "avlId": 20,
+      "label": "BLE Battery #2",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percent",
+      "sentinelValues": [
+        255
+      ]
     },
-    "io390": {
-      "label": "OBD OEM Fuel Level",
-      "avlId": 390,
-      "units": "L",
-      "conversion": "tenthsToNumber",
-      "sourceUnit": "0.1 L",
-      "canonicalUnit": "L",
-      "canonicalScale": 0.1,
-      "quantity": "fuel_volume"
+    "io21": {
+      "avlId": 21,
+      "label": "GSM Signal",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
     },
-    "io402": {
-      "label": "Distance Until Service",
-      "avlId": 402,
-      "units": "km"
+    "io22": {
+      "avlId": 22,
+      "label": "BLE Battery #3",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percent",
+      "sentinelValues": [
+        255
+      ]
     },
-    "io411": {
-      "label": "OEM Battery Charge Level",
-      "avlId": 411,
-      "units": "%"
+    "io23": {
+      "avlId": 23,
+      "label": "BLE Battery #4",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percent",
+      "sentinelValues": [
+        255
+      ]
     },
     "io24": {
-      "label": "GNSS Speed",
       "avlId": 24,
-      "units": "mph",
-      "conversion": "kmhToMph",
+      "label": "GNSS Speed",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "km/h",
       "sourceUnit": "km/h",
       "canonicalUnit": "km/h",
       "canonicalScale": 1,
       "quantity": "speed",
       "statusCardField": "gnssSpeed"
     },
+    "io25": {
+      "avlId": 25,
+      "label": "BLE Temperature #1",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 16,
+      "units": "°C",
+      "sourceUnit": "0.01 °C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 0.01,
+      "quantity": "temperature",
+      "sentinelValues": [
+        32767,
+        32766,
+        32765
+      ]
+    },
+    "io26": {
+      "avlId": 26,
+      "label": "BLE Temperature #2",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 16,
+      "units": "°C",
+      "sourceUnit": "0.01 °C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 0.01,
+      "quantity": "temperature",
+      "sentinelValues": [
+        32767,
+        32766,
+        32765
+      ]
+    },
+    "io27": {
+      "avlId": 27,
+      "label": "BLE Temperature #3",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 16,
+      "units": "°C",
+      "sourceUnit": "0.01 °C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 0.01,
+      "quantity": "temperature",
+      "sentinelValues": [
+        32767,
+        32766,
+        32765
+      ]
+    },
+    "io28": {
+      "avlId": 28,
+      "label": "BLE Temperature #4",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 16,
+      "units": "°C",
+      "sourceUnit": "0.01 °C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 0.01,
+      "quantity": "temperature",
+      "sentinelValues": [
+        32767,
+        32766,
+        32765
+      ]
+    },
     "io29": {
-      "label": "BLE Battery #1",
       "avlId": 29,
+      "label": "BLE Battery #1",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
       "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percent",
       "sentinelValues": [
         255
       ]
     },
+    "io30": {
+      "avlId": 30,
+      "label": "Diagnostic Trouble Code Count",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "count"
+    },
+    "io31": {
+      "avlId": 31,
+      "label": "Engine Load",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percent",
+      "statusCardField": "engineLoad"
+    },
     "io32": {
-      "label": "Engine Coolant Temp",
       "avlId": 32,
-      "units": "degF",
-      "conversion": "cToF",
+      "label": "Coolant Temperature",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 8,
+      "units": "°C",
       "sourceUnit": "°C",
       "canonicalUnit": "°C",
       "canonicalScale": 1,
-      "quantity": "engine_coolant_temperature",
+      "quantity": "temperature",
       "statusCardField": "coolant"
     },
+    "io33": {
+      "avlId": 33,
+      "label": "Short Fuel Trim",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 8,
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percent",
+      "statusCardField": "shortFuelTrim"
+    },
+    "io34": {
+      "avlId": 34,
+      "label": "Fuel Pressure",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "kPa",
+      "sourceUnit": "kPa",
+      "canonicalUnit": "kPa",
+      "canonicalScale": 1,
+      "quantity": "pressure",
+      "statusCardField": "fuelPressure"
+    },
+    "io35": {
+      "avlId": 35,
+      "label": "Intake Manifold Absolute Pressure",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "kPa",
+      "sourceUnit": "kPa",
+      "canonicalUnit": "kPa",
+      "canonicalScale": 1,
+      "quantity": "pressure"
+    },
     "io36": {
-      "label": "Engine RPM",
       "avlId": 36,
+      "label": "Engine RPM",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
       "units": "rpm",
-      "quantity": "rotational_speed",
+      "sourceUnit": "rpm",
+      "canonicalUnit": "rpm",
+      "canonicalScale": 1,
+      "quantity": "engine_speed",
       "statusCardField": "engineRpm"
     },
     "io37": {
-      "label": "OBD Vehicle Speed",
       "avlId": 37,
-      "units": "mph",
-      "conversion": "kmhToMph",
+      "label": "OBD Vehicle Speed",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "km/h",
       "sourceUnit": "km/h",
       "canonicalUnit": "km/h",
       "canonicalScale": 1,
-      "quantity": "obd_speed",
+      "quantity": "speed",
       "statusCardField": "obdSpeed"
     },
+    "io38": {
+      "avlId": 38,
+      "label": "Timing Advance",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 8,
+      "units": "deg",
+      "sourceUnit": "deg",
+      "canonicalUnit": "deg",
+      "canonicalScale": 1,
+      "quantity": "angle",
+      "statusCardField": "timingAdvance"
+    },
     "io39": {
-      "label": "Intake Air Temp",
       "avlId": 39,
-      "units": "degF",
-      "conversion": "cToF",
+      "label": "Intake Air Temperature",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 8,
+      "units": "°C",
       "sourceUnit": "°C",
       "canonicalUnit": "°C",
       "canonicalScale": 1,
@@ -509,10 +806,12 @@
       "statusCardField": "intakeAir"
     },
     "io40": {
-      "label": "Mass Air Flow",
       "avlId": 40,
+      "label": "Mass Air Flow",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
       "units": "g/s",
-      "conversion": "hundredthsToNumber",
       "sourceUnit": "0.01 g/s",
       "canonicalUnit": "g/s",
       "canonicalScale": 0.01,
@@ -520,56 +819,479 @@
       "statusCardField": "maf"
     },
     "io41": {
-      "label": "Throttle Position",
       "avlId": 41,
+      "label": "Throttle Position",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
       "units": "%",
-      "quantity": "percentage",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percent",
       "statusCardField": "throttle"
     },
     "io42": {
-      "label": "Run Time Since Engine Start",
       "avlId": 42,
+      "label": "Run Time Since Engine Start",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
       "units": "s",
+      "sourceUnit": "s",
+      "canonicalUnit": "s",
+      "canonicalScale": 1,
+      "quantity": "duration",
       "statusCardField": "engineRuntime"
     },
-    "io48": {
-      "label": "Fuel Level",
-      "avlId": 48,
+    "io43": {
+      "avlId": 43,
+      "label": "Distance With MIL On",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "km",
+      "sourceUnit": "km",
+      "canonicalUnit": "km",
+      "canonicalScale": 1,
+      "quantity": "distance"
+    },
+    "io44": {
+      "avlId": 44,
+      "label": "Relative Fuel Rail Pressure",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "kPa",
+      "sourceUnit": "0.1 kPa",
+      "canonicalUnit": "kPa",
+      "canonicalScale": 0.1,
+      "quantity": "pressure"
+    },
+    "io45": {
+      "avlId": 45,
+      "label": "Direct Fuel Rail Pressure",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "kPa",
+      "sourceUnit": "10 kPa",
+      "canonicalUnit": "kPa",
+      "canonicalScale": 10,
+      "quantity": "pressure",
+      "statusCardField": "fuelRailPressure"
+    },
+    "io46": {
+      "avlId": 46,
+      "label": "Commanded EGR",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
       "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percent"
+    },
+    "io47": {
+      "avlId": 47,
+      "label": "EGR Error",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 8,
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percent"
+    },
+    "io48": {
+      "avlId": 48,
+      "label": "Fuel Level",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percent",
       "statusCardField": "fuelLevel"
     },
+    "io49": {
+      "avlId": 49,
+      "label": "Distance Since Codes Cleared",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "km",
+      "sourceUnit": "km",
+      "canonicalUnit": "km",
+      "canonicalScale": 1,
+      "quantity": "distance"
+    },
+    "io50": {
+      "avlId": 50,
+      "label": "Barometric Pressure",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "kPa",
+      "sourceUnit": "kPa",
+      "canonicalUnit": "kPa",
+      "canonicalScale": 1,
+      "quantity": "barometric_pressure",
+      "statusCardField": "barometricPressure"
+    },
     "io51": {
-      "label": "Control Module Voltage",
       "avlId": 51,
+      "label": "Control Module Voltage",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
       "units": "V",
       "sourceUnit": "mV",
-      "conversion": "millivoltsToVolts",
-      "quantity": "control_module_voltage",
+      "canonicalUnit": "V",
+      "canonicalScale": 0.001,
+      "quantity": "voltage",
       "statusCardField": "controlVoltage"
     },
+    "io52": {
+      "avlId": 52,
+      "label": "Absolute Load",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percent",
+      "statusCardField": "absoluteLoad"
+    },
+    "io53": {
+      "avlId": 53,
+      "label": "Ambient Air Temperature",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 8,
+      "units": "°C",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "quantity": "temperature",
+      "statusCardField": "ambientAir"
+    },
+    "io54": {
+      "avlId": 54,
+      "label": "Time Run With MIL On",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "min",
+      "sourceUnit": "min",
+      "canonicalUnit": "min",
+      "canonicalScale": 1,
+      "quantity": "duration"
+    },
+    "io55": {
+      "avlId": 55,
+      "label": "Time Since Codes Cleared",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "min",
+      "sourceUnit": "min",
+      "canonicalUnit": "min",
+      "canonicalScale": 1,
+      "quantity": "duration"
+    },
+    "io56": {
+      "avlId": 56,
+      "label": "Absolute Fuel Rail Pressure",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "kPa",
+      "sourceUnit": "10 kPa",
+      "canonicalUnit": "kPa",
+      "canonicalScale": 10,
+      "quantity": "pressure"
+    },
+    "io57": {
+      "avlId": 57,
+      "label": "Hybrid Battery Pack Life",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percent"
+    },
+    "io58": {
+      "avlId": 58,
+      "label": "Engine Oil Temperature",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "°C",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "quantity": "temperature"
+    },
+    "io59": {
+      "avlId": 59,
+      "label": "Fuel Injection Timing",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 16,
+      "units": "deg",
+      "sourceUnit": "0.01 deg",
+      "canonicalUnit": "deg",
+      "canonicalScale": 0.01,
+      "quantity": "angle"
+    },
+    "io60": {
+      "avlId": 60,
+      "label": "Fuel Rate",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "L/h",
+      "sourceUnit": "0.01 L/h",
+      "canonicalUnit": "L/h",
+      "canonicalScale": 0.01,
+      "quantity": "fuel_flow"
+    },
+    "io61": {
+      "avlId": 61,
+      "label": "Geofence zone 06",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io62": {
+      "avlId": 62,
+      "label": "Geofence zone 07",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io63": {
+      "avlId": 63,
+      "label": "Geofence zone 08",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io64": {
+      "avlId": 64,
+      "label": "Geofence zone 09",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io65": {
+      "avlId": 65,
+      "label": "Geofence zone 10",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io66": {
+      "avlId": 66,
+      "label": "External Tracker Supply Voltage",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "V",
+      "sourceUnit": "mV",
+      "canonicalUnit": "V",
+      "canonicalScale": 0.001,
+      "quantity": "voltage"
+    },
+    "io67": {
+      "avlId": 67,
+      "label": "Tracker Battery Voltage",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "V",
+      "sourceUnit": "mV",
+      "canonicalUnit": "V",
+      "canonicalScale": 0.001,
+      "quantity": "voltage"
+    },
     "io68": {
-      "label": "Tracker Battery Current",
       "avlId": 68,
+      "label": "Tracker Battery Current",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
       "units": "A",
+      "sourceUnit": "mA",
+      "canonicalUnit": "A",
+      "canonicalScale": 0.001,
+      "quantity": "current",
       "statusCardField": "batteryCurrent"
     },
     "io69": {
-      "label": "GNSS Status",
       "avlId": 69,
-      "units": "1 = fix OK",
+      "label": "GNSS Status",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state",
       "statusCardField": "gnssStatus"
     },
+    "io70": {
+      "avlId": 70,
+      "label": "Geofence zone 11",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io80": {
+      "avlId": 80,
+      "label": "Tracker Data Mode",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
     "io86": {
-      "label": "BLE Humidity #1",
       "avlId": 86,
+      "label": "BLE Humidity #1",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
       "units": "%RH",
+      "sourceUnit": "0.1 %RH",
+      "canonicalUnit": "%RH",
+      "canonicalScale": 0.1,
+      "quantity": "relative_humidity",
       "sentinelValues": [
-        65535
+        65535,
+        65534,
+        65533
       ]
     },
+    "io88": {
+      "avlId": 88,
+      "label": "Geofence zone 12",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io91": {
+      "avlId": 91,
+      "label": "Geofence zone 13",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io92": {
+      "avlId": 92,
+      "label": "Geofence zone 14",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io93": {
+      "avlId": 93,
+      "label": "Geofence zone 15",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io94": {
+      "avlId": 94,
+      "label": "Geofence zone 16",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io95": {
+      "avlId": 95,
+      "label": "Geofence zone 17",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io96": {
+      "avlId": 96,
+      "label": "Geofence zone 18",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io97": {
+      "avlId": 97,
+      "label": "Geofence zone 19",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io98": {
+      "avlId": 98,
+      "label": "Geofence zone 20",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io99": {
+      "avlId": 99,
+      "label": "Geofence zone 21",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
     "io104": {
-      "label": "BLE Humidity #2",
       "avlId": 104,
+      "label": "BLE Humidity #2",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
       "units": "%RH",
       "sourceUnit": "0.1 %RH",
       "canonicalUnit": "%RH",
@@ -579,12 +1301,14 @@
         65535,
         65534,
         65533
-      ],
-      "sourceGroup": "tracker"
+      ]
     },
     "io106": {
-      "label": "BLE Humidity #3",
       "avlId": 106,
+      "label": "BLE Humidity #3",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
       "units": "%RH",
       "sourceUnit": "0.1 %RH",
       "canonicalUnit": "%RH",
@@ -594,12 +1318,14 @@
         65535,
         65534,
         65533
-      ],
-      "sourceGroup": "tracker"
+      ]
     },
     "io108": {
-      "label": "BLE Humidity #4",
       "avlId": 108,
+      "label": "BLE Humidity #4",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
       "units": "%RH",
       "sourceUnit": "0.1 %RH",
       "canonicalUnit": "%RH",
@@ -609,95 +1335,2401 @@
         65535,
         65534,
         65533
-      ],
-      "sourceGroup": "tracker"
+      ]
+    },
+    "io113": {
+      "avlId": 113,
+      "label": "Tracker Battery Level",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percent",
+      "statusCardField": "trackerBatteryLevel"
+    },
+    "io153": {
+      "avlId": 153,
+      "label": "Geofence zone 22",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io154": {
+      "avlId": 154,
+      "label": "Geofence zone 23",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io155": {
+      "avlId": 155,
+      "label": "Geofence zone 01",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io156": {
+      "avlId": 156,
+      "label": "Geofence zone 02",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io157": {
+      "avlId": 157,
+      "label": "Geofence zone 03",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io158": {
+      "avlId": 158,
+      "label": "Geofence zone 04",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io159": {
+      "avlId": 159,
+      "label": "Geofence zone 05",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io175": {
+      "avlId": 175,
+      "label": "Auto Geofence",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io181": {
+      "avlId": 181,
+      "label": "GNSS PDOP",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "quantity": "gnss_pdop",
+      "units": "ratio",
+      "sourceUnit": "0.1 ratio",
+      "canonicalUnit": "ratio",
+      "canonicalScale": 0.1
+    },
+    "io182": {
+      "avlId": 182,
+      "label": "GNSS HDOP",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "quantity": "gnss_hdop",
+      "units": "ratio",
+      "sourceUnit": "0.1 ratio",
+      "canonicalUnit": "ratio",
+      "canonicalScale": 0.1
+    },
+    "io190": {
+      "avlId": 190,
+      "label": "Geofence zone 24",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io191": {
+      "avlId": 191,
+      "label": "Geofence zone 25",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io192": {
+      "avlId": 192,
+      "label": "Geofence zone 26",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io193": {
+      "avlId": 193,
+      "label": "Geofence zone 27",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io194": {
+      "avlId": 194,
+      "label": "Geofence zone 28",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io195": {
+      "avlId": 195,
+      "label": "Geofence zone 29",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io196": {
+      "avlId": 196,
+      "label": "Geofence zone 30",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io197": {
+      "avlId": 197,
+      "label": "Geofence zone 31",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io198": {
+      "avlId": 198,
+      "label": "Geofence zone 32",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io199": {
+      "avlId": 199,
+      "label": "Trip Odometer",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "m",
+      "sourceUnit": "m",
+      "canonicalUnit": "m",
+      "canonicalScale": 1,
+      "quantity": "distance"
+    },
+    "io200": {
+      "avlId": 200,
+      "label": "Sleep Mode",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io205": {
+      "avlId": 205,
+      "label": "GSM Cell ID",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "valueType": "identifier"
+    },
+    "io206": {
+      "avlId": 206,
+      "label": "GSM Area Code",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io208": {
+      "avlId": 208,
+      "label": "Geofence zone 33",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io209": {
+      "avlId": 209,
+      "label": "Geofence zone 34",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io216": {
+      "avlId": 216,
+      "label": "Geofence zone 35",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io217": {
+      "avlId": 217,
+      "label": "Geofence zone 36",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io218": {
+      "avlId": 218,
+      "label": "Geofence zone 37",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io219": {
+      "avlId": 219,
+      "label": "Geofence zone 38",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io220": {
+      "avlId": 220,
+      "label": "Geofence zone 39",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io221": {
+      "avlId": 221,
+      "label": "Geofence zone 40",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io222": {
+      "avlId": 222,
+      "label": "Geofence zone 41",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io223": {
+      "avlId": 223,
+      "label": "Geofence zone 42",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io224": {
+      "avlId": 224,
+      "label": "Geofence zone 43",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io225": {
+      "avlId": 225,
+      "label": "Geofence zone 44",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io226": {
+      "avlId": 226,
+      "label": "Geofence zone 45",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io227": {
+      "avlId": 227,
+      "label": "Geofence zone 46",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io228": {
+      "avlId": 228,
+      "label": "Geofence zone 47",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io229": {
+      "avlId": 229,
+      "label": "Geofence zone 48",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io230": {
+      "avlId": 230,
+      "label": "Geofence zone 49",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io231": {
+      "avlId": 231,
+      "label": "Geofence zone 50",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io236": {
+      "avlId": 236,
+      "label": "Alarm",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io237": {
+      "avlId": 237,
+      "label": "Network Type",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io239": {
+      "avlId": 239,
+      "label": "Ignition",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io240": {
+      "avlId": 240,
+      "label": "Motion",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io241": {
+      "avlId": 241,
+      "label": "GSM Operator",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io243": {
+      "avlId": 243,
+      "label": "Green driving event duration",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "ms",
+      "sourceUnit": "ms",
+      "canonicalUnit": "ms",
+      "canonicalScale": 1,
+      "quantity": "duration"
+    },
+    "io246": {
+      "avlId": 246,
+      "label": "Towing",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io247": {
+      "avlId": 247,
+      "label": "Crash Detection",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io248": {
+      "avlId": 248,
+      "label": "Immobilizer",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io249": {
+      "avlId": 249,
+      "label": "Jamming",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io250": {
+      "avlId": 250,
+      "label": "Trip Status",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io251": {
+      "avlId": 251,
+      "label": "Idling",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io252": {
+      "avlId": 252,
+      "label": "Unplug",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io253": {
+      "avlId": 253,
+      "label": "Green driving type",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io254": {
+      "avlId": 254,
+      "label": "Green Driving Value",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "unknown",
+      "quantity": "state"
+    },
+    "io255": {
+      "avlId": 255,
+      "label": "Over Speeding",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "km/h",
+      "sourceUnit": "km/h",
+      "canonicalUnit": "km/h",
+      "canonicalScale": 1,
+      "quantity": "speed"
+    },
+    "io256": {
+      "avlId": 256,
+      "label": "Vehicle Identification Number",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "valueType": "identifier"
+    },
+    "io257": {
+      "avlId": 257,
+      "label": "Crash trace data",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "valueType": "text"
+    },
+    "io258": {
+      "avlId": 258,
+      "label": "EcoMaximum",
+      "valueType": "text",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io"
+    },
+    "io259": {
+      "avlId": 259,
+      "label": "EcoAverage",
+      "valueType": "text",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io"
+    },
+    "io260": {
+      "avlId": 260,
+      "label": "EcoDuration",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "ms",
+      "sourceUnit": "ms",
+      "canonicalUnit": "ms",
+      "canonicalScale": 1,
+      "quantity": "duration"
+    },
+    "io270": {
+      "avlId": 270,
+      "label": "BLE Fuel Level #1",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io273": {
+      "avlId": 273,
+      "label": "BLE Fuel Level #2",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io276": {
+      "avlId": 276,
+      "label": "BLE Fuel Level #3",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io279": {
+      "avlId": 279,
+      "label": "BLE Fuel Level #4",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io281": {
+      "avlId": 281,
+      "label": "OBD Fault Codes",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "valueType": "text"
+    },
+    "io283": {
+      "avlId": 283,
+      "label": "Driving State",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io284": {
+      "avlId": 284,
+      "label": "Driving Records",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io285": {
+      "avlId": 285,
+      "label": "Blood alcohol content",
+      "valueType": "text",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io"
+    },
+    "io306": {
+      "avlId": 306,
+      "label": "BLE Fuel Frequency #1",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "count"
+    },
+    "io307": {
+      "avlId": 307,
+      "label": "BLE Fuel Frequency #2",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "count"
+    },
+    "io308": {
+      "avlId": 308,
+      "label": "BLE Fuel Frequency #3",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "count"
+    },
+    "io309": {
+      "avlId": 309,
+      "label": "BLE Fuel Frequency #4",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "count"
+    },
+    "io317": {
+      "avlId": 317,
+      "label": "Crash event counter",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "count"
+    },
+    "io318": {
+      "avlId": 318,
+      "label": "GNSS Jamming",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io331": {
+      "avlId": 331,
+      "label": "BLE 1 Custom #1",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "valueType": "text"
+    },
+    "io332": {
+      "avlId": 332,
+      "label": "BLE 2 Custom #1",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "valueType": "text"
+    },
+    "io333": {
+      "avlId": 333,
+      "label": "BLE 3 Custom #1",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "valueType": "text"
+    },
+    "io334": {
+      "avlId": 334,
+      "label": "BLE 4 Custom #1",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "valueType": "text"
+    },
+    "io335": {
+      "avlId": 335,
+      "label": "BLE Luminosity #1",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "lx",
+      "sourceUnit": "lx",
+      "canonicalUnit": "lx",
+      "canonicalScale": 1,
+      "quantity": "illuminance"
+    },
+    "io336": {
+      "avlId": 336,
+      "label": "BLE Luminosity #2",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "lx",
+      "sourceUnit": "lx",
+      "canonicalUnit": "lx",
+      "canonicalScale": 1,
+      "quantity": "illuminance"
+    },
+    "io337": {
+      "avlId": 337,
+      "label": "BLE Luminosity #3",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "lx",
+      "sourceUnit": "lx",
+      "canonicalUnit": "lx",
+      "canonicalScale": 1,
+      "quantity": "illuminance"
+    },
+    "io338": {
+      "avlId": 338,
+      "label": "BLE Luminosity #4",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "lx",
+      "sourceUnit": "lx",
+      "canonicalUnit": "lx",
+      "canonicalScale": 1,
+      "quantity": "illuminance"
+    },
+    "io383": {
+      "avlId": 383,
+      "label": "AXL Calibration Status",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io385": {
+      "avlId": 385,
+      "label": "Beacon",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "valueType": "text"
+    },
+    "io387": {
+      "avlId": 387,
+      "label": "ISO6709 Coordinates",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "valueType": "identifier"
+    },
+    "io389": {
+      "avlId": 389,
+      "label": "OBD OEM Total Mileage",
+      "sourceGroup": "obd-oem",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_OEM_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "km",
+      "sourceUnit": "km",
+      "canonicalUnit": "km",
+      "canonicalScale": 1,
+      "quantity": "distance"
+    },
+    "io390": {
+      "avlId": 390,
+      "label": "OBD OEM Fuel Level",
+      "sourceGroup": "obd-oem",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_OEM_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "L",
+      "sourceUnit": "0.1 L",
+      "canonicalUnit": "L",
+      "canonicalScale": 0.1,
+      "quantity": "fuel_volume"
+    },
+    "io391": {
+      "avlId": 391,
+      "label": "Private mode",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io402": {
+      "avlId": 402,
+      "label": "Distance Until Service",
+      "sourceGroup": "obd-oem",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_OEM_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "km",
+      "sourceUnit": "km",
+      "canonicalUnit": "km",
+      "canonicalScale": 1,
+      "quantity": "distance"
+    },
+    "io410": {
+      "avlId": 410,
+      "label": "OEM Battery charge state",
+      "sourceGroup": "obd-oem",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_OEM_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io411": {
+      "avlId": 411,
+      "label": "OEM Battery Charge Level",
+      "sourceGroup": "obd-oem",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_OEM_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percent"
+    },
+    "io412": {
+      "avlId": 412,
+      "label": "OEM Battery power consumption",
+      "sourceGroup": "obd-oem",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_OEM_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "kWh/100km",
+      "sourceUnit": "kWh/100km",
+      "canonicalUnit": "kWh/100km",
+      "canonicalScale": 1,
+      "quantity": "energy_consumption"
+    },
+    "io449": {
+      "avlId": 449,
+      "label": "Ignition On Counter",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "s",
+      "sourceUnit": "s",
+      "canonicalUnit": "s",
+      "canonicalScale": 1,
+      "quantity": "duration"
+    },
+    "io451": {
+      "avlId": 451,
+      "label": "BLE RFID #1",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "valueType": "identifier"
+    },
+    "io452": {
+      "avlId": 452,
+      "label": "BLE RFID #2",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "valueType": "identifier"
+    },
+    "io453": {
+      "avlId": 453,
+      "label": "BLE RFID #3",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "valueType": "identifier"
+    },
+    "io454": {
+      "avlId": 454,
+      "label": "BLE RFID #4",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "valueType": "identifier"
+    },
+    "io455": {
+      "avlId": 455,
+      "label": "BLE Button 1 state #1",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io456": {
+      "avlId": 456,
+      "label": "BLE Button 1 state #2",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io457": {
+      "avlId": 457,
+      "label": "BLE Button 1 state #3",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io458": {
+      "avlId": 458,
+      "label": "BLE Button 1 state #4",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io459": {
+      "avlId": 459,
+      "label": "BLE Button 2 state #1",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io460": {
+      "avlId": 460,
+      "label": "BLE Button 2 state #2",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io461": {
+      "avlId": 461,
+      "label": "BLE Button 2 state #3",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io462": {
+      "avlId": 462,
+      "label": "BLE Button 2 state #4",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io463": {
+      "avlId": 463,
+      "label": "BLE 1 Custom #2",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io464": {
+      "avlId": 464,
+      "label": "BLE 1 Custom #3",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io465": {
+      "avlId": 465,
+      "label": "BLE 1 Custom #4",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io466": {
+      "avlId": 466,
+      "label": "BLE 1 Custom #5",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io467": {
+      "avlId": 467,
+      "label": "BLE 2 Custom #2",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io468": {
+      "avlId": 468,
+      "label": "BLE 2 Custom #3",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io469": {
+      "avlId": 469,
+      "label": "BLE 2 Custom #4",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io470": {
+      "avlId": 470,
+      "label": "BLE 2 Custom #5",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io471": {
+      "avlId": 471,
+      "label": "BLE 3 Custom #2",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io472": {
+      "avlId": 472,
+      "label": "BLE 3 Custom #3",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io473": {
+      "avlId": 473,
+      "label": "BLE 3 Custom #4",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io474": {
+      "avlId": 474,
+      "label": "BLE 3 Custom #5",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io475": {
+      "avlId": 475,
+      "label": "BLE 4 Custom #2",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io476": {
+      "avlId": 476,
+      "label": "BLE 4 Custom #3",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io477": {
+      "avlId": 477,
+      "label": "BLE 4 Custom #4",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io478": {
+      "avlId": 478,
+      "label": "BLE 4 Custom #5",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io540": {
+      "avlId": 540,
+      "label": "Throttle Position Group",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percent"
+    },
+    "io541": {
+      "avlId": 541,
+      "label": "Commanded Equivalence Ratio",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "ratio",
+      "sourceUnit": "0.01 ratio",
+      "canonicalUnit": "ratio",
+      "canonicalScale": 0.01,
+      "quantity": "ratio"
+    },
+    "io542": {
+      "avlId": 542,
+      "label": "Intake Manifold Absolute Pressure (2-byte)",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "kPa",
+      "sourceUnit": "kPa",
+      "canonicalUnit": "kPa",
+      "canonicalScale": 1,
+      "quantity": "pressure"
+    },
+    "io543": {
+      "avlId": 543,
+      "label": "Hybrid System Voltage",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "V",
+      "sourceUnit": "V",
+      "canonicalUnit": "V",
+      "canonicalScale": 1,
+      "quantity": "voltage"
+    },
+    "io544": {
+      "avlId": 544,
+      "label": "Hybrid System Current",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 16,
+      "units": "A",
+      "sourceUnit": "A",
+      "canonicalUnit": "A",
+      "canonicalScale": 1,
+      "quantity": "current"
+    },
+    "io548": {
+      "avlId": 548,
+      "label": "Advanced BLE Beacon data",
+      "sourceGroup": "ble",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#BLE_Sensors_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "valueType": "text"
+    },
+    "io622": {
+      "avlId": 622,
+      "label": "Frequency DIN1",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "Hz",
+      "sourceUnit": "0.1 Hz",
+      "canonicalUnit": "Hz",
+      "canonicalScale": 0.1,
+      "quantity": "frequency"
+    },
+    "io623": {
+      "avlId": 623,
+      "label": "Frequency DIN2",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "Hz",
+      "sourceUnit": "0.1 Hz",
+      "canonicalUnit": "Hz",
+      "canonicalScale": 0.1,
+      "quantity": "frequency"
+    },
+    "io755": {
+      "avlId": 755,
+      "label": "OEM Remaining distance",
+      "sourceGroup": "obd-oem",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_OEM_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "km",
+      "sourceUnit": "km",
+      "canonicalUnit": "km",
+      "canonicalScale": 1,
+      "quantity": "distance"
+    },
+    "io759": {
+      "avlId": 759,
+      "label": "Fuel Type",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io1151": {
+      "avlId": 1151,
+      "label": "OEM Battery State Of Health",
+      "sourceGroup": "obd-oem",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_OEM_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percent"
+    },
+    "io1152": {
+      "avlId": 1152,
+      "label": "OEM Battery Temperature",
+      "sourceGroup": "obd-oem",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_OEM_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 16,
+      "units": "°C",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "quantity": "temperature"
+    },
+    "io1176": {
+      "avlId": 1176,
+      "label": "ELD Mileage",
+      "sourceGroup": "eld",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#ELD",
+      "sourceRepresentation": "raw-io",
+      "units": "km",
+      "sourceUnit": "km",
+      "canonicalUnit": "km",
+      "canonicalScale": 1,
+      "quantity": "distance"
+    },
+    "io1177": {
+      "avlId": 1177,
+      "label": "ELD engine hours",
+      "sourceGroup": "eld",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#ELD",
+      "sourceRepresentation": "raw-io",
+      "units": "h",
+      "sourceUnit": "h",
+      "canonicalUnit": "h",
+      "canonicalScale": 1,
+      "quantity": "duration"
+    },
+    "io1178": {
+      "avlId": 1178,
+      "label": "ELD Ignition",
+      "sourceGroup": "eld",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#ELD",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io1179": {
+      "avlId": 1179,
+      "label": "ELD parking brake status",
+      "sourceGroup": "eld",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#ELD",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io1180": {
+      "avlId": 1180,
+      "label": "ELD Total Fuel Used",
+      "sourceGroup": "eld",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#ELD",
+      "sourceRepresentation": "raw-io",
+      "units": "L",
+      "sourceUnit": "L",
+      "canonicalUnit": "L",
+      "canonicalScale": 1,
+      "quantity": "fuel_volume"
+    },
+    "io1181": {
+      "avlId": 1181,
+      "label": "ELD engine idle hours",
+      "sourceGroup": "eld",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#ELD",
+      "sourceRepresentation": "raw-io",
+      "units": "h",
+      "sourceUnit": "h",
+      "canonicalUnit": "h",
+      "canonicalScale": 1,
+      "quantity": "duration"
+    },
+    "io1182": {
+      "avlId": 1182,
+      "label": "ELD DTC Count",
+      "sourceGroup": "eld",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#ELD",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "count"
+    },
+    "io1183": {
+      "avlId": 1183,
+      "label": "ELD Fuel Level 2",
+      "sourceGroup": "eld",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#ELD",
+      "sourceRepresentation": "raw-io",
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percent"
+    },
+    "io1184": {
+      "avlId": 1184,
+      "label": "ELD Battery Voltage",
+      "sourceGroup": "eld",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#ELD",
+      "sourceRepresentation": "raw-io",
+      "units": "V",
+      "sourceUnit": "V",
+      "canonicalUnit": "V",
+      "canonicalScale": 1,
+      "quantity": "voltage"
+    },
+    "io1185": {
+      "avlId": 1185,
+      "label": "ELD Total Idle Fuel Used",
+      "sourceGroup": "eld",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#ELD",
+      "sourceRepresentation": "raw-io",
+      "units": "L",
+      "sourceUnit": "L",
+      "canonicalUnit": "L",
+      "canonicalScale": 1,
+      "quantity": "fuel_volume"
+    },
+    "io1186": {
+      "avlId": 1186,
+      "label": "ELD Trip Distance",
+      "sourceGroup": "eld",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#ELD",
+      "sourceRepresentation": "raw-io",
+      "units": "km",
+      "sourceUnit": "km",
+      "canonicalUnit": "km",
+      "canonicalScale": 1,
+      "quantity": "distance"
+    },
+    "io1187": {
+      "avlId": 1187,
+      "label": "ELD Fuel Economy",
+      "sourceGroup": "eld",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#ELD",
+      "sourceRepresentation": "raw-io",
+      "units": "km/L",
+      "sourceUnit": "km/L",
+      "canonicalUnit": "km/L",
+      "canonicalScale": 1,
+      "quantity": "distance_per_fuel"
+    },
+    "io1188": {
+      "avlId": 1188,
+      "label": "ELD Ambient Air Temperature",
+      "sourceGroup": "eld",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#ELD",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 16,
+      "units": "°C",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "quantity": "temperature"
+    },
+    "io1189": {
+      "avlId": 1189,
+      "label": "ELD Engine Load",
+      "sourceGroup": "eld",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#ELD",
+      "sourceRepresentation": "raw-io",
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percent"
+    },
+    "io1190": {
+      "avlId": 1190,
+      "label": "ELD Engine Throttle",
+      "sourceGroup": "eld",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#ELD",
+      "sourceRepresentation": "raw-io",
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percent"
+    },
+    "io1191": {
+      "avlId": 1191,
+      "label": "ELD Oil Temperature",
+      "sourceGroup": "eld",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#ELD",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 16,
+      "units": "°C",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "quantity": "temperature"
+    },
+    "io1192": {
+      "avlId": 1192,
+      "label": "ELD Trip Fuel Used",
+      "sourceGroup": "eld",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#ELD",
+      "sourceRepresentation": "raw-io",
+      "units": "L",
+      "sourceUnit": "L",
+      "canonicalUnit": "L",
+      "canonicalScale": 1,
+      "quantity": "fuel_volume"
+    },
+    "io1193": {
+      "avlId": 1193,
+      "label": "ELD Oil Pressure",
+      "sourceGroup": "eld",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#ELD",
+      "sourceRepresentation": "raw-io",
+      "units": "kPa",
+      "sourceUnit": "kPa",
+      "canonicalUnit": "kPa",
+      "canonicalScale": 1,
+      "quantity": "pressure"
+    },
+    "io1194": {
+      "avlId": 1194,
+      "label": "ELD Seat Belt Status",
+      "sourceGroup": "eld",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#ELD",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io1195": {
+      "avlId": 1195,
+      "label": "ELD Cruise Control Status",
+      "sourceGroup": "eld",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#ELD",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io1196": {
+      "avlId": 1196,
+      "label": "ELD Throttle Pedal Position",
+      "sourceGroup": "eld",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#ELD",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io1197": {
+      "avlId": 1197,
+      "label": "ELD Engine Coolant Level",
+      "sourceGroup": "eld",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#ELD",
+      "sourceRepresentation": "raw-io",
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percent"
+    },
+    "io1198": {
+      "avlId": 1198,
+      "label": "ELD Engine Coolant Pressure",
+      "sourceGroup": "eld",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#ELD",
+      "sourceRepresentation": "raw-io",
+      "units": "kPa",
+      "sourceUnit": "kPa",
+      "canonicalUnit": "kPa",
+      "canonicalScale": 1,
+      "quantity": "pressure"
+    },
+    "io1199": {
+      "avlId": 1199,
+      "label": "ELD Transmission Oil Temperature",
+      "sourceGroup": "eld",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#ELD",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 16,
+      "units": "°C",
+      "sourceUnit": "°C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 1,
+      "quantity": "temperature"
+    },
+    "io1200": {
+      "avlId": 1200,
+      "label": "ELD Brake Application Pressure",
+      "sourceGroup": "eld",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#ELD",
+      "sourceRepresentation": "raw-io",
+      "units": "kPa",
+      "sourceUnit": "kPa",
+      "canonicalUnit": "kPa",
+      "canonicalScale": 1,
+      "quantity": "pressure"
+    },
+    "io1201": {
+      "avlId": 1201,
+      "label": "ELD Brake Pedal Position",
+      "sourceGroup": "eld",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#ELD",
+      "sourceRepresentation": "raw-io",
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percent"
+    },
+    "io1202": {
+      "avlId": 1202,
+      "label": "ELD Ignition Switch Status",
+      "sourceGroup": "eld",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#ELD",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io1378": {
+      "avlId": 1378,
+      "label": "OEM HV Battery Min Cell Voltage",
+      "sourceGroup": "oem-ev",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OEM_EV",
+      "sourceRepresentation": "raw-io",
+      "units": "V",
+      "sourceUnit": "0.01 V",
+      "canonicalUnit": "V",
+      "canonicalScale": 0.01,
+      "quantity": "voltage"
+    },
+    "io1379": {
+      "avlId": 1379,
+      "label": "OEM HV Battery Max Cell Voltage",
+      "sourceGroup": "oem-ev",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OEM_EV",
+      "sourceRepresentation": "raw-io",
+      "units": "V",
+      "sourceUnit": "0.01 V",
+      "canonicalUnit": "V",
+      "canonicalScale": 0.01,
+      "quantity": "voltage"
+    },
+    "io1380": {
+      "avlId": 1380,
+      "label": "OEM HV Battery Current",
+      "sourceGroup": "oem-ev",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OEM_EV",
+      "sourceRepresentation": "raw-io",
+      "units": "A",
+      "sourceUnit": "0.1 A",
+      "canonicalUnit": "A",
+      "canonicalScale": 0.1,
+      "quantity": "current"
+    },
+    "io1381": {
+      "avlId": 1381,
+      "label": "OEM HV Battery Voltage",
+      "sourceGroup": "oem-ev",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OEM_EV",
+      "sourceRepresentation": "raw-io",
+      "units": "V",
+      "sourceUnit": "0.1 V",
+      "canonicalUnit": "V",
+      "canonicalScale": 0.1,
+      "quantity": "voltage"
+    },
+    "io1382": {
+      "avlId": 1382,
+      "label": "OEM HV Battery Max Energy",
+      "sourceGroup": "oem-ev",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OEM_EV",
+      "sourceRepresentation": "raw-io",
+      "units": "kWh",
+      "sourceUnit": "0.01 kWh",
+      "canonicalUnit": "kWh",
+      "canonicalScale": 0.01,
+      "quantity": "energy"
+    },
+    "io1383": {
+      "avlId": 1383,
+      "label": "OEM HV Battery Measured Energy",
+      "sourceGroup": "oem-ev",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OEM_EV",
+      "sourceRepresentation": "raw-io",
+      "units": "kWh",
+      "sourceUnit": "0.01 kWh",
+      "canonicalUnit": "kWh",
+      "canonicalScale": 0.01,
+      "quantity": "energy"
+    },
+    "io1386": {
+      "avlId": 1386,
+      "label": "OEM HV Battery Min Cell Temperature",
+      "sourceGroup": "oem-ev",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OEM_EV",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 16,
+      "units": "°C",
+      "sourceUnit": "0.1 °C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 0.1,
+      "quantity": "temperature"
+    },
+    "io1387": {
+      "avlId": 1387,
+      "label": "OEM HV Battery Max Cell Temperature",
+      "sourceGroup": "oem-ev",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OEM_EV",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 16,
+      "units": "°C",
+      "sourceUnit": "0.1 °C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 0.1,
+      "quantity": "temperature"
+    },
+    "io1388": {
+      "avlId": 1388,
+      "label": "OEM HV Battery Lifetime Power Use",
+      "sourceGroup": "oem-ev",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OEM_EV",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 32,
+      "units": "kWh",
+      "sourceUnit": "kWh",
+      "canonicalUnit": "kWh",
+      "canonicalScale": 1,
+      "quantity": "energy"
+    },
+    "io1389": {
+      "avlId": 1389,
+      "label": "OEM HV Battery Lifetime Charge Power",
+      "sourceGroup": "oem-ev",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OEM_EV",
+      "sourceRepresentation": "raw-io",
+      "units": "kWh",
+      "sourceUnit": "kWh",
+      "canonicalUnit": "kWh",
+      "canonicalScale": 1,
+      "quantity": "energy"
+    },
+    "io1390": {
+      "avlId": 1390,
+      "label": "OEM Fast Charge Count",
+      "sourceGroup": "oem-ev",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OEM_EV",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "count"
+    },
+    "io1391": {
+      "avlId": 1391,
+      "label": "OEM Slow Charge Count",
+      "sourceGroup": "oem-ev",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OEM_EV",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "count"
+    },
+    "io1412": {
+      "avlId": 1412,
+      "label": "Motorcycle Fall Detection",
+      "sourceGroup": "event",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Eventual_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io1443": {
+      "avlId": 1443,
+      "label": "OEM Distance Since Refuel",
+      "sourceGroup": "obd-oem",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_OEM_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "km",
+      "sourceUnit": "km",
+      "canonicalUnit": "km",
+      "canonicalScale": 1,
+      "quantity": "distance"
+    },
+    "io1476": {
+      "avlId": 1476,
+      "label": "OEM Remaining Oil Life",
+      "sourceGroup": "oem-ev",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OEM_EV",
+      "sourceRepresentation": "raw-io",
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percent"
+    },
+    "io1491": {
+      "avlId": 1491,
+      "label": "ELD Engine Minutes",
+      "sourceGroup": "eld",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#ELD",
+      "sourceRepresentation": "raw-io",
+      "units": "min",
+      "sourceUnit": "min",
+      "canonicalUnit": "min",
+      "canonicalScale": 1,
+      "quantity": "duration"
+    },
+    "io1593": {
+      "avlId": 1593,
+      "label": "Calculated Remaining Distance",
+      "sourceGroup": "obd",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#OBD_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "km",
+      "sourceUnit": "km",
+      "canonicalUnit": "km",
+      "canonicalScale": 1,
+      "quantity": "distance"
+    },
+    "io10800": {
+      "avlId": 10800,
+      "label": "EYE Temperature 1",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 16,
+      "units": "°C",
+      "sourceUnit": "0.01 °C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 0.01,
+      "quantity": "temperature"
+    },
+    "io10801": {
+      "avlId": 10801,
+      "label": "EYE Temperature 2",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 16,
+      "units": "°C",
+      "sourceUnit": "0.01 °C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 0.01,
+      "quantity": "temperature"
+    },
+    "io10802": {
+      "avlId": 10802,
+      "label": "EYE Temperature 3",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 16,
+      "units": "°C",
+      "sourceUnit": "0.01 °C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 0.01,
+      "quantity": "temperature"
+    },
+    "io10803": {
+      "avlId": 10803,
+      "label": "EYE Temperature 4",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 16,
+      "units": "°C",
+      "sourceUnit": "0.01 °C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 0.01,
+      "quantity": "temperature"
+    },
+    "io10804": {
+      "avlId": 10804,
+      "label": "EYE Humidity 1",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percent"
+    },
+    "io10805": {
+      "avlId": 10805,
+      "label": "EYE Humidity 2",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percent"
+    },
+    "io10806": {
+      "avlId": 10806,
+      "label": "EYE Humidity 3",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percent"
+    },
+    "io10807": {
+      "avlId": 10807,
+      "label": "EYE Humidity 4",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "quantity": "percent"
+    },
+    "io10808": {
+      "avlId": 10808,
+      "label": "EYE Magnet 1",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io10809": {
+      "avlId": 10809,
+      "label": "EYE Magnet 2",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io10810": {
+      "avlId": 10810,
+      "label": "EYE Magnet 3",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io10811": {
+      "avlId": 10811,
+      "label": "EYE Magnet 4",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io10812": {
+      "avlId": 10812,
+      "label": "EYE Movement 1",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io10813": {
+      "avlId": 10813,
+      "label": "EYE Movement 2",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io10814": {
+      "avlId": 10814,
+      "label": "EYE Movement 3",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io10815": {
+      "avlId": 10815,
+      "label": "EYE Movement 4",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io10816": {
+      "avlId": 10816,
+      "label": "EYE Pitch 1",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 8,
+      "sourceUnitStatus": "unknown",
+      "quantity": "angle"
+    },
+    "io10817": {
+      "avlId": 10817,
+      "label": "EYE Pitch 2",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 8,
+      "sourceUnitStatus": "unknown",
+      "quantity": "angle"
+    },
+    "io10818": {
+      "avlId": 10818,
+      "label": "EYE Pitch 3",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 8,
+      "sourceUnitStatus": "unknown",
+      "quantity": "angle"
+    },
+    "io10819": {
+      "avlId": 10819,
+      "label": "EYE Pitch 4",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 8,
+      "sourceUnitStatus": "unknown",
+      "quantity": "angle"
+    },
+    "io10820": {
+      "avlId": 10820,
+      "label": "EYE Low Battery 1",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io10821": {
+      "avlId": 10821,
+      "label": "EYE Low Battery 2",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io10822": {
+      "avlId": 10822,
+      "label": "EYE Low Battery 3",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io10823": {
+      "avlId": 10823,
+      "label": "EYE Low Battery 4",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "state"
+    },
+    "io10824": {
+      "avlId": 10824,
+      "label": "EYE Battery Voltage 1",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "unknown",
+      "quantity": "voltage"
+    },
+    "io10825": {
+      "avlId": 10825,
+      "label": "EYE Battery Voltage 2",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "unknown",
+      "quantity": "voltage"
+    },
+    "io10826": {
+      "avlId": 10826,
+      "label": "EYE Battery Voltage 3",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "unknown",
+      "quantity": "voltage"
+    },
+    "io10827": {
+      "avlId": 10827,
+      "label": "EYE Battery Voltage 4",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "unknown",
+      "quantity": "voltage"
+    },
+    "io10832": {
+      "avlId": 10832,
+      "label": "EYE Roll 1",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 16,
+      "sourceUnitStatus": "unknown",
+      "quantity": "angle"
+    },
+    "io10833": {
+      "avlId": 10833,
+      "label": "EYE Roll 2",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 16,
+      "sourceUnitStatus": "unknown",
+      "quantity": "angle"
+    },
+    "io10834": {
+      "avlId": 10834,
+      "label": "EYE Roll 3",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 16,
+      "sourceUnitStatus": "unknown",
+      "quantity": "angle"
+    },
+    "io10835": {
+      "avlId": 10835,
+      "label": "EYE Roll 4",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 16,
+      "sourceUnitStatus": "unknown",
+      "quantity": "angle"
+    },
+    "io10836": {
+      "avlId": 10836,
+      "label": "EYE Movement count 1",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "count"
+    },
+    "io10837": {
+      "avlId": 10837,
+      "label": "EYE Movement count 2",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "count"
+    },
+    "io10838": {
+      "avlId": 10838,
+      "label": "EYE Movement count 3",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "count"
+    },
+    "io10839": {
+      "avlId": 10839,
+      "label": "EYE Movement count 4",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "count"
+    },
+    "io10840": {
+      "avlId": 10840,
+      "label": "EYE Magnet count 1",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "count"
+    },
+    "io10841": {
+      "avlId": 10841,
+      "label": "EYE Magnet count 2",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "count"
+    },
+    "io10842": {
+      "avlId": 10842,
+      "label": "EYE Magnet count 3",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "count"
+    },
+    "io10843": {
+      "avlId": 10843,
+      "label": "EYE Magnet count 4",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceUnitStatus": "none",
+      "quantity": "count"
+    },
+    "io13201": {
+      "avlId": 13201,
+      "label": "Tracker PCB Temperature",
+      "sourceGroup": "tracker",
+      "sourceReference": "https://wiki.teltonika-gps.com/view/FMM003_Teltonika_Data_Sending_Parameters_ID#Permanent_I/O_elements",
+      "sourceRepresentation": "raw-io",
+      "sourceSignedBits": 16,
+      "units": "°C",
+      "sourceUnit": "0.1 °C",
+      "canonicalUnit": "°C",
+      "canonicalScale": 0.1,
+      "quantity": "temperature"
+    },
+    "milDistance": {
+      "label": "Distance With MIL On",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "avlId": 43,
+      "quantity": "distance",
+      "units": "km",
+      "sourceUnit": "km",
+      "canonicalUnit": "km",
+      "canonicalScale": 1
     },
     "motion": {
       "label": "Motion",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
       "avlId": 240,
+      "sourceUnitStatus": "none",
       "statusCardField": "motion"
+    },
+    "obdOdometer": {
+      "label": "OBD Odometer",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "sourceAvlIds": [
+        87,
+        389
+      ],
+      "quantity": "distance",
+      "units": "m",
+      "sourceUnit": "m",
+      "canonicalUnit": "m",
+      "canonicalScale": 1
+    },
+    "obdSpeed": {
+      "label": "OBD Vehicle Speed",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "sourceAvlIds": [
+        81
+      ],
+      "quantity": "speed",
+      "units": "km/h",
+      "sourceUnit": "km/h",
+      "canonicalUnit": "km/h",
+      "canonicalScale": 1,
+      "statusCardAliases": [
+        "obdSpeed"
+      ]
     },
     "odometer": {
       "label": "Teltonika Odometer",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
       "avlId": 16,
-      "units": "mi",
-      "conversion": "metersToMiles",
+      "quantity": "distance",
+      "units": "m",
       "sourceUnit": "m",
       "canonicalUnit": "m",
-      "canonicalScale": 1,
-      "quantity": "distance"
-    },
-    "tripOdometer": {
-      "label": "Trip Odometer",
-      "avlId": 199,
-      "units": "mi",
-      "sourceUnit": "m",
-      "canonicalUnit": "m",
-      "canonicalScale": 1,
-      "quantity": "distance"
+      "canonicalScale": 1
     },
     "operator": {
       "label": "GSM Operator",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
       "avlId": 241,
-      "units": "MCC/MNC",
+      "sourceUnitStatus": "none",
       "statusCardField": "operator"
     },
     "pdop": {
       "label": "GNSS PDOP",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
       "avlId": 181,
-      "units": "lower is more accurate",
+      "quantity": "gnss_pdop",
+      "units": "ratio",
+      "sourceUnit": "ratio",
+      "canonicalUnit": "ratio",
+      "canonicalScale": 1,
       "statusCardField": "pdop"
     },
     "power": {
       "label": "External Tracker Supply Voltage",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
       "avlId": 66,
+      "quantity": "voltage",
       "units": "V",
-      "quantity": "external_supply_voltage",
+      "sourceUnit": "V",
+      "canonicalUnit": "V",
+      "canonicalScale": 1,
       "statusCardField": "power"
     },
     "priority": {
       "label": "AVL Packet Priority",
-      "units": "0 = routine"
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "quantity": "state",
+      "sourceUnitStatus": "none"
+    },
+    "rpm": {
+      "label": "Engine RPM",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "sourceAvlIds": [
+        36,
+        85
+      ],
+      "quantity": "engine_speed",
+      "units": "rpm",
+      "sourceUnit": "rpm",
+      "canonicalUnit": "rpm",
+      "canonicalScale": 1,
+      "statusCardAliases": [
+        "engineRpm"
+      ]
     },
     "rssi": {
       "label": "GSM Signal",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
       "avlId": 21,
-      "units": "0-5",
-      "quantity": "gsm_signal_level",
+      "sourceUnitStatus": "none",
       "statusCardField": "signalStrength"
     },
     "sat": {
       "label": "GNSS Satellite Count",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "quantity": "count",
       "units": "count",
-      "quantity": "gnss_satellite_count",
+      "sourceUnit": "count",
+      "canonicalUnit": "count",
+      "canonicalScale": 1,
       "statusCardField": "satellites"
+    },
+    "sleepMode": {
+      "label": "Sleep Mode",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "avlId": 200,
+      "sourceUnitStatus": "none"
+    },
+    "throttle": {
+      "label": "Throttle Position",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "sourceAvlIds": [
+        82
+      ],
+      "quantity": "percent",
+      "units": "%",
+      "sourceUnit": "%",
+      "canonicalUnit": "%",
+      "canonicalScale": 1,
+      "statusCardAliases": [
+        "throttle"
+      ]
     },
     "totalDistance": {
       "label": "Traccar Total Distance",
-      "units": "mi",
-      "conversion": "metersToMiles",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "quantity": "distance",
+      "units": "m",
       "sourceUnit": "m",
       "canonicalUnit": "m",
-      "canonicalScale": 1,
-      "quantity": "distance"
+      "canonicalScale": 1
     },
-    "io11": {
-      "label": "SIM ICCID 1 (MSB)",
-      "avlId": 11,
+    "tripOdometer": {
+      "label": "Trip Odometer",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "avlId": 199,
+      "quantity": "distance",
+      "units": "m",
+      "sourceUnit": "m",
+      "canonicalUnit": "m",
+      "canonicalScale": 1
+    },
+    "vin": {
+      "label": "Vehicle Identification Number",
+      "sourceReference": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+      "sourceRepresentation": "traccar-decoded",
+      "sourceAvlIds": [
+        256,
+        325
+      ],
+      "quantity": "identifier",
+      "sourceUnitStatus": "none",
       "valueType": "identifier"
-    },
-    "io14": {
-      "label": "SIM ICCID 2 (LSB)",
-      "avlId": 14,
-      "valueType": "identifier"
-    },
-    "io237": {
-      "label": "Network Type",
-      "avlId": 237
-    },
-    "io250": {
-      "label": "Trip Status",
-      "avlId": 250
     }
   }
 }

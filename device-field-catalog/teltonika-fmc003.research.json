@@ -1,0 +1,419 @@
+{
+  "catalogVersion": 1,
+  "manufacturer": "Teltonika",
+  "model": "FMC003",
+  "status": "research",
+  "fields": [
+    {
+      "key": "axisX",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Axis X",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC003"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC003 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC003_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Axis X."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"axisX\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "actual enabled AVL/config and JSON sample needed; FMC003 scope inferred from its model catalog and generic decoder; verify enabled AVL list",
+          "Teltonika's FMC003 hardware-support table does not list this exact model for AVL 17; this suggestion does not link the observed API key to that AVL ID."
+        ]
+      },
+      "suggestionReason": "The shared Teltonika reference describes “Axis X”, but the FMC003 hardware-support table omits this model for AVL 17. Keep this as an unconfirmed label suggestion only; no AVL link, source unit, or conversion is asserted."
+    },
+    {
+      "key": "axisY",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Axis Y",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC003"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC003 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC003_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Axis Y."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"axisY\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "actual enabled AVL/config and JSON sample needed; FMC003 scope inferred from its model catalog and generic decoder; verify enabled AVL list",
+          "Teltonika's FMC003 hardware-support table does not list this exact model for AVL 18; this suggestion does not link the observed API key to that AVL ID."
+        ]
+      },
+      "suggestionReason": "The shared Teltonika reference describes “Axis Y”, but the FMC003 hardware-support table omits this model for AVL 18. Keep this as an unconfirmed label suggestion only; no AVL link, source unit, or conversion is asserted."
+    },
+    {
+      "key": "axisZ",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Axis Z",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC003"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC003 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC003_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Axis Z."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"axisZ\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "actual enabled AVL/config and JSON sample needed; FMC003 scope inferred from its model catalog and generic decoder; verify enabled AVL list",
+          "Teltonika's FMC003 hardware-support table does not list this exact model for AVL 19; this suggestion does not link the observed API key to that AVL ID."
+        ]
+      },
+      "suggestionReason": "The shared Teltonika reference describes “Axis Z”, but the FMC003 hardware-support table omits this model for AVL 19. Keep this as an unconfirmed label suggestion only; no AVL link, source unit, or conversion is asserted."
+    },
+    {
+      "key": "battery",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Battery Voltage",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC003"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC003 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC003_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Battery Voltage."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"battery\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "decoder divides by 1000; actual enabled AVL/config and JSON sample needed; FMC003 scope inferred from its model catalog and generic decoder; verify enabled AVL list",
+          "Teltonika's FMC003 hardware-support table does not list this exact model for AVL 67; this suggestion does not link the observed API key to that AVL ID."
+        ]
+      },
+      "suggestionReason": "The shared Teltonika reference describes “Battery Voltage”, but the FMC003 hardware-support table omits this model for AVL 67. Keep this as an unconfirmed label suggestion only; no AVL link, source unit, or conversion is asserted."
+    },
+    {
+      "key": "batteryCurrent",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Battery Current",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC003"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC003 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC003_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Battery Current."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"batteryCurrent\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "decoder divides by 1000; actual enabled AVL/config and JSON sample needed; FMC003 scope inferred from its model catalog and generic decoder; verify enabled AVL list",
+          "Teltonika's FMC003 hardware-support table does not list this exact model for AVL 68; this suggestion does not link the observed API key to that AVL ID."
+        ]
+      },
+      "suggestionReason": "The shared Teltonika reference describes “Battery Current”, but the FMC003 hardware-support table omits this model for AVL 68. Keep this as an unconfirmed label suggestion only; no AVL link, source unit, or conversion is asserted."
+    },
+    {
+      "key": "batteryLevel",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Battery Level",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC003"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC003 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC003_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Battery Level."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"batteryLevel\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "actual enabled AVL/config and JSON sample needed; FMC003 scope inferred from its model catalog and generic decoder; verify enabled AVL list",
+          "Teltonika's FMC003 hardware-support table does not list this exact model for AVL 113; this suggestion does not link the observed API key to that AVL ID."
+        ]
+      },
+      "suggestionReason": "The shared Teltonika reference describes “Battery Level”, but the FMC003 hardware-support table omits this model for AVL 113. Keep this as an unconfirmed label suggestion only; no AVL link, source unit, or conversion is asserted."
+    },
+    {
+      "key": "hdop",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "HDOP",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC003"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC003 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC003_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: HDOP."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"hdop\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "decoder divides by 10; no further scaling; actual enabled AVL/config and JSON sample needed; FMC003 scope inferred from its model catalog and generic decoder; verify enabled AVL list",
+          "Teltonika's FMC003 hardware-support table does not list this exact model for AVL 182; this suggestion does not link the observed API key to that AVL ID."
+        ]
+      },
+      "suggestionReason": "The shared Teltonika reference describes “HDOP”, but the FMC003 hardware-support table omits this model for AVL 182. Keep this as an unconfirmed label suggestion only; no AVL link, source unit, or conversion is asserted."
+    },
+    {
+      "key": "ignition",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Ignition",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC003"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC003 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC003_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Ignition."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"ignition\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "decoder turns >0 into boolean; actual enabled AVL/config and JSON sample needed; FMC003 scope inferred from its model catalog and generic decoder; verify enabled AVL list",
+          "Teltonika's FMC003 hardware-support table does not list this exact model for AVL 239; this suggestion does not link the observed API key to that AVL ID."
+        ]
+      },
+      "suggestionReason": "The shared Teltonika reference describes “Ignition”, but the FMC003 hardware-support table omits this model for AVL 239. Keep this as an unconfirmed label suggestion only; no AVL link, source unit, or conversion is asserted."
+    },
+    {
+      "key": "io389",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "OBD OEM Total Mileage",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC003"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC003 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC003_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: OBD OEM Total Mileage."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"io389\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          },
+          {
+            "title": "Teltonika community confirmation",
+            "url": "https://community.teltonika.lt/t/reset-odometer-fmc003/17477",
+            "supports": "Documented field name: OBD OEM Total Mileage."
+          }
+        ],
+        "knownLimitations": [
+          "Teltonika FMC003 community confirms AVL 389; Traccar only normalizes to obdOdometer for FMB003, so FMC003 keeps io389; inspect actual OEM sample"
+        ]
+      },
+      "suggestionReason": "Documentation names this field 'OBD OEM Total Mileage' for FMC003. Teltonika FMC003 community confirms AVL 389; Traccar only normalizes to obdOdometer for FMB003, so FMC003 keeps io389; inspect actual OEM sample This is a label-only guess; confirm the raw Traccar key and device configuration.",
+      "manufacturerFieldId": 389
+    },
+    {
+      "key": "motion",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Movement",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC003"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC003 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC003_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Movement."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"motion\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "decoder turns >0 into boolean; actual enabled AVL/config and JSON sample needed; FMC003 scope inferred from its model catalog and generic decoder; verify enabled AVL list",
+          "Teltonika's FMC003 hardware-support table does not list this exact model for AVL 240; this suggestion does not link the observed API key to that AVL ID."
+        ]
+      },
+      "suggestionReason": "The shared Teltonika reference describes “Movement”, but the FMC003 hardware-support table omits this model for AVL 240. Keep this as an unconfirmed label suggestion only; no AVL link, source unit, or conversion is asserted."
+    },
+    {
+      "key": "odometer",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "Total Odometer",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC003"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC003 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC003_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: Total Odometer."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"odometer\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "verify configured odometer source; actual enabled AVL/config and JSON sample needed; FMC003 scope inferred from its model catalog and generic decoder; verify enabled AVL list",
+          "Teltonika's FMC003 hardware-support table does not list this exact model for AVL 16; this suggestion does not link the observed API key to that AVL ID."
+        ]
+      },
+      "suggestionReason": "The shared Teltonika reference describes “Total Odometer”, but the FMC003 hardware-support table omits this model for AVL 16. Keep this as an unconfirmed label suggestion only; no AVL link, source unit, or conversion is asserted."
+    },
+    {
+      "key": "pdop",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "PDOP",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC003"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC003 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC003_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: PDOP."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"pdop\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "decoder divides by 10; no further scaling; actual enabled AVL/config and JSON sample needed; FMC003 scope inferred from its model catalog and generic decoder; verify enabled AVL list",
+          "Teltonika's FMC003 hardware-support table does not list this exact model for AVL 181; this suggestion does not link the observed API key to that AVL ID."
+        ]
+      },
+      "suggestionReason": "The shared Teltonika reference describes “PDOP”, but the FMC003 hardware-support table omits this model for AVL 181. Keep this as an unconfirmed label suggestion only; no AVL link, source unit, or conversion is asserted."
+    },
+    {
+      "key": "power",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "External Voltage",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC003"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC003 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC003_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: External Voltage."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"power\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "decoder divides by 1000; actual enabled AVL/config and JSON sample needed; FMC003 scope inferred from its model catalog and generic decoder; verify enabled AVL list",
+          "Teltonika's FMC003 hardware-support table does not list this exact model for AVL 66; this suggestion does not link the observed API key to that AVL ID."
+        ]
+      },
+      "suggestionReason": "The shared Teltonika reference describes “External Voltage”, but the FMC003 hardware-support table omits this model for AVL 66. Keep this as an unconfirmed label suggestion only; no AVL link, source unit, or conversion is asserted."
+    },
+    {
+      "key": "rssi",
+      "status": "suggestion",
+      "autoApply": false,
+      "label": "GSM Signal",
+      "applicability": {
+        "manufacturer": "Teltonika",
+        "model": "FMC003"
+      },
+      "evidence": {
+        "references": [
+          {
+            "title": "FMC003 manufacturer field reference",
+            "url": "https://wiki.teltonika-gps.com/view/FMC003_Teltonika_Data_Sending_Parameters_ID",
+            "supports": "Documented field name: GSM Signal."
+          },
+          {
+            "title": "Traccar v6.14.5 decoder",
+            "url": "https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java",
+            "supports": "Emits the Traccar position attribute \"rssi\" on the corresponding decoder report path; this grounds the API key, not the manufacturer meaning or units."
+          }
+        ],
+        "knownLimitations": [
+          "no physical unit; actual enabled AVL/config and JSON sample needed; FMC003 scope inferred from its model catalog and generic decoder; verify enabled AVL list",
+          "Teltonika's FMC003 hardware-support table does not list this exact model for AVL 21; this suggestion does not link the observed API key to that AVL ID."
+        ]
+      },
+      "suggestionReason": "The shared Teltonika reference describes “GSM Signal”, but the FMC003 hardware-support table omits this model for AVL 21. Keep this as an unconfirmed label suggestion only; no AVL link, source unit, or conversion is asserted."
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { autoUpdate, offset, shift, useFloating } from '@floating-ui/react-dom'
 import L from 'leaflet'
@@ -6,9 +6,9 @@ import 'leaflet/dist/leaflet.css'
 import './App.css'
 import HistoryNavigator from './components/HistoryNavigator'
 import DeviceList from './components/DeviceList'
-import DeviceProtocolProfileEditor from './components/DeviceProtocolProfileEditor'
-import ExportPanel from './components/ExportPanel'
-import SettingsModal from './components/SettingsModal'
+const DeviceProtocolProfileEditor = lazy(() => import('./components/DeviceProtocolProfileEditor'))
+const ExportPanel = lazy(() => import('./components/ExportPanel'))
+const SettingsModal = lazy(() => import('./components/SettingsModal'))
 import StatusCard from './components/StatusCard'
 import TripPanel from './components/TripPanel'
 import VehicleStatusCard from './components/VehicleStatusCard'
@@ -16,9 +16,12 @@ import MovableMapKey from './components/MovableMapKey'
 import MovablePanel from './components/MovablePanel'
 import VehicleStatsPanel from './components/VehicleStatsPanel'
 import NotificationsPanel from './components/NotificationsPanel'
-import TelemetryGraphViewer from './components/TelemetryGraphViewer'
+const TelemetryGraphViewer = lazy(() => import('./components/TelemetryGraphViewer'))
+const UserProfilePanel = lazy(() => import('./components/UserProfilePanel'))
+const AskVehiclesPanel = lazy(() => import('./components/AskVehiclesPanel'))
 import { buildRangeCsv, downloadCsvFile, parseAppPositionCsv } from './lib/csvExport'
-import { buildProfileMap, DEFAULT_PROFILE_DEFINITIONS, DEFAULT_PROFILE_ID, PROFILE_DEFINITION_SCHEMA_VERSION, migrateProfileDefinition, resolveProfileContext, translateAttribute, validateAttributeMap } from './lib/carProfiles'
+import { buildProfileMap, createCarProfile, DEFAULT_PROFILE_DEFINITIONS, DEFAULT_PROFILE_ID, PROFILE_DEFINITION_SCHEMA_VERSION, migrateProfileDefinition, resolveProfileContext, translateAttribute, validateAttributeMap } from './lib/carProfiles'
+import { resolveProfileRevision } from './lib/profileHistory'
 import { mergeSelectedProfileProperties } from './lib/profileImport'
 import { metersBetween, toHistoryPosition } from './lib/geo'
 import { loadProfileDefinitionsWithStatus, saveProfileDefinitions } from './lib/profileStore'
@@ -26,6 +29,7 @@ import { DEFAULT_SETTINGS, PALETTE, readSettings, saveSettings } from './lib/set
 import { createRequestGate } from './lib/requestGate'
 import { getExportRangePreset, getRangeFromMode, toDateInputValue, toLocalInputValue } from './lib/time'
 import { createTraccarApi } from './lib/traccarApi'
+import { appendSourceMappingRevision, profileWithSourceMappings } from './lib/telemetrySourceMappings'
 import { buildTripsForDevice, getTripMaxSpeedMph, summarizeTripsByDay } from './lib/trips'
 import { parseBouncieCsv } from './lib/bouncieCsv'
 import { collapseTripEvents, detectTripEvents, formatEventMeasurement, resolveEventThresholds } from './lib/tripEvents'
@@ -40,6 +44,7 @@ import {
   deleteNamedPlace,
   fetchActiveDeviceBindings,
   fetchDeviceBindingHistory,
+  fetchVehicleProfileAssignmentHistory,
   fetchNearestDeviceBinding,
   fetchNamedPlaces,
   fetchTripTags,
@@ -53,6 +58,9 @@ import {
   deleteCalculatedTripEvents,
   fetchVehicleCatalog,
   fetchTelemetryProfiles,
+  fetchTelemetryProfileHistory,
+  fetchTelemetrySourceMappings,
+  fetchTelemetryProfileRevisions,
   upsertTelemetryProfile,
   deleteTelemetryProfile,
   upsertVehicle,
@@ -76,6 +84,8 @@ import {
   deleteTripTag,
   upsertDeviceBinding,
   fetchVehicleAuthStatus,
+  fetchGlobalGeneralSettings,
+  saveGlobalGeneralSettings,
   fetchUserPreference,
   saveUserPreference,
   fetchVehicleSpeedBands,
@@ -89,9 +99,17 @@ const MAX_INT32 = 2147483647
 const METERS_PER_YARD = 0.9144
 const YARDS_PER_METER = 1 / METERS_PER_YARD
 const MAP_CONTENT_SHIFT_PX = 50
+const VEHICLE_STATUS_DEFAULT_TOP = 300
+const INITIAL_MAP_HISTORY_DAYS = 7
+
+function getDefaultVehicleStatusPosition() {
+  return { left: Math.max(8, window.innerWidth - 288), top: VEHICLE_STATUS_DEFAULT_TOP }
+}
 
 function fitBoundsWithPanelOffset(map, bounds, padding) {
-  map.fitBounds(bounds, { padding })
+  const fittedZoom = map.getBoundsZoom(L.latLngBounds(bounds), false, L.point(padding).multiplyBy(2))
+  const zoom = Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), fittedZoom) - 1)
+  map.fitBounds(bounds, { padding, maxZoom: zoom })
   // Move the fitted content right to leave room for the floating Trips panel.
   map.panBy([-MAP_CONTENT_SHIFT_PX, 0], { animate: false })
 }
@@ -448,7 +466,13 @@ function describeTripImportConflict(error, fallbackDeviceId = null) {
 
 function App() {
   const [settings, setSettings] = useState(readSettings)
+  const [globalSettingsApiBaseUrl, setGlobalSettingsApiBaseUrl] = useState(() => readSettings().vehicleApiBaseUrl)
   const [vehicleAuth, setVehicleAuth] = useState({ checking: true, enabled: false, authenticated: false, username: null, role: null })
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
+  const [isUserProfileOpen, setIsUserProfileOpen] = useState(false)
+  const [isVehicleQueryOpen, setIsVehicleQueryOpen] = useState(false)
+  const userMenuRef = useRef(null)
+  const userMenuButtonRef = useRef(null)
   const [vehicleLoginUsername, setVehicleLoginUsername] = useState('')
   const [vehicleLoginPassword, setVehicleLoginPassword] = useState('')
   const [vehicleLoginError, setVehicleLoginError] = useState('')
@@ -475,16 +499,19 @@ function App() {
   const [notificationsPanelPosition, setNotificationsPanelPosition] = useState(() => ({ left: 8, top: Math.round(window.innerHeight * 714 / 1205), height: 200 }))
   const [tripFlyoutPosition, setTripFlyoutPosition] = useState(null)
   const [tripFlyoutTemporaryPosition, setTripFlyoutTemporaryPosition] = useState(null)
-  const [vehicleStatusPosition, setVehicleStatusPosition] = useState(() => ({ left: Math.max(8, window.innerWidth - 288), top: 53 }))
+  const [vehicleStatusPosition, setVehicleStatusPosition] = useState(getDefaultVehicleStatusPosition)
   const [vehicleStatusCollapsed, setVehicleStatusCollapsed] = useState(true)
   const [speedBandKeyPosition, setSpeedBandKeyPosition] = useState(null)
   const [trackPlaceKeyPosition, setTrackPlaceKeyPosition] = useState(null)
+  const [hiddenMapPanels, setHiddenMapPanels] = useState({})
   const [error, setError] = useState('')
   const [sessionState, setSessionState] = useState('unknown')
   const [isAutoFitPaused, setIsAutoFitPaused] = useState(false)
   const [devices, setDevices] = useState([])
+  const [traccarServer, setTraccarServer] = useState(null)
   const [deviceColors, setDeviceColors] = useState({})
   const [deviceVisibility, setDeviceVisibility] = useState({})
+  const deviceVisibilityTouchedRef = useRef(false)
   const [deviceListSelectedId, setDeviceListSelectedId] = useState(null)
   const [deviceListExpanded, setDeviceListExpanded] = useState(true)
   const [statusDeviceId, setStatusDeviceId] = useState(null)
@@ -535,11 +562,15 @@ function App() {
   const [exportHeaderMode, setExportHeaderMode] = useState('translated')
   const [profileStorageState] = useState(loadProfileDefinitionsWithStatus)
   const [profileDefinitions, setProfileDefinitions] = useState(() => profileStorageState.definitions)
+  const [profileDefinitionHistory, setProfileDefinitionHistory] = useState([])
   const profileDefinitionsRef = useRef(profileDefinitions)
   const [profileSyncStatus, setProfileSyncStatus] = useState('')
   const [profileServerReady, setProfileServerReady] = useState(false)
   const [profileServerAvailable, setProfileServerAvailable] = useState(false)
+  const [sourceMappingRevisionsByDevice, setSourceMappingRevisionsByDevice] = useState({})
   const lastSyncedProfileDefinitionsRef = useRef(null)
+  const profileServerRevisionsRef = useRef({})
+  const profileChangeKindsRef = useRef({})
   const profileSyncQueueRef = useRef(Promise.resolve())
   const [selectedProfileId, setSelectedProfileId] = useState(DEFAULT_PROFILE_ID)
   const [profileName, setProfileName] = useState('')
@@ -567,6 +598,11 @@ function App() {
   const [vehicleNotes, setVehicleNotes] = useState('')
   const [vehicleEditorStatus, setVehicleEditorStatus] = useState('')
   const [vehicleProfileId, setVehicleProfileId] = useState('')
+  const [vehicleProfileEffectiveFrom, setVehicleProfileEffectiveFrom] = useState(() => {
+    const date = new Date()
+    date.setSeconds(0, 0)
+    return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+  })
   const [vehicleDeviceId, setVehicleDeviceId] = useState('')
   const [vehicleEffectiveFrom, setVehicleEffectiveFrom] = useState(() => {
     const date = new Date()
@@ -575,6 +611,7 @@ function App() {
   })
   const [activeBindings, setActiveBindings] = useState([])
   const [historicalDeviceBindings, setHistoricalDeviceBindings] = useState([])
+  const [historicalProfileAssignments, setHistoricalProfileAssignments] = useState([])
   const [filterBindingsToSelectedDevice, setFilterBindingsToSelectedDevice] = useState(false)
   const [bindingDeviceId, setBindingDeviceId] = useState(null)
   const [bindingVehicleId, setBindingVehicleId] = useState(null)
@@ -618,6 +655,7 @@ function App() {
   const pointLoadRequestRef = useRef(0)
   const startupLoadRef = useRef(false)
   const initialCurrentLocationsLoadedRef = useRef(false)
+  const initialEarlierHistoryStartedRef = useRef(false)
   const [tripEditorLoading, setTripEditorLoading] = useState(false)
   const [tripEditorStatus, setTripEditorStatus] = useState('')
   const [tripEditorAvailableTags, setTripEditorAvailableTags] = useState([])
@@ -705,7 +743,6 @@ function App() {
   const mapAutoFitRef = useRef(true)
   const programmaticMapMoveRef = useRef(false)
   const liveIntervalRef = useRef(null)
-  const sessionAttemptedRef = useRef(false)
   const bouncieHistoryRefreshRef = useRef(null)
 
   const updateSetting = useCallback((key, value) => {
@@ -722,6 +759,13 @@ function App() {
       [key]: value,
     }))
   }, [])
+
+  const persistGlobalGeneralSettings = useCallback(async (passwordDraft) => {
+    const payload = { ...settings, password: passwordDraft || '' }
+    await saveGlobalGeneralSettings(globalSettingsApiBaseUrl, payload)
+    const savedSettings = await fetchGlobalGeneralSettings(globalSettingsApiBaseUrl)
+    setSettings((current) => ({ ...current, ...savedSettings }))
+  }, [globalSettingsApiBaseUrl, settings])
 
   const refreshBouncieStatus = useCallback(async () => {
     try {
@@ -850,7 +894,7 @@ function App() {
       }
 
       const points = (historyByDevice[device.id] || []).filter((point) => {
-        if (!selectedDayKey && selectedDayKeys.length === 0) return true
+        if (!selectedDayKey && selectedDayKeys.length === 0) return point.timestamp.getTime() >= Date.now() - INITIAL_MAP_HISTORY_DAYS * 24 * 60 * 60 * 1000
         const date = point.timestamp
         const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
         return selectedDayKeys.includes(key) || key === selectedDayKey
@@ -871,7 +915,7 @@ function App() {
         programmaticMapMoveRef.current = false
       }, 0)
     }
-  }, [deviceVisibility, devices, historyByDevice])
+  }, [deviceVisibility, devices, historyByDevice, selectedDayKey, selectedDayKeys])
 
   useEffect(() => {
     saveSettings(settings)
@@ -892,6 +936,7 @@ function App() {
       try {
         const rows = await fetchTelemetryProfiles(settings.vehicleApiBaseUrl)
         if (!active) return
+        const serverRevisions = Object.fromEntries(rows.filter((profile) => profile?.id).map((profile) => [profile.id, Number(profile.revision || 0)]))
         const local = profileDefinitionsRef.current
         const remoteMigrationChanges = []
         const remote = Object.fromEntries(rows.filter((profile) => profile?.id && profile?.name && profile.attributeMap && typeof profile.attributeMap === 'object' && !Array.isArray(profile.attributeMap)).map((profile) => {
@@ -928,8 +973,19 @@ function App() {
           status = [status, ...new Set(remoteMigrationChanges)].filter(Boolean).join(' ')
           status += ' A copy of the previous shared definitions was saved in this browser before synchronization.'
         }
-        await Promise.all(profilesToUpload.map((profile) => upsertTelemetryProfile(settings.vehicleApiBaseUrl, profile)))
+        await Promise.all(profilesToUpload.map(async (profile) => {
+          const result = await upsertTelemetryProfile(settings.vehicleApiBaseUrl, profile, serverRevisions[profile.id] ?? 0, 'migration')
+          serverRevisions[profile.id] = result.revision
+        }))
+        let sharedHistory = []
+        try {
+          sharedHistory = await fetchTelemetryProfileHistory(settings.vehicleApiBaseUrl)
+        } catch (historyError) {
+          status = [status, `Historical shared-profile snapshots are unavailable. Apply the telemetry profile history schema before relying on past conversion values. ${historyError instanceof Error ? historyError.message : ''}`.trim()].filter(Boolean).join(' ')
+        }
         if (!active) return
+        profileServerRevisionsRef.current = serverRevisions
+        setProfileDefinitionHistory(sharedHistory)
         setProfileDefinitions(next)
         lastSyncedProfileDefinitionsRef.current = next
         setProfileServerAvailable(true)
@@ -958,8 +1014,21 @@ function App() {
       const previous = lastSyncedProfileDefinitionsRef.current || {}
       if (JSON.stringify(previous) === JSON.stringify(desired)) return
       setProfileSyncStatus('Synchronizing device profiles with the Vehicle App database…')
-      await Promise.all(Object.keys(previous).filter((id) => !desired[id]).map((id) => deleteTelemetryProfile(settings.vehicleApiBaseUrl, id)))
-      await Promise.all(Object.values(desired).filter((profile) => JSON.stringify(previous[profile.id]) !== JSON.stringify(profile)).map((profile) => upsertTelemetryProfile(settings.vehicleApiBaseUrl, profile)))
+      for (const id of Object.keys(previous).filter((profileId) => !desired[profileId])) {
+        await deleteTelemetryProfile(settings.vehicleApiBaseUrl, id, profileServerRevisionsRef.current[id])
+        const revisions = { ...profileServerRevisionsRef.current }
+        delete revisions[id]
+        profileServerRevisionsRef.current = revisions
+      }
+      for (const profile of Object.values(desired).filter((item) => JSON.stringify(previous[item.id]) !== JSON.stringify(item))) {
+        const changeKind = profileChangeKindsRef.current[profile.id] || 'manual'
+        const result = await upsertTelemetryProfile(settings.vehicleApiBaseUrl, profile, profileServerRevisionsRef.current[profile.id] ?? 0, changeKind)
+        profileServerRevisionsRef.current = { ...profileServerRevisionsRef.current, [profile.id]: result.revision }
+        delete profileChangeKindsRef.current[profile.id]
+      }
+      const history = await fetchTelemetryProfileHistory(settings.vehicleApiBaseUrl)
+      if (!active) return
+      setProfileDefinitionHistory(history)
       lastSyncedProfileDefinitionsRef.current = desired
     })
     profileSyncQueueRef.current = sync
@@ -972,13 +1041,60 @@ function App() {
   }, [profileDefinitions, profileServerAvailable, profileServerReady, settings.vehicleApiBaseUrl])
 
   const profileMap = useMemo(() => buildProfileMap(profileDefinitions, settings.displayUnits), [profileDefinitions, settings.displayUnits])
+  const profileDefinitionHistoryById = useMemo(() => profileDefinitionHistory.reduce((result, revision) => {
+    if (!revision?.id || !revision.attributeMap || typeof revision.attributeMap !== 'object' || Array.isArray(revision.attributeMap)) return result
+    const profile = createCarProfile({ id: revision.id, name: revision.name, attributeMap: revision.attributeMap }, settings.displayUnits)
+    result[revision.id] = [...(result[revision.id] || []), { ...revision, profile }]
+    return result
+  }, {}), [profileDefinitionHistory, settings.displayUnits])
   const profileOptions = useMemo(() => Object.values(profileDefinitions), [profileDefinitions])
-  const profileContextFor = useCallback((context = {}) => resolveProfileContext({
-    ...context,
-    vehicles: bindingVehicles,
-    bindings: context.at != null && historicalDeviceBindings.length ? historicalDeviceBindings : activeBindings,
-    profileMap,
-  }), [activeBindings, bindingVehicles, historicalDeviceBindings, profileMap])
+  const profileContextFor = useCallback((context = {}) => {
+    const resolved = resolveProfileContext({
+      ...context,
+      vehicles: bindingVehicles,
+      bindings: context.at != null && historicalDeviceBindings.length ? historicalDeviceBindings : activeBindings,
+      profileAssignments: historicalProfileAssignments,
+      profileMap,
+    })
+    if (resolved.profileId == null) return resolved
+    const effectiveRevision = resolveProfileRevision(profileDefinitionHistoryById[resolved.profileId], context.at ?? null)
+    return effectiveRevision
+      ? { ...resolved, profile: effectiveRevision.profile, profileRevision: effectiveRevision.revision, profileRevisionEffectiveAt: effectiveRevision.effectiveAt }
+      : resolved
+  }, [activeBindings, bindingVehicles, historicalDeviceBindings, historicalProfileAssignments, profileDefinitionHistoryById, profileMap])
+
+  const profileContextWithSourceMappings = useCallback((context = {}) => {
+    const resolved = profileContextFor(context)
+    const deviceId = Number(context.deviceId ?? resolved.binding?.traccarDeviceId ?? resolved.vehicle?.traccarDeviceId)
+    const revisions = sourceMappingRevisionsByDevice[deviceId] || []
+    return { ...resolved, profile: profileWithSourceMappings(resolved.profile, revisions, context.at ?? null) }
+  }, [profileContextFor, sourceMappingRevisionsByDevice])
+
+  const updateSourceMappingRevision = useCallback((deviceId, revision) => {
+    setSourceMappingRevisionsByDevice((current) => ({
+      ...current,
+      [deviceId]: appendSourceMappingRevision(current[deviceId] || [], revision),
+    }))
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    const deviceIds = [...new Set(devices.map((device) => Number(device.id)).filter((id) => Number.isInteger(id) && id > 0))]
+    if (deviceIds.length === 0) {
+      setSourceMappingRevisionsByDevice({})
+      return () => { active = false }
+    }
+    Promise.all(deviceIds.map(async (deviceId) => {
+      try {
+        return [deviceId, await fetchTelemetrySourceMappings(settings.vehicleApiBaseUrl, deviceId)]
+      } catch {
+        return [deviceId, []]
+      }
+    })).then((entries) => {
+      if (active) setSourceMappingRevisionsByDevice(Object.fromEntries(entries))
+    })
+    return () => { active = false }
+  }, [devices, settings.vehicleApiBaseUrl, vehicleAuth.authenticated, vehicleAuth.enabled])
 
   useEffect(() => {
     if (!profileOptions.length) {
@@ -1074,7 +1190,8 @@ function App() {
       return
     }
 
-    const map = L.map(mapElementRef.current).setView([39.8283, -98.5795], 4)
+    const map = L.map(mapElementRef.current, { zoomControl: false }).setView([39.8283, -98.5795], 4)
+    L.control.zoom({ position: 'topright' }).addTo(map)
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
@@ -1088,7 +1205,7 @@ function App() {
     const namedPlacesPane = map.createPane('namedPlacesPane')
     namedPlacesPane.style.zIndex = '650'
 
-    const mapActions = L.control({ position: 'topleft' })
+    const mapActions = L.control({ position: 'topright' })
     mapActions.onAdd = () => {
       const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control map-action-control')
       const createButton = (className, label, icon, action) => {
@@ -1266,10 +1383,6 @@ function App() {
     const markerLayer = markerLayerRef.current
     const trailLayer = trailLayerRef.current
     const selectedTripLayer = selectedTripLayerRef.current
-    const selectedTripProfile = selectedTrip
-      ? profileContextFor({ vehicleId: selectedTrip.vehicleId, deviceId: selectedTrip.deviceId, at: selectedTrip.start }).profile
-      : null
-
     if (!map || !markerLayer || !trailLayer) {
       return
     }
@@ -1291,7 +1404,7 @@ function App() {
         .sort((a, b) => a.timestamp - b.timestamp)
       const dayPoints = sourcePoints.filter((point) => {
         if (!selectedDayKey && selectedDayKeys.length === 0) {
-          return point.timestamp.getTime() >= Date.now() - 48 * 60 * 60 * 1000
+          return point.timestamp.getTime() >= Date.now() - INITIAL_MAP_HISTORY_DAYS * 24 * 60 * 60 * 1000
         }
         const date = point.timestamp
         const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
@@ -1339,11 +1452,7 @@ function App() {
         pointMarker.on('click', () => selectStatusPoint(device.id, point))
         pointMarker.addTo(markerLayer)
       })
-      if (selectedDayKey || selectedDayKeys.length > 0) {
-        points.forEach((point) => bounds.push([point.latitude, point.longitude]))
-      } else {
-        bounds.push([last.latitude, last.longitude])
-      }
+      points.forEach((point) => bounds.push([point.latitude, point.longitude]))
     })
 
     if (selectedTrip && selectedTripLayer) {
@@ -1373,10 +1482,11 @@ function App() {
         const seenPopupFields = new Set()
         const telemetry = Object.entries(point.attributes || {})
           .map(([key, raw]) => {
-            const field = getStatusCardFieldForAttribute(selectedTripProfile, key)
+            const popupProfile = profileContextWithSourceMappings({ vehicleId: selectedTrip.vehicleId, deviceId: selectedTrip.deviceId, at: point.timestamp }).profile
+            const field = getStatusCardFieldForAttribute(popupProfile, key)
             if (!field || !selectedPopupFields.has(field) || seenPopupFields.has(field)) return ''
             seenPopupFields.add(field)
-            const translated = translateAttribute(selectedTripProfile, getStatusCardProfileKey(selectedTripProfile, field, key), raw)
+            const translated = translateAttribute(popupProfile, key, raw)
             const value = ['sentinel', 'invalid'].includes(translated.status) ? 'invalid' : translated.value
             const units = translated.unit ? ` ${translated.unit}` : ''
             return `<br/>${escapeHtml(translated.label)}: ${escapeHtml(value)}${escapeHtml(units)}`
@@ -1425,7 +1535,7 @@ function App() {
         programmaticMapMoveRef.current = false
       }, 0)
     }
-  }, [activeBindings, deviceColors, deviceVisibility, devices, historyByDevice, historyRoutePoints, mapPopupFieldsByVehicle, profileContextFor, selectStatusPoint, selectedDayKey, selectedDayKeys, selectedTrip, selectedTripEvents, selectedTripRoutePoints, selectedTripVehicleId, settings.displayUnits, speedBandsForVehicle])
+  }, [activeBindings, deviceColors, deviceVisibility, devices, historyByDevice, historyRoutePoints, mapPopupFieldsByVehicle, profileContextFor, profileContextWithSourceMappings, selectStatusPoint, selectedDayKey, selectedDayKeys, selectedTrip, selectedTripEvents, selectedTripRoutePoints, selectedTripVehicleId, settings.displayUnits, speedBandsForVehicle])
 
   const focusTripEvent = useCallback((event) => {
     const latitude = Number(event?.latitude)
@@ -1543,21 +1653,44 @@ function App() {
     })
   }, [activeBindings, bindingVehicles, deviceVisibility, mapReady, namedPlaces, showNamedPlaces])
 
-  useEffect(() => {
-    sessionAttemptedRef.current = false
-    setSessionState('unknown')
-  }, [settings.apiBaseUrl, settings.password, settings.username])
-
   const apiFetch = useMemo(() => createTraccarApi({
     settings,
     onSessionStateChange: setSessionState,
-    sessionAttemptedRef,
   }), [settings])
 
   useEffect(() => {
+    if (devices.length === 0) return undefined
     let active = true
-    fetchVehicleAuthStatus(settings.vehicleApiBaseUrl)
-      .then((result) => { if (active) setVehicleAuth({ checking: false, enabled: Boolean(result.enabled), authenticated: Boolean(result.authenticated), username: result.username || null, role: result.role || null }) })
+    apiFetch('/server')
+      .then((server) => {
+        if (active) setTraccarServer({ baseUrl: settings.vehicleApiBaseUrl, version: String(server?.version || '').trim() })
+      })
+      .catch(() => {
+        if (active) setTraccarServer({ baseUrl: settings.vehicleApiBaseUrl, version: '' })
+      })
+    return () => { active = false }
+  }, [apiFetch, devices.length, settings.vehicleApiBaseUrl])
+
+  useEffect(() => {
+    let active = true
+    const settingsBaseUrl = settings.vehicleApiBaseUrl
+    fetchVehicleAuthStatus(settingsBaseUrl)
+      .then(async (result) => {
+        let sharedSettings = null
+        if (result.authenticated) {
+          try {
+            sharedSettings = await fetchGlobalGeneralSettings(settingsBaseUrl)
+          } catch (error) {
+            console.error('Unable to load global General settings.', error)
+          }
+        }
+        if (!active) return
+        if (sharedSettings) {
+          setGlobalSettingsApiBaseUrl(settingsBaseUrl)
+          setSettings((current) => ({ ...current, ...sharedSettings }))
+        }
+        setVehicleAuth({ checking: false, enabled: Boolean(result.enabled), authenticated: Boolean(result.authenticated), username: result.username || null, role: result.role || null })
+      })
       .catch(() => { if (active) setVehicleAuth({ checking: false, enabled: false, authenticated: false, username: null, role: null }) })
     return () => { active = false }
   }, [settings.vehicleApiBaseUrl])
@@ -1631,6 +1764,14 @@ function App() {
     return `vehicleApp:vehicleStatusPosition:${userKey}`
   }, [vehicleAuth.authenticated, vehicleAuth.checking, vehicleAuth.username])
 
+  const deviceVisibilityPreferenceKey = useMemo(() => {
+    if (vehicleAuth.checking) return null
+    const userKey = vehicleAuth.authenticated && vehicleAuth.username
+      ? vehicleAuth.username.trim().toLowerCase()
+      : 'local'
+    return `vehicleApp:deviceVisibility:${userKey}`
+  }, [vehicleAuth.authenticated, vehicleAuth.checking, vehicleAuth.username])
+
   useEffect(() => {
     if (!vehicleStatusPreferenceKey) return
     let active = true
@@ -1638,9 +1779,13 @@ function App() {
       if (!active) return
       const left = Number(saved?.left)
       const top = Number(saved?.top)
-      setVehicleStatusPosition(Number.isFinite(left) && Number.isFinite(top)
-        ? { left, top }
-        : { left: Math.max(8, window.innerWidth - 288), top: 53 })
+      if (!Number.isFinite(left) || !Number.isFinite(top)) {
+        setVehicleStatusPosition(getDefaultVehicleStatusPosition())
+        return
+      }
+      const previousDefaultLeft = Math.max(8, window.innerWidth - 288)
+      const wasPreviousDefault = [53, 245].includes(top) && Math.abs(left - previousDefaultLeft) < 2
+      setVehicleStatusPosition(wasPreviousDefault ? getDefaultVehicleStatusPosition() : { left, top })
     }
     try {
       applyPosition(JSON.parse(localStorage.getItem(vehicleStatusPreferenceKey) || 'null'))
@@ -1705,6 +1850,34 @@ function App() {
     if (vehicleStatusPreferenceKey) localStorage.setItem(`${vehicleStatusPreferenceKey}:devices-expanded`, JSON.stringify(expanded))
     if (vehicleAuth.authenticated) saveUserPreference(settings.vehicleApiBaseUrl, 'devices-panel-expanded', expanded).catch(() => {})
   }, [settings.vehicleApiBaseUrl, vehicleAuth.authenticated, vehicleStatusPreferenceKey])
+
+  useEffect(() => {
+    let active = true
+    deviceVisibilityTouchedRef.current = false
+    const apply = (value) => {
+      if (!active || deviceVisibilityTouchedRef.current || !value || typeof value !== 'object' || Array.isArray(value)) return
+      const visibility = Object.fromEntries(Object.entries(value).filter(([deviceId, visible]) => /^\d+$/.test(deviceId) && typeof visible === 'boolean'))
+      setDeviceVisibility(visibility)
+    }
+    if (deviceVisibilityPreferenceKey) {
+      try { apply(JSON.parse(localStorage.getItem(deviceVisibilityPreferenceKey) || 'null')) } catch { /* use default visibility */ }
+    }
+    if (vehicleAuth.authenticated) {
+      fetchUserPreference(settings.vehicleApiBaseUrl, 'devices-panel-visibility').then(apply).catch(() => {})
+    }
+    return () => { active = false }
+  }, [deviceVisibilityPreferenceKey, settings.vehicleApiBaseUrl, vehicleAuth.authenticated])
+
+  const persistDeviceVisibility = useCallback((update) => {
+    const next = typeof update === 'function' ? update(deviceVisibility) : update
+    if (!next || typeof next !== 'object' || Array.isArray(next)) return
+    deviceVisibilityTouchedRef.current = true
+    setDeviceVisibility(next)
+    if (deviceVisibilityPreferenceKey) {
+      try { localStorage.setItem(deviceVisibilityPreferenceKey, JSON.stringify(next)) } catch { /* server preference still saves when available */ }
+    }
+    if (vehicleAuth.authenticated) saveUserPreference(settings.vehicleApiBaseUrl, 'devices-panel-visibility', next).catch(() => {})
+  }, [deviceVisibility, deviceVisibilityPreferenceKey, settings.vehicleApiBaseUrl, vehicleAuth.authenticated])
 
   const mapKeyPreferenceKey = useCallback((name) => {
     const userKey = vehicleAuth.authenticated && vehicleAuth.username ? vehicleAuth.username.trim().toLowerCase() : 'local'
@@ -1785,7 +1958,7 @@ function App() {
     let front = windows.find((item) => item.id === frontWindowId)
     if (!front) return
 
-    const hardBlockers = ['.map-action-control', '.global-sign-out-button', '.vehicle-stats-launcher']
+    const hardBlockers = ['.map-action-control', '.leaflet-control-zoom', '.global-auth-controls', '.global-user-menu', '.vehicle-stats-launcher']
       .map((selector) => toRect(document.querySelector(selector)))
       .filter(Boolean)
     const fixedPanels = ['.map-device-list', '.map-app-title', '.map-status-card']
@@ -1857,6 +2030,7 @@ function App() {
   }, [])
 
   const resetWindowPositions = useCallback(() => {
+    setHiddenMapPanels({})
     const resetMarker = (height) => ({ resetToDefault: true, ...(Number.isFinite(height) && height > 0 ? { height } : {}) })
     const historyDefault = { left: 8, top: Math.round(window.innerHeight * 255 / 1205), height: 422 }
     const notificationsDefault = { left: 8, top: Math.round(window.innerHeight * 714 / 1205), height: 200 }
@@ -1867,7 +2041,7 @@ function App() {
     setTripFlyoutTemporaryPosition(null)
     persistTripFlyoutPosition(tripReset)
 
-    const vehicleStatusReset = { left: Math.max(8, window.innerWidth - 288), top: 53 }
+    const vehicleStatusReset = getDefaultVehicleStatusPosition()
     setVehicleStatusPosition(vehicleStatusReset)
     if (vehicleStatusPreferenceKey) localStorage.setItem(vehicleStatusPreferenceKey, JSON.stringify(vehicleStatusReset))
     if (vehicleAuth.authenticated) saveUserPreference(settings.vehicleApiBaseUrl, 'vehicle-status-position', vehicleStatusReset).catch(() => {})
@@ -1913,6 +2087,22 @@ function App() {
       window.location.reload()
     }
   }, [settings.vehicleApiBaseUrl])
+
+  useEffect(() => {
+    if (!isUserMenuOpen) return undefined
+    const closeMenu = (event) => {
+      if (event.type === 'keydown' && event.key !== 'Escape') return
+      if (event.type === 'pointerdown' && userMenuRef.current?.contains(event.target)) return
+      setIsUserMenuOpen(false)
+      if (event.type === 'keydown') userMenuButtonRef.current?.focus()
+    }
+    document.addEventListener('pointerdown', closeMenu)
+    document.addEventListener('keydown', closeMenu)
+    return () => {
+      document.removeEventListener('pointerdown', closeMenu)
+      document.removeEventListener('keydown', closeMenu)
+    }
+  }, [isUserMenuOpen])
 
   const trips = useMemo(() => {
     const allTrips = []
@@ -2046,6 +2236,17 @@ function App() {
       return { groupId: group.id, points: (Array.isArray(payload) ? payload : []).map(toHistoryPosition).sort((a, b) => a.timestamp - b.timestamp) }
     }))
   }, [apiFetch])
+
+  const fetchDevicePositionsForProfileSubmission = useCallback(async (deviceId, from, to) => {
+    const params = new URLSearchParams({ deviceId: String(deviceId), from, to })
+    const payload = await apiFetch('/positions?' + params.toString())
+    return Array.isArray(payload) ? payload : []
+  }, [apiFetch])
+
+  const submissionDefaultDeviceId = useMemo(() => {
+    const matchingDevice = devices.find((device) => profileContextFor({ deviceId: device.id }).profile?.id === selectedProfileId)
+    return matchingDevice?.id ?? devices[0]?.id ?? ''
+  }, [devices, profileContextFor, selectedProfileId])
 
   const openSelectedDaysGraph = useCallback(() => {
     const days = selectedDayKeys.length > 0 ? selectedDayKeys : (selectedDayKey ? [selectedDayKey] : [])
@@ -2266,6 +2467,12 @@ function App() {
       setHistoricalDeviceBindings(await fetchDeviceBindingHistory(settings.vehicleApiBaseUrl))
     } catch {
       setHistoricalDeviceBindings([])
+    }
+
+    try {
+      setHistoricalProfileAssignments(await fetchVehicleProfileAssignmentHistory(settings.vehicleApiBaseUrl))
+    } catch {
+      setHistoricalProfileAssignments([])
     }
 
     try {
@@ -2556,6 +2763,9 @@ function App() {
     setVehicleModel(vehicle?.model || '')
     setVehicleNotes(vehicle?.notes || '')
     setVehicleProfileId(vehicle?.profileId || '')
+    const profileEffectiveDate = new Date()
+    profileEffectiveDate.setSeconds(0, 0)
+    setVehicleProfileEffectiveFrom(new Date(profileEffectiveDate.getTime() - profileEffectiveDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16))
     const currentBinding = vehicleId ? activeBindings.find((binding) => binding.vehicleId === vehicleId) : null
     setVehicleDeviceId(currentBinding ? String(currentBinding.traccarDeviceId) : '')
     if (currentBinding?.startsAt) {
@@ -2614,6 +2824,7 @@ function App() {
         year: vehicleYear ? Number(vehicleYear) : null,
         make: vehicleMake.trim() || null, model: vehicleModel.trim() || null,
         notes: vehicleNotes.trim() || null, profileId: vehicleProfileId || null, active: true,
+        profileEffectiveFrom: vehicleProfileEffectiveFrom ? new Date(vehicleProfileEffectiveFrom).toISOString() : new Date().toISOString(),
       })
       const vehicles = await fetchVehicleCatalog(settings.vehicleApiBaseUrl)
       setBindingVehicles(vehicles)
@@ -2634,7 +2845,7 @@ function App() {
       setVehicleEditorStatus(`Saved vehicle ${vehicleName.trim()}.`)
       if (!vehicleEditId && id) selectVehicleForEdit(id)
     } catch (err) { setVehicleEditorStatus(err instanceof Error ? err.message : 'Failed to save vehicle.') }
-  }, [activeBindings, deleteDeviceBinding, devices, fetchVehicleCatalog, refreshBindingData, selectVehicleForEdit, settings.vehicleApiBaseUrl, upsertDeviceBinding, vehicleDeviceId, vehicleEditId, vehicleEffectiveFrom, vehicleMake, vehicleModel, vehicleName, vehicleNotes, vehicleProfileId, vehicleVin, vehicleYear])
+  }, [activeBindings, deleteDeviceBinding, devices, fetchVehicleCatalog, refreshBindingData, selectVehicleForEdit, settings.vehicleApiBaseUrl, upsertDeviceBinding, vehicleDeviceId, vehicleEditId, vehicleEffectiveFrom, vehicleMake, vehicleModel, vehicleName, vehicleNotes, vehicleProfileEffectiveFrom, vehicleProfileId, vehicleVin, vehicleYear])
 
   const deleteBindingById = useCallback(async (bindingId) => {
     if (!bindingId) {
@@ -2764,7 +2975,7 @@ function App() {
   }, [bouncieStatus?.import, loadHistorySummaries])
 
   const loadHistoryRange = useCallback(
-    async (fromDate, toDate, label, { merge = false, pointOnly = false, requestId = null } = {}) => {
+    async (fromDate, toDate, label, { merge = false, pointOnly = false, requestId = null, onPositionsLoaded } = {}) => {
       setError('')
       setStatus(`Loading ${label}...`)
 
@@ -2814,6 +3025,7 @@ function App() {
           to: merge ? new Date(Math.max(previous.to.getTime(), toDate.getTime())) : toDate,
         }))
       }
+      onPositionsLoaded?.({ pointCount, from: fromDate, to: toDate })
       const loadedDayKeys = Object.values(nextHistory).flat().map((point) => {
         const date = point.timestamp
         return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
@@ -2876,7 +3088,9 @@ function App() {
           }
         }
       }
-      setStatus(`Loaded ${workingDevices.length} devices and ${pointCount} points; trips synchronized (${imported} new, ${skipped} already saved)`)
+      if (label !== 'recent device history' || !initialEarlierHistoryStartedRef.current) {
+        setStatus(`Loaded ${workingDevices.length} devices and ${pointCount} points; trips synchronized (${imported} new, ${skipped} already saved)`)
+      }
     },
     [
       activeBindings,
@@ -2984,21 +3198,57 @@ function App() {
   }, [loadHistoryMonth, settings.vehicleApiBaseUrl])
 
   useEffect(() => {
-    if (startupLoadRef.current) return
+    if (startupLoadRef.current || vehicleAuth.checking) return
+    if (vehicleAuth.enabled && !vehicleAuth.authenticated && !import.meta.env.DEV) return
     startupLoadRef.current = true
     loadDevices().catch((err) => {
       setError(err instanceof Error ? err.message : 'Unable to load Traccar devices.')
       setStatus('Device load failed')
     })
     applyTimeRange()
-  }, [applyTimeRange, loadDevices])
+  }, [applyTimeRange, loadDevices, vehicleAuth.checking, vehicleAuth.enabled, vehicleAuth.authenticated])
 
   useEffect(() => {
     if (initialCurrentLocationsLoadedRef.current || devices.length === 0) return
     initialCurrentLocationsLoadedRef.current = true
     const through = new Date()
-    const from = new Date(through.getTime() - 48 * 60 * 60 * 1000)
-    loadHistoryRange(from, through, 'current device locations', { merge: true }).catch(() => {
+    const recentFrom = new Date(through.getTime() - 24 * 60 * 60 * 1000)
+    recentFrom.setHours(0, 0, 0, 0)
+    const historyFrom = new Date(through.getTime() - INITIAL_MAP_HISTORY_DAYS * 24 * 60 * 60 * 1000)
+    const dayKeysInRange = (from, to) => {
+      const keys = []
+      const day = new Date(from.getFullYear(), from.getMonth(), from.getDate())
+      const last = new Date(to.getFullYear(), to.getMonth(), to.getDate())
+      while (day <= last) {
+        keys.push(toDateInputValue(day))
+        day.setDate(day.getDate() + 1)
+      }
+      return keys
+    }
+    const recentDayKeys = dayKeysInRange(recentFrom, through)
+    recentDayKeys.forEach((dayKey) => loadedPointDaysRef.current.add(dayKey))
+
+    let earlierHistoryLoadStarted = false
+    const startEarlierHistory = () => {
+      if (earlierHistoryLoadStarted || historyFrom >= recentFrom) return
+      earlierHistoryLoadStarted = true
+      initialEarlierHistoryStartedRef.current = true
+      const earlierThrough = new Date(recentFrom.getTime() - 1)
+      const earlierDayKeys = dayKeysInRange(historyFrom, earlierThrough)
+      earlierDayKeys.forEach((dayKey) => loadedPointDaysRef.current.add(dayKey))
+      window.setTimeout(() => {
+        loadHistoryRange(historyFrom, earlierThrough, 'earlier device history', { merge: true }).catch(() => {
+          earlierDayKeys.forEach((dayKey) => loadedPointDaysRef.current.delete(dayKey))
+          setStatus('Recent history is available, but earlier positions could not be loaded.')
+        })
+      }, 350)
+    }
+
+    loadHistoryRange(recentFrom, through, 'recent device history', {
+      merge: true,
+      onPositionsLoaded: startEarlierHistory,
+    }).catch(() => {
+      recentDayKeys.forEach((dayKey) => loadedPointDaysRef.current.delete(dayKey))
       initialCurrentLocationsLoadedRef.current = false
     })
   }, [devices.length, loadHistoryRange])
@@ -3280,7 +3530,7 @@ function App() {
       return
     }
 
-    const pointProfileContexts = rangedPoints.map((point) => profileContextFor({ deviceId: exportDeviceId, at: point.timestamp }))
+    const pointProfileContexts = rangedPoints.map((point) => profileContextWithSourceMappings({ deviceId: exportDeviceId, at: point.timestamp }))
     const profileContext = pointProfileContexts[0]
     const profileKeys = new Set(pointProfileContexts.map((context) => `${context.status}:${context.profileId ?? ''}`))
     if (profileKeys.size > 1) {
@@ -3301,6 +3551,7 @@ function App() {
       deviceName: device.name,
       points: rangedPoints,
       carProfile: profileContext.profile,
+      profileForPoint: (point) => profileContextWithSourceMappings({ deviceId: exportDeviceId, at: point.timestamp }).profile,
       headerMode: exportHeaderMode,
       unitSystem: settings.displayUnits,
     })
@@ -3317,6 +3568,7 @@ function App() {
     exportRangePreset,
     exportStartDate,
     profileContextFor,
+    profileContextWithSourceMappings,
     apiFetch,
     settings.displayUnits,
   ])
@@ -3621,6 +3873,8 @@ function App() {
       return { ok: false, message: mappingError }
     }
 
+    profileChangeKindsRef.current[profileToSaveId] = overrides.changeKind || 'manual'
+
     setProfileDefinitions((prev) => ({
       ...prev,
       [profileToSaveId]: {
@@ -3634,6 +3888,45 @@ function App() {
     setProfileEditorStatus('Profile saved.')
     return { ok: true }
   }, [profileAttributesJson, profileName, selectedProfileId])
+
+  const saveGraphFieldMapping = useCallback(async (profileId, fieldKey, mapping) => {
+    if (vehicleAuth.enabled && (!vehicleAuth.authenticated || vehicleAuth.role !== 'admin')) {
+      return { ok: false, message: 'Only administrators can save shared profile mappings.' }
+    }
+    const current = profileDefinitionsRef.current[profileId]
+    if (!current) return { ok: false, message: 'This profile is no longer available. Reopen the graph and try again.' }
+    const attributeMap = { ...current.attributeMap, [fieldKey]: mapping }
+    const validationError = validateAttributeMap(attributeMap)
+    if (validationError) return { ok: false, message: validationError }
+    const next = { ...current, schemaVersion: PROFILE_DEFINITION_SCHEMA_VERSION, attributeMap }
+    if (vehicleAuth.enabled && (!profileServerReady || !profileServerAvailable)) {
+      return { ok: false, message: 'Shared profile storage is not ready. Try again when profile synchronization is available.' }
+    }
+    if (profileServerReady && profileServerAvailable) {
+      const queuedSave = profileSyncQueueRef.current.catch(() => {}).then(async () => {
+        const expectedRevision = profileServerRevisionsRef.current[profileId]
+        if (!Number.isInteger(expectedRevision)) throw new Error('The shared profile revision is unavailable. Reload profiles before saving.')
+        const result = await upsertTelemetryProfile(settings.vehicleApiBaseUrl, next, expectedRevision)
+        profileServerRevisionsRef.current = { ...profileServerRevisionsRef.current, [profileId]: result.revision }
+        lastSyncedProfileDefinitionsRef.current = { ...(lastSyncedProfileDefinitionsRef.current || {}), [profileId]: next }
+      })
+      profileSyncQueueRef.current = queuedSave
+      await queuedSave
+    }
+    profileDefinitionsRef.current = { ...profileDefinitionsRef.current, [profileId]: next }
+    setProfileDefinitions((previous) => ({ ...previous, [profileId]: next }))
+    const updatedProfile = buildProfileMap({ ...profileDefinitionsRef.current }, settings.displayUnits)[profileId]
+    setGraphGroups((currentGroups) => currentGroups?.map((group) => {
+      if (group.profileContext?.profileId !== profileId) return group
+      return { ...group, profileContext: { ...group.profileContext, profile: updatedProfile, status: 'assigned' } }
+    }) ?? currentGroups)
+    return {
+      ok: true,
+      message: profileServerReady && profileServerAvailable
+        ? 'Shared mapping saved to the Vehicle App.'
+        : 'Shared mapping saved in this browser and will sync when profile storage is available.',
+    }
+  }, [profileServerAvailable, profileServerReady, settings.displayUnits, settings.vehicleApiBaseUrl, vehicleAuth.authenticated, vehicleAuth.enabled, vehicleAuth.role])
 
   const openProfileMappingEditor = useCallback(() => {
     let parsed
@@ -3792,10 +4085,17 @@ function App() {
 
     if (profileServerAvailable) {
       try {
-        await deleteTelemetryProfile(settings.vehicleApiBaseUrl, selectedProfileId)
-        const synced = { ...(lastSyncedProfileDefinitionsRef.current || {}) }
-        delete synced[selectedProfileId]
-        lastSyncedProfileDefinitionsRef.current = synced
+        const queuedDelete = profileSyncQueueRef.current.catch(() => {}).then(async () => {
+          await deleteTelemetryProfile(settings.vehicleApiBaseUrl, selectedProfileId, profileServerRevisionsRef.current[selectedProfileId])
+          const revisions = { ...profileServerRevisionsRef.current }
+          delete revisions[selectedProfileId]
+          profileServerRevisionsRef.current = revisions
+          const synced = { ...(lastSyncedProfileDefinitionsRef.current || {}) }
+          delete synced[selectedProfileId]
+          lastSyncedProfileDefinitionsRef.current = synced
+        })
+        profileSyncQueueRef.current = queuedDelete
+        await queuedDelete
       } catch (error) {
         setProfileEditorStatus(`Profile was not deleted from shared storage: ${error instanceof Error ? error.message : 'request failed'}`)
         return
@@ -3911,16 +4211,30 @@ function App() {
 
   return (
     <main className="app-shell">
-      {vehicleAuth.enabled && vehicleAuth.authenticated && <div className="global-auth-controls">
-        <span className="global-auth-username">{vehicleAuth.username}</span>
+      <div className="global-auth-controls" ref={userMenuRef}>
+        <button type="button" className="global-ask-vehicles" onClick={() => setIsVehicleQueryOpen(true)}>Ask</button>
+        {vehicleAuth.enabled && vehicleAuth.authenticated && <>
         <button
+          ref={userMenuButtonRef}
           type="button"
-          className="small secondary global-sign-out-button"
-          onClick={logoutVehicleSession}
-          title="Sign out"
-          aria-label="Sign out"
-        >Sign out</button>
-      </div>}
+          className="global-auth-username"
+          aria-haspopup="menu"
+          aria-expanded={isUserMenuOpen}
+          aria-controls="global-user-menu"
+          onClick={() => setIsUserMenuOpen((open) => !open)}
+        >
+          <span>{vehicleAuth.username}</span>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 6 5 5 5-5" /></svg>
+        </button>
+        {isUserMenuOpen && <div className="global-user-menu" id="global-user-menu" role="menu">
+          <button type="button" role="menuitem" onClick={() => { setIsUserMenuOpen(false); setIsUserProfileOpen(true) }}>My profile</button>
+          <div className="global-user-menu-divider" />
+          <button type="button" role="menuitem" className="global-user-menu-signout" onClick={() => { setIsUserMenuOpen(false); setIsUserProfileOpen(false); logoutVehicleSession() }}>Sign out</button>
+        </div>}
+        </>}
+      </div>
+      {isVehicleQueryOpen && createPortal(<Suspense fallback={null}><AskVehiclesPanel baseUrl={settings.vehicleApiBaseUrl} displayUnits={settings.displayUnits} onClose={() => setIsVehicleQueryOpen(false)} /></Suspense>, document.body)}
+      {isUserProfileOpen && createPortal(<Suspense fallback={null}><UserProfilePanel baseUrl={settings.vehicleApiBaseUrl} devices={devices} onClose={() => setIsUserProfileOpen(false)} /></Suspense>, document.body)}
         {importRecovery && createPortal((
           <section className="import-conflict-badge map-import-conflict" role="status" aria-live="polite">
             <div className="import-conflict-badge-header">
@@ -4014,18 +4328,25 @@ function App() {
 
       <section className={`map-panel${isPickingLocation ? ' map-location-picker' : ''}`}>
         <h1 className="map-app-title">Traccar React</h1>
-        <div className="map-status-card">
+        <div className="map-bottom-left-panels">
+        {!hiddenMapPanels.trackPlaces && namedPlaces.some((place) => place.placeType && place.placeType !== 'general') && <MovableMapKey className="track-place-key" closeLabel="Hide track locations key" onHide={() => setHiddenMapPanels((current) => ({ ...current, trackPlaces: true }))} position={trackPlaceKeyPosition} onPositionChange={setTrackPlaceKeyPosition} onPositionCommit={(position) => commitMovableWindowPosition('trackPlaces', position, () => persistMapKeyPosition('trackPlaceKeyPosition', 'track-places-key-position', position, setTrackPlaceKeyPosition))}>
+          <strong>Track locations</strong>
+          {[['track_start', 'Start', '#22c55e'], ['track_finish', 'Finish', '#ef4444'], ['track_start_finish', 'Start / finish', '#f59e0b'], ['track_split', 'Split', '#38bdf8'], ['drag_start', 'Drag start', '#a78bfa'], ['drag_finish', 'Drag finish', '#f472b6'], ['track_other', 'Other', '#94a3b8']].map(([type, label, color]) => namedPlaces.some((place) => place.placeType === type) && <span key={type}><i style={{ backgroundColor: color }} />{label}</span>)}
+        </MovableMapKey>}
+        {!hiddenMapPanels.status && <div className="map-status-card">
+          <button type="button" className="map-panel-close" title="Hide status panel" aria-label="Hide status panel" onClick={() => setHiddenMapPanels((current) => ({ ...current, status: true }))}>×</button>
           <StatusCard
             status={status}
             sessionState={sessionState}
             error={error}
           />
+        </div>}
         </div>
         <div className="map-device-list">
           <DeviceList
             devices={devices}
             deviceVisibility={deviceVisibility}
-            setDeviceVisibility={setDeviceVisibility}
+            setDeviceVisibility={persistDeviceVisibility}
             deviceColors={deviceColors}
             selectedDeviceId={deviceListSelectedId}
             onSelectDevice={setDeviceListSelectedId}
@@ -4046,30 +4367,29 @@ function App() {
           vehicleId={statusVehicleId}
           point={statusPoint}
           historyPoints={statusDevice ? (historyByDevice[statusDevice.id] || []) : []}
-          profile={profileContextFor({ vehicleId: statusVehicleId, deviceId: statusDevice?.id }).profile}
+      profile={profileContextWithSourceMappings({ vehicleId: statusVehicleId, deviceId: statusDevice?.id, at: statusPoint?.timestamp }).profile}
           cardFields={statusCardFieldsByVehicle[statusVehicleId] || DEFAULT_STATUS_CARD_FIELDS}
         />
-        <VehicleStatsPanel baseUrl={settings.vehicleApiBaseUrl} vehicleId={statusVehicleId || null} traccarApi={apiFetch} profileMap={profileMap} bindings={activeBindings} displayUnits={settings.displayUnits} updateSetting={updateSetting} />
+        <VehicleStatsPanel baseUrl={settings.vehicleApiBaseUrl} vehicleId={statusVehicleId || null} traccarApi={apiFetch} profileMap={profileMap} bindings={activeBindings} profileAssignments={historicalProfileAssignments} sourceMappingRevisionsByDevice={sourceMappingRevisionsByDevice} displayUnits={settings.displayUnits} updateSetting={updateSetting} />
         <div ref={mapElementRef} className="map-canvas" />
-        {namedPlaces.some((place) => place.placeType && place.placeType !== 'general') && <MovableMapKey className="track-place-key" position={trackPlaceKeyPosition} onPositionChange={setTrackPlaceKeyPosition} onPositionCommit={(position) => commitMovableWindowPosition('trackPlaces', position, () => persistMapKeyPosition('trackPlaceKeyPosition', 'track-places-key-position', position, setTrackPlaceKeyPosition))}>
-          <strong>Track locations</strong>
-          {[['track_start', 'Start', '#22c55e'], ['track_finish', 'Finish', '#ef4444'], ['track_start_finish', 'Start / finish', '#f59e0b'], ['track_split', 'Split', '#38bdf8'], ['drag_start', 'Drag start', '#a78bfa'], ['drag_finish', 'Drag finish', '#f472b6'], ['track_other', 'Other', '#94a3b8']].map(([type, label, color]) => namedPlaces.some((place) => place.placeType === type) && <span key={type}><i style={{ backgroundColor: color }} />{label}</span>)}
-        </MovableMapKey>}
-        <MovableMapKey className="speed-band-key" position={speedBandKeyPosition} onPositionChange={setSpeedBandKeyPosition} onPositionCommit={(position) => commitMovableWindowPosition('speedBands', position, () => persistMapKeyPosition('speedBandKeyPosition', 'speed-bands-key-position', position, setSpeedBandKeyPosition))}>
+
+        {!hiddenMapPanels.speedBands && <MovableMapKey className="speed-band-key" closeLabel="Hide speed bands key" onHide={() => setHiddenMapPanels((current) => ({ ...current, speedBands: true }))} position={speedBandKeyPosition} onPositionChange={setSpeedBandKeyPosition} onPositionCommit={(position) => commitMovableWindowPosition('speedBands', position, () => persistMapKeyPosition('speedBandKeyPosition', 'speed-bands-key-position', position, setSpeedBandKeyPosition))}>
           <div aria-label="Speed bands" title="Double-click to edit speed bands" onDoubleClick={() => { localStorage.setItem('openSpeedBandsPanel', 'true'); setIsSettingsOpen(true) }}>
             <strong>Speed bands</strong>
             <small>Double-click to edit</small>
             {activeSpeedBands.map((band, index) => { const factor = settings.displayUnits === 'metric' ? 1.609344 : 1; const unit = settings.displayUnits === 'metric' ? 'km/h' : 'mph'; const lower = Math.round((index ? activeSpeedBands[index - 1].upperMph : 0) * factor); const upper = band.upperMph == null ? null : Math.round(band.upperMph * factor); return <span key={`${band.label}-${index}`}><i style={{ backgroundColor: band.color }} />{upper == null ? `${lower}+ ${unit}` : `${lower}–${upper} ${unit}`}</span> })}
           </div>
-        </MovableMapKey>
+        </MovableMapKey>}
       </section>
 
       {isSettingsOpen && (
-        <SettingsModal
+        <Suspense fallback={null}><SettingsModal
           isPickingLocation={isPickingLocation}
           startLocationPicker={startLocationPicker}
           settings={settings}
           vehicleApiBaseUrl={settings.vehicleApiBaseUrl}
+          canEditGeneralSettings={vehicleAuth.role === 'admin'}
+          onSaveGlobalGeneralSettings={persistGlobalGeneralSettings}
           updateSetting={updateSetting}
           closeModal={() => setIsSettingsOpen(false)}
           refreshDevices={loadDevices}
@@ -4110,6 +4430,8 @@ function App() {
           setVehicleNotes={setVehicleNotes}
           vehicleProfileId={vehicleProfileId}
           setVehicleProfileId={setVehicleProfileId}
+          vehicleProfileEffectiveFrom={vehicleProfileEffectiveFrom}
+          setVehicleProfileEffectiveFrom={setVehicleProfileEffectiveFrom}
           vehicleDeviceId={vehicleDeviceId}
           setVehicleDeviceId={setVehicleDeviceId}
           vehicleEffectiveFrom={vehicleEffectiveFrom}
@@ -4192,15 +4514,20 @@ function App() {
           forgetBouncieCredentials={forgetBouncieConnection}
           restoreBouncieConnection={restoreBouncieStoredConnection}
           vehicleAuth={vehicleAuth}
-        />
+        /></Suspense>
       )}
 
       {isProfileMappingEditorOpen && (
-        <DeviceProtocolProfileEditor
+        <Suspense fallback={null}><DeviceProtocolProfileEditor
           profileId={selectedProfileId}
           profileName={profileName}
           profileAttributesJson={profileAttributesJson}
           setProfileAttributesJson={setProfileAttributesJson}
+          profileSchemaVersion={PROFILE_DEFINITION_SCHEMA_VERSION}
+          submissionDevices={devices}
+          submissionDefaultDeviceId={submissionDefaultDeviceId}
+          submissionApiBaseUrl={settings.vehicleApiBaseUrl}
+          fetchSubmissionPositions={fetchDevicePositionsForProfileSubmission}
           displayUnits={settings.displayUnits}
           canSave={profileStorageState.canSave && (!vehicleAuth.enabled || vehicleAuth.role === 'admin')}
           serverSyncEnabled={profileServerReady && profileServerAvailable}
@@ -4208,9 +4535,12 @@ function App() {
           syncStatus={profileSyncStatus}
           editorStatus={profileEditorStatus}
           saveProfile={saveProfileEdits}
+          loadRevisions={profileStorageState.canSave && (!vehicleAuth.enabled || vehicleAuth.role === 'admin') && profileServerReady && profileServerAvailable
+            ? (id) => fetchTelemetryProfileRevisions(settings.vehicleApiBaseUrl, id)
+            : undefined}
           onBackToSettings={returnToProfileSettings}
           onSaveAndClose={closeProfileMappingEditor}
-        />
+        /></Suspense>
       )}
 
       {isDataTransferOpen && (
@@ -4222,7 +4552,7 @@ function App() {
               <h2>Import / Export Data</h2>
               <button type="button" className="small secondary" onClick={() => setIsDataTransferOpen(false)} aria-label="Close">×</button>
             </div>
-            <ExportPanel
+            <Suspense fallback={null}><ExportPanel
               devices={devices}
               exportDeviceId={exportDeviceId}
               setExportDeviceId={setExportDeviceId}
@@ -4238,7 +4568,7 @@ function App() {
               exportMessage={exportMessage}
               importDataFile={importDataFile}
               dataImportMessage={dataImportMessage}
-            />
+            /></Suspense>
             <section className="operations-report-card">
               <h3>Admin / Operations Reports</h3>
               <div className="operations-report-buttons">
@@ -4268,7 +4598,7 @@ function App() {
         </div>
       )}
 
-      {graphGroups && <TelemetryGraphViewer groups={graphGroups} profile={graphProfile} fetchGpsPositions={fetchGpsPositionsForExport} namedPlaces={namedPlaces} vehicleMetadata={bindingVehicles.find((vehicle) => vehicle.id === graphGroups[0]?.vehicleId)} deviceMetadata={devices.find((device) => Number(device.id) === Number(graphGroups[0]?.deviceId))} title={graphGroups.length === 1 ? 'Trip Telemetry Graph' : 'Selected Days Telemetry Graph'} onClose={() => setGraphGroups(null)} />}
+      {graphGroups && <Suspense fallback={null}><TelemetryGraphViewer groups={graphGroups} profile={graphProfile} fetchGpsPositions={fetchGpsPositionsForExport} namedPlaces={namedPlaces} vehicleMetadata={bindingVehicles.find((vehicle) => vehicle.id === graphGroups[0]?.vehicleId)} deviceMetadata={devices.find((device) => Number(device.id) === Number(graphGroups[0]?.deviceId))} vehicleMetadataList={bindingVehicles} deviceMetadataList={devices} traccarServerVersion={traccarServer?.baseUrl === settings.vehicleApiBaseUrl ? traccarServer.version : ''} title={graphGroups.length === 1 ? 'Trip Telemetry Graph' : 'Selected Days Telemetry Graph'} profileOptions={profileOptions} profileVehicleCounts={Object.fromEntries(profileOptions.map((item) => [item.id, bindingVehicles.filter((vehicle) => vehicle.id === item.id).length]))} userName={vehicleAuth.username || ''} isAuthenticated={vehicleAuth.authenticated} canEditSharedProfiles={!vehicleAuth.enabled || (vehicleAuth.authenticated && vehicleAuth.role === 'admin')} vehicleApiBaseUrl={settings.vehicleApiBaseUrl} onSaveSharedMapping={saveGraphFieldMapping} onSourceMappingSaved={updateSourceMappingRevision} resolvePointProfileContext={(group, at) => profileContextWithSourceMappings({ vehicleId: group.vehicleId, deviceId: group.deviceId, at })} onClose={() => setGraphGroups(null)} /></Suspense>}
     </main>
   )
 }

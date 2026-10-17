@@ -84,7 +84,7 @@ public sealed class EmailDeliveryService(IHttpClientFactory httpClientFactory, I
         return new EmailConfigurationStatus(provider, resolved.Enabled && supported && missing.Length == 0, missing, resolved.Source);
     }
 
-    public async Task<EmailDeliveryResult> SendAsync(string to, string subject, string body, CancellationToken cancellationToken, string? idempotencyKey = null, string? senderUserId = null, Guid? providerAccountId = null)
+    public async Task<EmailDeliveryResult> SendAsync(string to, string subject, string body, CancellationToken cancellationToken, string? idempotencyKey = null, string? senderUserId = null, Guid? providerAccountId = null, IReadOnlyList<EmailAttachment>? attachments = null)
     {
         var resolved = await ResolveConfigurationAsync(cancellationToken, providerAccountId);
         var status = GetStatus(resolved);
@@ -97,9 +97,9 @@ public sealed class EmailDeliveryService(IHttpClientFactory httpClientFactory, I
             {
                 "graph" => string.IsNullOrWhiteSpace(senderUserId)
                     ? new EmailDeliveryResult(false, null, "A Graph sender mailbox is not configured.", "Graph settings")
-                    : await SendGraphAsync(to, subject, body, senderUserId.Trim(), resolved, cancellationToken),
-                "resend" => await SendResendAsync(to, subject, body, idempotencyKey, resolved, cancellationToken),
-                "brevo" => await SendBrevoAsync(to, subject, body, idempotencyKey, resolved, cancellationToken),
+                    : await SendGraphAsync(to, subject, body, senderUserId.Trim(), resolved, cancellationToken, attachments),
+                "resend" => await SendResendAsync(to, subject, body, idempotencyKey, resolved, cancellationToken, attachments),
+                "brevo" => await SendBrevoAsync(to, subject, body, idempotencyKey, resolved, cancellationToken, attachments),
                 _ => new EmailDeliveryResult(false, null, "Unsupported email provider."),
             };
         }
@@ -157,7 +157,7 @@ public sealed class EmailDeliveryService(IHttpClientFactory httpClientFactory, I
         return new EmailProviderConfiguration(provider, true, "environment", environmentValues, environmentSecrets, null);
     }
 
-    private async Task<EmailDeliveryResult> SendGraphAsync(string to, string subject, string body, string senderUserId, EmailProviderConfiguration resolved, CancellationToken cancellationToken)
+    private async Task<EmailDeliveryResult> SendGraphAsync(string to, string subject, string body, string senderUserId, EmailProviderConfiguration resolved, CancellationToken cancellationToken, IReadOnlyList<EmailAttachment>? attachments)
     {
         var tenantId = resolved.Get("TenantId");
         var clientId = resolved.Get("ClientId");
@@ -186,40 +186,54 @@ public sealed class EmailDeliveryService(IHttpClientFactory httpClientFactory, I
         using var sendRequest = new HttpRequestMessage(HttpMethod.Post,
             $"https://graph.microsoft.com/v1.0/users/{Uri.EscapeDataString(senderUserId)}/sendMail");
         sendRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenElement.GetString());
-        sendRequest.Content = JsonContent.Create(new
+        var message = new Dictionary<string, object>
         {
-            message = new
+            ["subject"] = subject,
+            ["body"] = new { contentType = "Text", content = body },
+            ["toRecipients"] = new[] { new { emailAddress = new { address = to } } },
+        };
+        if (attachments is { Count: > 0 })
+            message["attachments"] = attachments.Select(attachment => new Dictionary<string, string>
             {
-                subject,
-                body = new { contentType = "Text", content = body },
-                toRecipients = new[] { new { emailAddress = new { address = to } } },
-            },
-        });
+                ["@odata.type"] = "#microsoft.graph.fileAttachment",
+                ["name"] = attachment.FileName,
+                ["contentType"] = attachment.ContentType,
+                ["contentBytes"] = Convert.ToBase64String(attachment.Content),
+            }).ToArray();
+        sendRequest.Content = JsonContent.Create(new { message });
         using var sendResponse = await client.SendAsync(sendRequest, cancellationToken);
         return sendResponse.IsSuccessStatusCode
             ? new EmailDeliveryResult(true, (int)sendResponse.StatusCode, null, "Graph sendMail")
             : Failure(sendResponse, "Graph sendMail");
     }
 
-    private async Task<EmailDeliveryResult> SendResendAsync(string to, string subject, string body, string? idempotencyKey, EmailProviderConfiguration resolved, CancellationToken cancellationToken)
+    private async Task<EmailDeliveryResult> SendResendAsync(string to, string subject, string body, string? idempotencyKey, EmailProviderConfiguration resolved, CancellationToken cancellationToken, IReadOnlyList<EmailAttachment>? attachments)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.resend.com/emails");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", resolved.Secret("ApiKey"));
         if (!string.IsNullOrWhiteSpace(idempotencyKey)) request.Headers.Add("Idempotency-Key", idempotencyKey);
-        request.Content = JsonContent.Create(new
+        var payload = new Dictionary<string, object>
         {
-            from = resolved.Get("From"),
-            to = new[] { to },
-            subject,
-            text = body,
-        });
+            ["from"] = resolved.Get("From"),
+            ["to"] = new[] { to },
+            ["subject"] = subject,
+            ["text"] = body,
+        };
+        if (attachments is { Count: > 0 })
+            payload["attachments"] = attachments.Select(attachment => new Dictionary<string, string>
+            {
+                ["filename"] = attachment.FileName,
+                ["content"] = Convert.ToBase64String(attachment.Content),
+                ["content_type"] = attachment.ContentType,
+            }).ToArray();
+        request.Content = JsonContent.Create(payload);
         using var response = await httpClientFactory.CreateClient(nameof(EmailDeliveryService)).SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode) return Failure(response, "Resend send");
         var messageId = await ReadMessageIdAsync(response, "id", cancellationToken);
         return new EmailDeliveryResult(true, (int)response.StatusCode, null, "Resend send", messageId);
     }
 
-    private async Task<EmailDeliveryResult> SendBrevoAsync(string to, string subject, string body, string? idempotencyKey, EmailProviderConfiguration resolved, CancellationToken cancellationToken)
+    private async Task<EmailDeliveryResult> SendBrevoAsync(string to, string subject, string body, string? idempotencyKey, EmailProviderConfiguration resolved, CancellationToken cancellationToken, IReadOnlyList<EmailAttachment>? attachments)
     {
         var sender = new Dictionary<string, string> { ["email"] = resolved.Get("FromEmail") };
         var fromName = resolved.Get("FromName");
@@ -235,6 +249,12 @@ public sealed class EmailDeliveryService(IHttpClientFactory httpClientFactory, I
         };
         if (!string.IsNullOrWhiteSpace(idempotencyKey))
             payload["headers"] = new Dictionary<string, string> { ["Idempotency-Key"] = idempotencyKey };
+        if (attachments is { Count: > 0 })
+            payload["attachment"] = attachments.Select(attachment => new Dictionary<string, string>
+            {
+                ["name"] = attachment.FileName,
+                ["content"] = Convert.ToBase64String(attachment.Content),
+            }).ToArray();
         request.Content = JsonContent.Create(payload);
         using var response = await httpClientFactory.CreateClient(nameof(EmailDeliveryService)).SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode) return Failure(response, "Brevo send");
@@ -264,6 +284,7 @@ public sealed class EmailDeliveryService(IHttpClientFactory httpClientFactory, I
 public sealed record EmailConfigurationStatus(string Provider, bool Ready, IReadOnlyList<string> MissingSettings, string Source = "environment");
 public sealed record EmailConnectionCheckResult(bool Success, string Message);
 public sealed record EmailDeliveryResult(bool Accepted, int? ProviderStatusCode, string? Error, string? Stage = null, string? ProviderMessageId = null);
+public sealed record EmailAttachment(string FileName, string ContentType, byte[] Content);
 
 public sealed record EmailProviderConfiguration(string Provider, bool Enabled, string Source,
     Dictionary<string, string?> Settings, Dictionary<string, string> Secrets, string? Error)

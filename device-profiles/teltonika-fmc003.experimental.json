@@ -1,7 +1,7 @@
 {
   "id": "teltonika-fmc003-experimental",
   "name": "Teltonika FMC003 (experimental; catalog 03.29+ and configured AVL)",
-  "schemaVersion": 14,
+  "schemaVersion": 16,
   "attributeMap": {
     "power": {
       "label": "External Voltage",

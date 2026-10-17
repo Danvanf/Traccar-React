@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react'
 import { fetchBusinessMileageReport, fetchDataCompletenessReport, fetchDeviceBindingHistory, fetchEventReport, fetchMonthlySummaryReport, fetchNamedPlaces, fetchPlaceReport, fetchSpeedBandReport, fetchTripLogReport, fetchTripTags, fetchUsageSummaryReport, fetchUtilizationReport, fetchVehicleCatalog, fetchVehicleSpeedBands } from '../../lib/vehicleAppApi'
 import { DEFAULT_SPEED_BANDS } from '../../lib/speedBands'
 import { resolveProfileContext, translateAttribute } from '../../lib/carProfiles'
+import { resolveProfileRevision } from '../../lib/profileHistory'
+import { profileWithSourceMappings } from '../../lib/telemetrySourceMappings'
 import { toHistoryPosition } from '../../lib/geo'
 import { buildTrackMetadata, buildTrackTiming } from '../../lib/csvExport'
 import { addNamedPlaceMarkers } from '../../lib/trackPlaces'
@@ -168,54 +170,66 @@ function updateMetric(current, candidate, mode) {
   return current
 }
 
-function profileContextForWindow(window, vehicles, bindings, profileMap) {
-  return resolveProfileContext({ vehicleId: window.vehicleId, deviceId: window.traccarDeviceId, at: window.startedAt, vehicles, bindings, profileMap })
+function resolveHistoricalProfileContext(context, at, profileDefinitionHistoryById) {
+  const revision = resolveProfileRevision(profileDefinitionHistoryById?.[context.profileId], at)
+  return revision ? { ...context, profile: revision.profile, profileRevision: revision.revision, profileRevisionEffectiveAt: revision.effectiveAt } : context
 }
 
-function liveVehicleHealthRows(report, positionsByDevice, vehicles, bindings, profileMap) {
+function profileContextForWindow(window, vehicles, bindings, profileMap, profileAssignments, profileDefinitionHistoryById) {
+  const context = resolveProfileContext({ vehicleId: window.vehicleId, deviceId: window.traccarDeviceId, at: window.startedAt, vehicles, bindings, profileAssignments, profileMap })
+  return resolveHistoricalProfileContext(context, window.startedAt, profileDefinitionHistoryById)
+}
+
+function profileContextForPoint(window, point, vehicles, bindings, profileMap, profileAssignments, profileDefinitionHistoryById) {
+  const at = point.fixTime || point.deviceTime || point.serverTime || window.startedAt
+  const context = resolveProfileContext({ vehicleId: window.vehicleId, deviceId: window.traccarDeviceId, at, vehicles, bindings, profileAssignments, profileMap })
+  return resolveHistoricalProfileContext(context, at, profileDefinitionHistoryById)
+}
+
+function liveVehicleHealthRows(report, positionsByDevice, vehicles, bindings, profileMap, profileAssignments, sourceMappingRevisionsByDevice, profileDefinitionHistoryById) {
   const summaries = new Map()
   for (const window of report.traccarWindows || []) {
     const points = (positionsByDevice.get(Number(window.traccarDeviceId)) || []).filter((point) => {
       const time = new Date(point.fixTime || point.deviceTime || point.serverTime).getTime()
       return time >= new Date(window.startedAt).getTime() && time <= new Date(window.endedAt).getTime()
     })
-    const profileContext = profileContextForWindow(window, vehicles, bindings, profileMap)
+    const profileContext = profileContextForWindow(window, vehicles, bindings, profileMap, profileAssignments, profileDefinitionHistoryById)
     const profile = profileContext.profile
     const reportVehicleId = profileContext.vehicle?.id ?? window.vehicleId
     const reportVehicleName = profileContext.vehicle?.displayName || profileContext.vehicle?.name || window.vehicleName
     const current = summaries.get(String(reportVehicleId)) || { vehicleId: reportVehicleId, vehicleName: reportVehicleName, profileNames: [], samples: 0, coolantMax: null, obdSpeedMax: null, voltageMin: null, rpmMax: null, mafMax: null, throttleMax: null, dtcMax: null }
-    const profileName = profile?.name || (profileContext.status === 'missing-definition' ? `Missing profile: ${profileContext.profileId}` : 'No profile assigned')
-    if (!current.profileNames.includes(profileName)) current.profileNames.push(profileName)
     for (const point of points) {
       const attributes = point.attributes || {}
+      const pointContext = profileContextForPoint(window, point, vehicles, bindings, profileMap, profileAssignments, profileDefinitionHistoryById)
+      const pointProfile = profileWithSourceMappings(pointContext.profile, sourceMappingRevisionsByDevice?.[Number(window.traccarDeviceId)] || [], point.fixTime || point.deviceTime || point.serverTime)
+      const profileName = pointProfile?.name || (pointContext.status === 'missing-definition' ? `Missing profile: ${pointContext.profileId}` : 'No profile assigned')
+      if (!current.profileNames.includes(profileName)) current.profileNames.push(profileName)
       current.samples += 1
-      current.coolantMax = updateMetric(current.coolantMax, mappedMetric(profile, attributes, 'engine_coolant_temperature'), 'max')
-      current.obdSpeedMax = updateMetric(current.obdSpeedMax, mappedMetric(profile, attributes, 'obd_speed'), 'max')
-      current.voltageMin = updateMetric(current.voltageMin, mappedMetric(profile, attributes, 'control_module_voltage'), 'min')
-      current.rpmMax = updateMetric(current.rpmMax, mappedMetric(profile, attributes, 'rotational_speed'), 'max')
-      current.mafMax = updateMetric(current.mafMax, mappedMetric(profile, attributes, 'mass_flow'), 'max')
-      current.throttleMax = updateMetric(current.throttleMax, mappedMetric(profile, attributes, 'percentage'), 'max')
-      current.dtcMax = updateMetric(current.dtcMax, mappedMetric(profile, attributes, 'diagnostic_code_count'), 'max')
+      current.coolantMax = updateMetric(current.coolantMax, mappedMetric(pointProfile, attributes, 'engine_coolant_temperature'), 'max')
+      current.obdSpeedMax = updateMetric(current.obdSpeedMax, mappedMetric(pointProfile, attributes, 'obd_speed'), 'max')
+      current.voltageMin = updateMetric(current.voltageMin, mappedMetric(pointProfile, attributes, 'control_module_voltage'), 'min')
+      current.rpmMax = updateMetric(current.rpmMax, mappedMetric(pointProfile, attributes, 'rotational_speed'), 'max')
+      current.mafMax = updateMetric(current.mafMax, mappedMetric(pointProfile, attributes, 'mass_flow'), 'max')
+      current.throttleMax = updateMetric(current.throttleMax, mappedMetric(pointProfile, attributes, 'percentage'), 'max')
+      current.dtcMax = updateMetric(current.dtcMax, mappedMetric(pointProfile, attributes, 'diagnostic_code_count'), 'max')
     }
     summaries.set(String(reportVehicleId), current)
   }
   return [...summaries.values()].map(({ profileNames, ...row }) => ({ ...row, profileName: profileNames.join(', ') }))
 }
 
-function liveTrackerHealthRows(report, positionsByDevice, vehicles, bindings, profileMap) {
+function liveTrackerHealthRows(report, positionsByDevice, vehicles, bindings, profileMap, profileAssignments, sourceMappingRevisionsByDevice, profileDefinitionHistoryById) {
   const summaries = new Map()
   for (const window of report.traccarWindows || []) {
     const points = (positionsByDevice.get(Number(window.traccarDeviceId)) || []).filter((point) => {
       const time = new Date(point.fixTime || point.deviceTime || point.serverTime).getTime()
       return time >= new Date(window.startedAt).getTime() && time <= new Date(window.endedAt).getTime()
     }).sort((a, b) => new Date(a.fixTime || a.deviceTime || a.serverTime) - new Date(b.fixTime || b.deviceTime || b.serverTime))
-    const profileContext = profileContextForWindow(window, vehicles, bindings, profileMap)
+    const profileContext = profileContextForWindow(window, vehicles, bindings, profileMap, profileAssignments, profileDefinitionHistoryById)
     const profile = profileContext.profile
     const reportVehicleId = profileContext.vehicle?.id ?? window.vehicleId
     const reportVehicleName = profileContext.vehicle?.displayName || profileContext.vehicle?.name || window.vehicleName
     const current = summaries.get(String(reportVehicleId)) || { vehicleId: reportVehicleId, vehicleName: reportVehicleName, profileNames: [], samples: 0, lastContact: null, maxGapSeconds: 0, satellitesMin: null, satellitesMax: null, hdopMin: null, rssiMin: null, powerMin: null, batteryMin: null }
-    const profileName = profile?.name || (profileContext.status === 'missing-definition' ? `Missing profile: ${profileContext.profileId}` : 'No profile assigned')
-    if (!current.profileNames.includes(profileName)) current.profileNames.push(profileName)
     for (let index = 0; index < points.length; index += 1) {
       const point = points[index]
       const timestamp = new Date(point.fixTime || point.deviceTime || point.serverTime)
@@ -223,11 +237,15 @@ function liveTrackerHealthRows(report, positionsByDevice, vehicles, bindings, pr
       current.samples += 1
       if (!current.lastContact || timestamp > current.lastContact) current.lastContact = timestamp
       if (index > 0) current.maxGapSeconds = Math.max(current.maxGapSeconds, (timestamp - new Date(points[index - 1].fixTime || points[index - 1].deviceTime || points[index - 1].serverTime)) / 1000)
-      const satellites = mappedMetric(profile, attributes, 'gnss_satellite_count')
-      const hdop = mappedMetric(profile, attributes, 'gnss_hdop')
-      const rssi = mappedMetric(profile, attributes, 'gsm_signal_level')
-      const power = mappedMetric(profile, attributes, 'external_supply_voltage')
-      const battery = mappedMetric(profile, attributes, 'tracker_battery_voltage')
+      const pointContext = profileContextForPoint(window, point, vehicles, bindings, profileMap, profileAssignments, profileDefinitionHistoryById)
+      const pointProfile = profileWithSourceMappings(pointContext.profile, sourceMappingRevisionsByDevice?.[Number(window.traccarDeviceId)] || [], timestamp)
+      const profileName = pointProfile?.name || (pointContext.status === 'missing-definition' ? `Missing profile: ${pointContext.profileId}` : 'No profile assigned')
+      if (!current.profileNames.includes(profileName)) current.profileNames.push(profileName)
+      const satellites = mappedMetric(pointProfile, attributes, 'gnss_satellite_count')
+      const hdop = mappedMetric(pointProfile, attributes, 'gnss_hdop')
+      const rssi = mappedMetric(pointProfile, attributes, 'gsm_signal_level')
+      const power = mappedMetric(pointProfile, attributes, 'external_supply_voltage')
+      const battery = mappedMetric(pointProfile, attributes, 'tracker_battery_voltage')
       current.satellitesMin = updateMetric(current.satellitesMin, satellites, 'min')
       current.satellitesMax = updateMetric(current.satellitesMax, satellites, 'max')
       current.hdopMin = updateMetric(current.hdopMin, hdop, 'min')
@@ -246,7 +264,7 @@ function trackNameFromPlace(value) {
   return separator >= 0 ? text.slice(0, separator) : 'Unassigned course'
 }
 
-function summarizeRacerEvent(item, eventType, windowByTrip, pointsByTrip, vehicles, bindings, profileMap) {
+function summarizeRacerEvent(item, eventType, windowByTrip, pointsByTrip, vehicles, bindings, profileMap, profileAssignments, sourceMappingRevisionsByDevice, profileDefinitionHistoryById) {
   const tripId = String(item.tripId || '')
   const window = windowByTrip.get(tripId)
   const courseName = trackNameFromPlace(item.startPlace || item.place)
@@ -254,7 +272,8 @@ function summarizeRacerEvent(item, eventType, windowByTrip, pointsByTrip, vehicl
   const endedAt = item.finishUtc ? new Date(item.finishUtc) : item.timestampUtc ? new Date(item.timestampUtc) : null
   const elapsedSeconds = Number.isFinite(Number(item.elapsedSeconds)) ? Number(item.elapsedSeconds) : Number.isFinite(Number(item.elapsedSincePreviousSeconds)) ? Number(item.elapsedSincePreviousSeconds) : null
   const points = (pointsByTrip.get(tripId) || []).filter((point) => (!startedAt || point.timestamp >= startedAt) && (!endedAt || point.timestamp <= endedAt))
-  const profileContext = window ? profileContextForWindow(window, vehicles, bindings, profileMap) : { profile: null, status: 'missing-definition' }
+  const profileContext = window ? profileContextForWindow(window, vehicles, bindings, profileMap, profileAssignments, profileDefinitionHistoryById) : { profile: null, status: 'missing-definition' }
+  const profileNames = new Set()
   const profile = profileContext.profile
   let maxSpeedMph = null
   let maxRpm = null
@@ -262,12 +281,15 @@ function summarizeRacerEvent(item, eventType, windowByTrip, pointsByTrip, vehicl
   let maxThrottle = null
   let maxLoad = null
   for (const point of points) {
+    const pointContext = window ? profileContextForPoint(window, point, vehicles, bindings, profileMap, profileAssignments, profileDefinitionHistoryById) : profileContext
+    const pointProfile = profileWithSourceMappings(pointContext.profile, sourceMappingRevisionsByDevice?.[Number(window?.traccarDeviceId)] || [], point.timestamp)
+    if (pointProfile?.name) profileNames.add(pointProfile.name)
     const speedMph = Number(point.speed) * 1.150779
     if (Number.isFinite(speedMph)) maxSpeedMph = maxSpeedMph == null ? speedMph : Math.max(maxSpeedMph, speedMph)
-    maxRpm = updateMetric(maxRpm, mappedMetric(profile, point.attributes, 'rotational_speed'), 'max')
-    maxCoolant = updateMetric(maxCoolant, mappedMetric(profile, point.attributes, 'engine_coolant_temperature'), 'max')
-    maxThrottle = updateMetric(maxThrottle, mappedMetricByLabel(profile, point.attributes, 'percentage', /throttle/i), 'max')
-    maxLoad = updateMetric(maxLoad, mappedMetricByLabel(profile, point.attributes, null, /load/i), 'max')
+    maxRpm = updateMetric(maxRpm, mappedMetric(pointProfile, point.attributes, 'rotational_speed'), 'max')
+    maxCoolant = updateMetric(maxCoolant, mappedMetric(pointProfile, point.attributes, 'engine_coolant_temperature'), 'max')
+    maxThrottle = updateMetric(maxThrottle, mappedMetricByLabel(pointProfile, point.attributes, 'percentage', /throttle/i), 'max')
+    maxLoad = updateMetric(maxLoad, mappedMetricByLabel(pointProfile, point.attributes, null, /load/i), 'max')
   }
   const distanceMeters = item.distanceMeters ?? item.distanceFromPreviousMeters ?? null
   return {
@@ -287,11 +309,11 @@ function summarizeRacerEvent(item, eventType, windowByTrip, pointsByTrip, vehicl
     maxCoolant,
     maxThrottle,
     maxLoad,
-    profileName: profile?.name || (profileContext.status === 'missing-definition' ? `Missing profile: ${profileContext.profileId}` : 'No profile assigned'),
+    profileName: [...profileNames].join(', ') || profile?.name || (profileContext.status === 'missing-definition' ? `Missing profile: ${profileContext.profileId}` : 'No profile assigned'),
   }
 }
 
-async function loadRacerReport({ baseUrl, traccarApi, from, through, vehicleId, tagId, vehicles, bindings, profileMap }) {
+async function loadRacerReport({ baseUrl, traccarApi, from, through, vehicleId, tagId, vehicles, bindings, profileMap, profileAssignments, sourceMappingRevisionsByDevice, profileDefinitionHistoryById }) {
   if (!traccarApi) throw new Error('Traccar position access is required for Racer Report.')
   const sourceReport = await fetchSpeedBandReport(baseUrl, { from, to: through, vehicleId: vehicleId || undefined, tagId: tagId || undefined })
   const trackPlaces = (await fetchNamedPlaces(baseUrl, vehicleId || null)).filter((place) => ['track_start', 'track_finish', 'track_start_finish', 'track_split', 'track_other', 'drag_start', 'drag_finish'].includes(place.placeType))
@@ -333,9 +355,9 @@ async function loadRacerReport({ baseUrl, traccarApi, from, through, vehicleId, 
   markedPoints.forEach((point) => pointsByTrip.set(point.tripId, [...(pointsByTrip.get(point.tripId) || []), point]))
   const windowByTrip = new Map(groups.map((group) => [group.id, group.window]))
   const rows = [
-    ...trackMetadata.laps.map((item) => summarizeRacerEvent(item, 'Lap', windowByTrip, pointsByTrip, vehicles, bindings, profileMap)),
-    ...trackMetadata.dragRuns.map((item) => summarizeRacerEvent(item, 'Drag run', windowByTrip, pointsByTrip, vehicles, bindings, profileMap)),
-    ...trackMetadata.splitPassages.map((item) => summarizeRacerEvent(item, 'Split', windowByTrip, pointsByTrip, vehicles, bindings, profileMap)),
+    ...trackMetadata.laps.map((item) => summarizeRacerEvent(item, 'Lap', windowByTrip, pointsByTrip, vehicles, bindings, profileMap, profileAssignments, sourceMappingRevisionsByDevice, profileDefinitionHistoryById)),
+    ...trackMetadata.dragRuns.map((item) => summarizeRacerEvent(item, 'Drag run', windowByTrip, pointsByTrip, vehicles, bindings, profileMap, profileAssignments, sourceMappingRevisionsByDevice, profileDefinitionHistoryById)),
+    ...trackMetadata.splitPassages.map((item) => summarizeRacerEvent(item, 'Split', windowByTrip, pointsByTrip, vehicles, bindings, profileMap, profileAssignments, sourceMappingRevisionsByDevice, profileDefinitionHistoryById)),
   ].sort((a, b) => (a.endedAt?.getTime() || 0) - (b.endedAt?.getTime() || 0))
   if (!rows.length && points.length) warnings.push('GPS points were found, but none crossed a configured track or drag timing location.')
   const laps = rows.filter((row) => row.eventType === 'Lap').map((row) => row.elapsedSeconds).filter(Number.isFinite)
@@ -352,7 +374,7 @@ async function loadRacerReport({ baseUrl, traccarApi, from, through, vehicleId, 
   }
 }
 
-export default function ReportsWorkspace({ baseUrl, initialVehicleId, traccarApi, onClose, profileMap = {}, bindings = [], displayUnits = 'imperial', updateSetting }) {
+export default function ReportsWorkspace({ baseUrl, initialVehicleId, traccarApi, onClose, profileMap = {}, bindings = [], profileAssignments = [], sourceMappingRevisionsByDevice = {}, profileDefinitionHistoryById = {}, displayUnits = 'imperial', updateSetting }) {
   const today = dateInputValue(new Date())
   const defaultFromDate = new Date()
   defaultFromDate.setMonth(defaultFromDate.getMonth() - 1)
@@ -411,7 +433,7 @@ export default function ReportsWorkspace({ baseUrl, initialVehicleId, traccarApi
     setBusy(true); setError(''); setReport(null)
     try {
       if (reportType === 'racer') {
-        const nextReport = await loadRacerReport({ baseUrl, traccarApi, from, through, vehicleId, tagId, vehicles, bindings: reportBindings, profileMap })
+        const nextReport = await loadRacerReport({ baseUrl, traccarApi, from, through, vehicleId, tagId, vehicles, bindings: reportBindings, profileMap, profileAssignments, sourceMappingRevisionsByDevice, profileDefinitionHistoryById })
         setReport(nextReport)
         return
       }
@@ -438,7 +460,7 @@ export default function ReportsWorkspace({ baseUrl, initialVehicleId, traccarApi
             return [String(window.vehicleId), Array.isArray(config?.bands) && config.bands.length ? config.bands : DEFAULT_SPEED_BANDS]
           })))
           : new Map()
-        const rows = reportType === 'speed-bands' ? liveSpeedBandRows(nextReport, bandsByVehicle, positionsByDevice) : reportType === 'vehicle-health' ? liveVehicleHealthRows(nextReport, positionsByDevice, vehicles, reportBindings, profileMap) : liveTrackerHealthRows(nextReport, positionsByDevice, vehicles, reportBindings, profileMap)
+          const rows = reportType === 'speed-bands' ? liveSpeedBandRows(nextReport, bandsByVehicle, positionsByDevice) : reportType === 'vehicle-health' ? liveVehicleHealthRows(nextReport, positionsByDevice, vehicles, reportBindings, profileMap, profileAssignments, sourceMappingRevisionsByDevice, profileDefinitionHistoryById) : liveTrackerHealthRows(nextReport, positionsByDevice, vehicles, reportBindings, profileMap, profileAssignments, sourceMappingRevisionsByDevice, profileDefinitionHistoryById)
         const warnings = reportType === 'speed-bands'
           ? []
           : [reportType === 'vehicle-health' ? 'Vehicle Health translates telemetry using the profile assigned to each vehicle. Fields without a matching profile mapping are unavailable.' : 'Tracker Health translates telemetry using the profile assigned to each vehicle. Fields without a matching profile mapping are unavailable.']

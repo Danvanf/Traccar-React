@@ -71,6 +71,25 @@ async function toResponseError(response, context, url) {
   return error
 }
 
+export async function fetchGlobalGeneralSettings(baseUrl) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/system-settings/general`
+  const response = await vehicleFetch(url, { headers: { Accept: 'application/json' } })
+  if (!response.ok) throw await toResponseError(response, 'Global settings load failed', url)
+  return response.json()
+}
+
+export async function saveGlobalGeneralSettings(baseUrl, settings) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/admin/system-settings/general`
+  const response = await vehicleFetch(url, {
+    method: 'PUT',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings),
+  })
+  if (!response.ok) throw await toResponseError(response, 'Global settings save failed', url)
+}
+
 export async function fetchVehicleAuthStatus(baseUrl) {
   const base = normalizeVehicleApiBase(baseUrl)
   const url = `${base}/auth/status`
@@ -98,6 +117,23 @@ export async function logoutVehicleApi(baseUrl) {
   if (!response.ok) throw await toResponseError(response, 'Vehicle API logout failed', url)
 }
 
+export async function fetchUserProfile(baseUrl) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/user/profile`
+  const response = await vehicleFetch(url, { headers: { Accept: 'application/json' } })
+  if (!response.ok) throw await toResponseError(response, 'User profile lookup failed', url)
+  return response.json()
+}
+
+export async function saveUserProfile(baseUrl, profile) {
+  const url = `${normalizeVehicleApiBase(baseUrl)}/api/user/profile`
+  const response = await vehicleFetch(url, {
+    method: 'PATCH',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ firstName: profile.firstName, lastName: profile.lastName, email: profile.email }),
+  })
+  if (!response.ok) throw await toResponseError(response, 'User profile save failed', url)
+}
+
 export async function fetchUserPreference(baseUrl, preferenceKey) {
   const base = normalizeVehicleApiBase(baseUrl)
   const url = `${base}/api/user/preferences/${encodeURIComponent(preferenceKey)}`
@@ -120,6 +156,41 @@ export async function saveUserPreference(baseUrl, preferenceKey, value) {
   return response.json()
 }
 
+export async function fetchTelemetryFieldInventory(baseUrl, traccarDeviceId) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/telemetry-field-inventory/${encodeURIComponent(traccarDeviceId)}`
+  const response = await vehicleFetch(url, { headers: { Accept: 'application/json' } })
+  if (!response.ok) throw await toResponseError(response, 'Telemetry field inventory lookup failed', url)
+  return normalizeTelemetryFieldInventory(await response.json(), traccarDeviceId)
+}
+
+export async function retryTelemetryFieldInventoryScan(baseUrl, traccarDeviceId) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/telemetry-field-inventory/${encodeURIComponent(traccarDeviceId)}/retry`
+  const response = await vehicleFetch(url, { method: 'POST', headers: { Accept: 'application/json' } })
+  if (!response.ok) throw await toResponseError(response, 'Telemetry field inventory retry failed', url)
+  return normalizeTelemetryFieldInventory(await response.json(), traccarDeviceId)
+}
+
+function normalizeTelemetryFieldInventory(payload, traccarDeviceId) {
+  return {
+    traccarDeviceId: Number(payload?.traccarDeviceId) || Number(traccarDeviceId),
+    status: String(payload?.status || 'notStarted'),
+    generatedAt: payload?.generatedAt || null,
+    scanStartUtc: payload?.scanStartUtc || null,
+    scanEndUtc: payload?.scanEndUtc || null,
+    scannedThroughUtc: payload?.scannedThroughUtc || null,
+    progressPercent: typeof payload?.progressPercent === 'number' && Number.isFinite(payload.progressPercent) ? payload.progressPercent : null,
+    error: payload?.error || null,
+    fields: Array.isArray(payload?.fields) ? payload.fields.map((field) => ({
+      key: String(field?.key || ''),
+      positionCount: Number(field?.positionCount) || 0,
+      firstSeenAt: field?.firstSeenAt || null,
+      lastSeenAt: field?.lastSeenAt || null,
+      valueTypes: Array.isArray(field?.valueTypes) ? field.valueTypes : [],
+    })).filter((field) => field.key) : [],
+  }
+}
 export async function fetchEmailAlertPreferences(baseUrl) {
   const url = `${normalizeVehicleApiBase(baseUrl)}/api/user/email-alerts/preferences`
   const response = await vehicleFetch(url, { headers: { Accept: 'application/json' } })
@@ -399,6 +470,40 @@ export async function upsertVehicle(baseUrl, vehicle) {
   return response.json()
 }
 
+export async function fetchTelemetryProfileSubmissionStatus(baseUrl) {
+  const url = normalizeVehicleApiBase(baseUrl) + '/api/telemetry-profile-submissions/status'
+  const response = await vehicleFetch(url, { headers: { Accept: 'application/json' } })
+  if (!response.ok) throw await toResponseError(response, 'Telemetry profile submission status failed', url)
+  return response.json()
+}
+
+export async function submitTelemetryProfileProposal(baseUrl, submission) {
+  const url = normalizeVehicleApiBase(baseUrl) + '/api/telemetry-profile-submissions'
+  const response = await vehicleFetch(url, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(submission),
+  })
+  if (!response.ok) throw await toResponseError(response, 'Sending telemetry profile suggestion failed', url)
+  return response.json()
+}
+
+export async function downloadTelemetryProfileProposalArchive(baseUrl, submission) {
+  const url = normalizeVehicleApiBase(baseUrl) + '/api/telemetry-profile-submissions/archive'
+  const response = await vehicleFetch(url, {
+    method: 'POST',
+    headers: { Accept: 'application/zip', 'Content-Type': 'application/json' },
+    body: JSON.stringify(submission),
+  })
+  if (!response.ok) throw await toResponseError(response, 'Preparing telemetry profile ZIP failed', url)
+  const disposition = response.headers.get('Content-Disposition') || ''
+  const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1]
+  const quotedName = disposition.match(/filename="?([^";]+)"?/i)?.[1]
+  let fileName = encodedName || quotedName || 'telemetry-profile-submission.zip'
+  try { fileName = decodeURIComponent(fileName) } catch { /* Keep the provider filename if it is not URI encoded. */ }
+  return { blob: await response.blob(), fileName }
+}
+
 export async function fetchTelemetryProfiles(baseUrl) {
   const base = normalizeVehicleApiBase(baseUrl)
   const url = `${base}/api/telemetry-profiles`
@@ -408,23 +513,71 @@ export async function fetchTelemetryProfiles(baseUrl) {
   return Array.isArray(payload) ? payload : []
 }
 
-export async function upsertTelemetryProfile(baseUrl, profile) {
+export async function fetchTelemetryProfileHistory(baseUrl) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/telemetry-profiles/history`
+  const response = await vehicleFetch(url, { headers: { Accept: 'application/json' } })
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API profile history load failed', url)
+  const payload = await response.json()
+  return Array.isArray(payload) ? payload : []
+}
+
+export async function fetchTelemetrySourceMappings(baseUrl, deviceId) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const id = encodeURIComponent(deviceId)
+  const url = `${base}/api/telemetry-source-mappings/${id}`
+  const response = await vehicleFetch(url, { headers: { Accept: 'application/json' } })
+  if (!response.ok) throw await toResponseError(response, 'Tracker mapping history load failed', url)
+  const payload = await response.json()
+  return Array.isArray(payload) ? payload : []
+}
+
+export async function saveTelemetrySourceMapping(baseUrl, deviceId, fieldKey, mapping, expectedRevision, changeKind = 'manual') {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/telemetry-source-mappings/${encodeURIComponent(deviceId)}/${encodeURIComponent(fieldKey)}`
+  const response = await vehicleFetch(url, {
+    method: 'PUT',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ expectedRevision, mapping, changeKind }),
+  })
+  if (!response.ok) throw await toResponseError(response, 'Tracker mapping save failed', url)
+  return response.json()
+}
+
+export async function upsertTelemetryProfile(baseUrl, profile, expectedRevision, changeKind = 'manual') {
+  if (!Number.isInteger(expectedRevision) || expectedRevision < 0) {
+    throw new Error('A current shared profile revision is required before saving.')
+  }
   const base = normalizeVehicleApiBase(baseUrl)
   const key = encodeURIComponent(profile.id)
   const url = `${base}/api/telemetry-profiles/${key}`
   const response = await vehicleFetch(url, {
     method: 'PUT',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-    body: JSON.stringify(profile),
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'If-Match': `"${expectedRevision}"` },
+    body: JSON.stringify({ ...profile, changeKind }),
   })
   if (!response.ok) throw await toResponseError(response, 'Vehicle API profile save failed', url)
+  return response.json()
 }
 
-export async function deleteTelemetryProfile(baseUrl, profileId) {
+export async function fetchTelemetryProfileRevisions(baseUrl, profileId) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const key = encodeURIComponent(profileId)
+  const url = `${base}/api/telemetry-profiles/${key}/revisions`
+  const response = await vehicleFetch(url, { headers: { Accept: 'application/json' } })
+  if (!response.ok) throw await toResponseError(response, 'Vehicle API profile history lookup failed', url)
+  const payload = await response.json()
+  return Array.isArray(payload) ? payload : []
+}
+
+export async function deleteTelemetryProfile(baseUrl, profileId, expectedRevision) {
+  if (!Number.isInteger(expectedRevision) || expectedRevision < 1) {
+    throw new Error('A current shared profile revision is required before deleting.')
+  }
   const base = normalizeVehicleApiBase(baseUrl)
   const key = encodeURIComponent(profileId)
   const url = `${base}/api/telemetry-profiles/${key}`
-  const response = await vehicleFetch(url, { method: 'DELETE', headers: { Accept: 'application/json' } })
+  const response = await vehicleFetch(url, { method: 'DELETE', headers: { Accept: 'application/json', 'If-Match': `"${expectedRevision}"` } })
   if (!response.ok) throw await toResponseError(response, 'Vehicle API profile delete failed', url)
 }
 
@@ -743,6 +896,17 @@ export async function fetchDeviceBindingHistory(baseUrl) {
     throw await toResponseError(response, 'Vehicle API call failed for /api/device-bindings/history', url)
   }
 
+  const payload = await response.json()
+  return Array.isArray(payload) ? payload : []
+}
+
+export async function fetchVehicleProfileAssignmentHistory(baseUrl) {
+  const base = normalizeVehicleApiBase(baseUrl)
+  const url = `${base}/api/vehicle-profile-assignments/history`
+  const response = await vehicleFetch(url, { headers: { Accept: 'application/json' } })
+  if (!response.ok) {
+    throw await toResponseError(response, 'Vehicle API call failed for /api/vehicle-profile-assignments/history', url)
+  }
   const payload = await response.json()
   return Array.isArray(payload) ? payload : []
 }

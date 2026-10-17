@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createCarProfile, getAttributeMapValidationIssues, translateAttribute, updateProfileAttributeMapping } from '../lib/carProfiles'
 import { getProfileFieldGroups } from '../lib/profileFieldGroups'
+import { compatibleTelemetryUnits, getTelemetryUnit, getTelemetryUnitGroups, TELEMETRY_QUANTITY_OPTIONS } from '../lib/telemetryUnits'
+import { restoreProfileField } from '../lib/profileHistory'
+import TelemetryProfileSubmissionDialog from './TelemetryProfileSubmissionDialog'
+import { fetchTelemetryFieldInventory, retryTelemetryFieldInventoryScan } from '../lib/vehicleAppApi'
+import { mergeTelemetryFieldInventory } from '../lib/telemetryFieldInventory'
 
 const EMPTY_ATTRIBUTE_MAP = Object.freeze({})
 
@@ -17,12 +22,10 @@ function parseMappingJson(value) {
 
 function describeConversion(mapping, displayUnit) {
   if (typeof mapping.canonicalScale === 'number' && mapping.canonicalUnit) {
-    const offset = Number(mapping.canonicalOffset || 0)
-    const formula = `raw × ${mapping.canonicalScale}${offset ? ` + ${offset}` : ''} → ${mapping.canonicalUnit}`
-    return `${formula}${displayUnit && displayUnit !== mapping.canonicalUnit ? ` → ${displayUnit}` : ''}`
+    return `Received values are converted and shown as ${displayUnit || mapping.canonicalUnit}.`
   }
-  if (mapping.conversion) return `${mapping.conversion} → ${displayUnit || mapping.units || 'value'}`
-  return mapping.units ? `Raw value · ${mapping.units}` : 'Raw value · unit not set'
+  if (mapping.conversion) return `An existing conversion rule is used${displayUnit ? `; values display as ${displayUnit}` : ''}.`
+  return mapping.units ? `Values are shown without a conversion, as ${mapping.units}.` : 'Values are shown as received; unit unknown.'
 }
 
 function preview(profile, key, value) {
@@ -34,13 +37,39 @@ function preview(profile, key, value) {
   return `${result.value}${result.unit ? ` ${result.unit}` : ''}`
 }
 
-function previewCanonical(profile, key, value, mapping) {
-  if (value.trim() === '') return 'Enter a raw sample value.'
-  if (typeof mapping.canonicalScale !== 'number' || !mapping.canonicalUnit) return 'Not defined for this legacy or raw mapping.'
-  const result = translateAttribute(profile, key, value)
-  if (result.status === 'sentinel') return 'Unavailable sentinel.'
-  if (result.status === 'invalid' || !Number.isFinite(result.canonicalValue)) return 'Invalid for the selected mapping.'
-  return `${result.canonicalValue}${mapping.canonicalUnit ? ` ${mapping.canonicalUnit}` : ''}`
+function mappingForSourceUnit(mapping, value) {
+  if (value === '__unknown') {
+    const next = { ...mapping, sourceUnitStatus: 'unknown' }
+    delete next.sourceUnit
+    delete next.canonicalUnit
+    delete next.canonicalScale
+    delete next.canonicalOffset
+    delete next.displayUnit
+    delete next.units
+    return next
+  }
+  if (value === '__none') {
+    const next = { ...mapping, sourceUnitStatus: 'none' }
+    delete next.sourceUnit
+    delete next.canonicalUnit
+    delete next.canonicalScale
+    delete next.canonicalOffset
+    delete next.displayUnit
+    delete next.units
+    return next
+  }
+  const unit = getTelemetryUnit(value)
+  if (!unit) return mapping
+  return {
+    ...mapping,
+    sourceUnitStatus: 'known',
+    sourceUnit: unit.symbol,
+    quantity: unit.quantity,
+    canonicalUnit: unit.canonicalUnit,
+    canonicalScale: unit.scale,
+    canonicalOffset: unit.offset,
+    units: unit.symbol,
+  }
 }
 
 export default function DeviceProtocolProfileEditor({
@@ -54,7 +83,13 @@ export default function DeviceProtocolProfileEditor({
   storageNotice = '',
   syncStatus = '',
   editorStatus = '',
+  submissionDevices = [],
+  submissionDefaultDeviceId,
+  submissionApiBaseUrl,
+  fetchSubmissionPositions,
+  profileSchemaVersion = 1,
   saveProfile,
+  loadRevisions,
   onBackToSettings,
   onSaveAndClose,
 }) {
@@ -69,6 +104,14 @@ export default function DeviceProtocolProfileEditor({
   const [fieldKeyDraft, setFieldKeyDraft] = useState('')
   const [localStatus, setLocalStatus] = useState('')
   const [closeAfterSync, setCloseAfterSync] = useState(false)
+  const [revisionHistory, setRevisionHistory] = useState([])
+  const [inventoryDeviceId, setInventoryDeviceId] = useState(() => String(submissionDefaultDeviceId ?? ''))
+  const [fieldInventory, setFieldInventory] = useState(null)
+  const [inventoryError, setInventoryError] = useState('')
+  const [inventoryLoading, setInventoryLoading] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [submissionOpen, setSubmissionOpen] = useState(false)
   const [savedJson, setSavedJson] = useState(profileAttributesJson)
   const syncStartedRef = useRef(false)
   const screenRef = useRef(null)
@@ -104,12 +147,70 @@ export default function DeviceProtocolProfileEditor({
     }
   }, [closeAfterSync, onSaveAndClose, syncStatus])
 
+  useEffect(() => {
+    if (!inventoryDeviceId && submissionDefaultDeviceId != null) setInventoryDeviceId(String(submissionDefaultDeviceId))
+  }, [inventoryDeviceId, submissionDefaultDeviceId])
+
+  useEffect(() => {
+    if (!inventoryDeviceId || !submissionApiBaseUrl) { setFieldInventory(null); return undefined }
+    let active = true
+    setInventoryLoading(true)
+    setInventoryError('')
+    setFieldInventory(null)
+    fetchTelemetryFieldInventory(submissionApiBaseUrl, inventoryDeviceId).then((inventory) => {
+      if (active) setFieldInventory(inventory)
+    }).catch((error) => {
+      if (active) setInventoryError(error instanceof Error ? error.message : 'Could not load the vehicle field inventory.')
+    }).finally(() => { if (active) setInventoryLoading(false) })
+    return () => { active = false }
+  }, [inventoryDeviceId, submissionApiBaseUrl])
+
+  useEffect(() => {
+    if (!inventoryDeviceId || !submissionApiBaseUrl || !['queued', 'scanning'].includes(fieldInventory?.status)) return undefined
+    let active = true
+    let timer = null
+    const poll = async () => {
+      try {
+        const nextInventory = await fetchTelemetryFieldInventory(submissionApiBaseUrl, inventoryDeviceId)
+        if (!active) return
+        setFieldInventory(nextInventory)
+        if (['queued', 'scanning'].includes(nextInventory.status)) timer = window.setTimeout(poll, 3000)
+      } catch (error) {
+        if (active) {
+          setInventoryError(error instanceof Error ? error.message : 'Could not refresh the vehicle field inventory.')
+          timer = window.setTimeout(poll, 5000)
+        }
+      }
+    }
+    timer = window.setTimeout(poll, 3000)
+    return () => { active = false; if (timer) window.clearTimeout(timer) }
+  }, [fieldInventory?.status, inventoryDeviceId, submissionApiBaseUrl])
+
+  async function updateVehicleInventory() {
+    if (!inventoryDeviceId || !submissionApiBaseUrl) return
+    setInventoryLoading(true)
+    setInventoryError('')
+    try { setFieldInventory(await retryTelemetryFieldInventoryScan(submissionApiBaseUrl, inventoryDeviceId)) }
+    catch (error) { setInventoryError(error instanceof Error ? error.message : 'Could not update the vehicle field inventory.') }
+    finally { setInventoryLoading(false) }
+  }
+
   const parsed = useMemo(() => parseMappingJson(profileAttributesJson), [profileAttributesJson])
   const attributeMap = parsed.value || EMPTY_ATTRIBUTE_MAP
-  const { groups, fields } = useMemo(() => getProfileFieldGroups(attributeMap), [attributeMap])
+  const inventoryRows = useMemo(() => mergeTelemetryFieldInventory(attributeMap, fieldInventory?.fields || []), [attributeMap, fieldInventory?.fields])
+  const inventoryAttributeMap = useMemo(() => Object.fromEntries(inventoryRows.map(({ key, mapping }) => [key, mapping])), [inventoryRows])
+  const { groups, fields: groupedFields } = useMemo(() => getProfileFieldGroups(inventoryAttributeMap), [inventoryAttributeMap])
+  const fields = useMemo(() => {
+    const inventoryByKey = new Map(inventoryRows.map((entry) => [entry.key, entry]))
+    return groupedFields.map((field) => ({ ...field, ...inventoryByKey.get(field.key) }))
+  }, [groupedFields, inventoryRows])
   const dirty = profileAttributesJson !== savedJson
   const selectedField = fields.find((field) => field.key === selectedKey) || null
   const selectedMapping = selectedField?.mapping || null
+  const selectedSourceUnit = getTelemetryUnit(selectedMapping?.sourceUnit)
+  const sourceUnitChoice = selectedSourceUnit?.symbol || (selectedMapping?.sourceUnitStatus === 'none' ? '__none' : '__unknown')
+  const customSourceUnit = selectedMapping?.sourceUnit && !selectedSourceUnit ? selectedMapping.sourceUnit : null
+  const displayChoices = compatibleTelemetryUnits(selectedSourceUnit?.quantity || selectedMapping?.quantity)
   const unitProfile = useMemo(() => createCarProfile({ id: profileId, name: profileName, attributeMap }, displayUnits), [attributeMap, displayUnits, profileId, profileName])
   const imperialProfile = useMemo(() => createCarProfile({ id: profileId, name: profileName, attributeMap }, 'imperial'), [attributeMap, profileId, profileName])
   const metricProfile = useMemo(() => createCarProfile({ id: profileId, name: profileName, attributeMap }, 'metric'), [attributeMap, profileId, profileName])
@@ -132,7 +233,13 @@ export default function DeviceProtocolProfileEditor({
 
   function updateField(key, property, value) {
     if (!parsed.value) return
-    writeMap(updateProfileAttributeMapping(parsed.value, key, property, value))
+    const editableMap = Object.hasOwn(parsed.value, key) ? parsed.value : { ...parsed.value, [key]: {} }
+    writeMap(updateProfileAttributeMapping(editableMap, key, property, value))
+  }
+
+  function updateMapping(key, mapping) {
+    if (!parsed.value) return
+    writeMap({ ...parsed.value, [key]: mapping })
   }
 
   function addField() {
@@ -153,6 +260,34 @@ export default function DeviceProtocolProfileEditor({
     writeMap(next)
     setSelectedKey(null)
     setLocalStatus(`Removed ${key} from the profile draft.`)
+  }
+
+  async function showRevisionHistory() {
+    setHistoryOpen((value) => !value)
+    if (revisionHistory.length || !loadRevisions) return
+    setHistoryLoading(true)
+    try {
+      setRevisionHistory(await loadRevisions(profileId))
+    } catch (error) {
+      setLocalStatus(error instanceof Error ? error.message : 'Could not load profile history.')
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
+  function restoreFieldFromRevision(revision) {
+    if (!selectedKey || !canSave || dirty) return
+    const priorMap = revision.attributeMap || revision.AttributeMap || {}
+    const nextMap = restoreProfileField(attributeMap, priorMap, selectedKey)
+    const nextJson = JSON.stringify(nextMap, null, 2)
+    setProfileAttributesJson(nextJson)
+    const result = saveProfile({ attributesJson: nextJson, changeKind: 'undo' })
+    if (!result?.ok) {
+      setLocalStatus(result?.message || 'Could not restore this field.')
+      return
+    }
+    setSavedJson(nextJson)
+    setLocalStatus(`${selectedKey} restored from revision ${revision.revision}.`)
   }
 
   function save(closeAfter = false) {
@@ -244,6 +379,7 @@ export default function DeviceProtocolProfileEditor({
         </div>
         <div className="profile-mapping-header-actions">
           <button type="button" className="secondary" onClick={backToSettings}>Back to Settings</button>
+          <button type="button" className="secondary" onClick={() => setSubmissionOpen(true)} disabled={!parsed.value || !fetchSubmissionPositions}>Suggest Profile</button>
           <button type="button" className="secondary" onClick={() => save(false)} disabled={!canSave || !dirty || Boolean(parsed.error)}>Save</button>
           <button type="button" onClick={() => save(true)} disabled={!canSave || !dirty || Boolean(parsed.error)}>Save and Close</button>
         </div>
@@ -262,7 +398,51 @@ export default function DeviceProtocolProfileEditor({
           </select>
         </label>
         <button type="button" className="secondary" onClick={() => setShowJson((value) => !value)}>{showJson ? 'Visual fields' : 'Advanced / JSON'}</button>
+        {loadRevisions && <button type="button" className="secondary" onClick={showRevisionHistory} disabled={!serverSyncEnabled}>{historyOpen ? 'Hide history' : 'Version history'}</button>}
       </div>
+
+      <section className="profile-mapping-notice profile-mapping-inventory" aria-label="Vehicle field inventory">
+        <div className="profile-mapping-inventory-controls">
+          <label>Observed on vehicle
+            <select value={inventoryDeviceId} onChange={(event) => setInventoryDeviceId(event.target.value)} disabled={!submissionDevices.length}>
+              {submissionDevices.map((device) => <option key={device.id} value={String(device.id)}>{device.name || device.uniqueId || ('Device ' + device.id)}</option>)}
+            </select>
+          </label>
+          <div className="profile-mapping-inventory-status" role="status">
+            {!inventoryDeviceId ? 'Choose a vehicle to load its observed fields.' : inventoryLoading && !fieldInventory ? 'Loading field inventory…' : inventoryError || (
+              fieldInventory?.status === 'queued' ? 'History scan queued…' :
+              fieldInventory?.status === 'scanning' ? 'Scanning history… ' + (fieldInventory.progressPercent == null ? '' : Math.round(fieldInventory.progressPercent) + '%') :
+              fieldInventory?.status === 'error' ? fieldInventory.error || 'The history scan failed.' :
+              fieldInventory?.status === 'complete' ? fieldInventory.fields.length + ' observed fields, scanned through ' + (fieldInventory.generatedAt ? new Date(fieldInventory.generatedAt).toLocaleString() : 'the latest available history') + '.' :
+              'Observed Traccar fields are added here without changing the saved profile.'
+            )}
+          </div>
+          <button type="button" className="small secondary" onClick={updateVehicleInventory} disabled={!inventoryDeviceId || inventoryLoading || ['queued', 'scanning'].includes(fieldInventory?.status)}>
+            {fieldInventory?.status === 'error' ? 'Retry scan' : 'Update inventory'}
+          </button>
+        </div>
+        <small>Only field names, value types, counts, and first/last-seen times are kept in this inventory; position values and locations are not saved.</small>
+      </section>
+
+      {historyOpen && <section className="profile-mapping-notice profile-mapping-history" aria-label="Profile version history">
+        <strong>Version history</strong>
+        <p>Choose a revision to restore the selected field. This creates a new revision and leaves the rest of the profile unchanged.</p>
+        {historyLoading ? <p>Loading revisions…</p> : revisionHistory.length === 0 ? <p>No saved revisions are available.</p> : (
+          <ul>
+            {revisionHistory.map((revision) => {
+              const revisionMap = revision.attributeMap || revision.AttributeMap || {}
+              const hasField = selectedKey && Object.hasOwn(revisionMap, selectedKey)
+              const sameMapping = selectedKey && JSON.stringify(revisionMap[selectedKey]) === JSON.stringify(attributeMap[selectedKey])
+              return <li key={`${revision.id}-${revision.revision}`}>
+                <span>Revision {revision.revision} · {revision.changeKind || 'saved'} · effective {revision.effectiveAt ? new Date(revision.effectiveAt).toLocaleString() : 'time unavailable'}{revision.createdAt ? ` · recorded ${new Date(revision.createdAt).toLocaleString()}` : ''}</span>
+                {selectedKey && <button type="button" className="small secondary" disabled={!canSave || dirty || sameMapping} onClick={() => restoreFieldFromRevision(revision)}>
+                  {hasField ? `Restore ${selectedKey} from this revision` : `Remove ${selectedKey} mapping`}
+                </button>}
+              </li>
+            })}
+          </ul>
+        )}
+      </section>}
 
       {storageNotice && <div className="profile-mapping-notice" role="status">{storageNotice}</div>}
       {editorStatus && <div className="profile-mapping-notice" role="status">{editorStatus}</div>}
@@ -305,7 +485,7 @@ export default function DeviceProtocolProfileEditor({
           <section className="profile-mapping-results" aria-label="Profile fields">
             <div className="profile-mapping-results-heading"><h2>{activeGroup === 'all' ? 'All systems' : groups.find((group) => group.id === activeGroup)?.label}</h2><span>{visibleFields.length} field(s)</span></div>
             <div className="profile-mapping-card-grid">
-              {visibleFields.map(({ key, mapping, group }) => {
+              {visibleFields.map(({ key, mapping, group, origin, observation }) => {
                 const label = String(mapping.label || '').trim()
                 const unit = unitProfile.getAttributeUnit(key)
                 const hasValidationIssues = parsed.issues?.some((issue) => issue.key === key)
@@ -316,6 +496,8 @@ export default function DeviceProtocolProfileEditor({
                     <span className="profile-mapping-card-conversion">{describeConversion(mapping, unit)}</span>
                     <span className="profile-mapping-badges">
                       {!label && <span className="profile-mapping-badge warning">Unmapped</span>}
+                      {origin === 'observed' && <span className="profile-mapping-badge warning">Observed on vehicle</span>}
+                      {observation && <span className="profile-mapping-badge muted">{observation.positionCount ?? 0} points</span>}
                       {hasValidationIssues && <span className="profile-mapping-badge warning">Needs attention</span>}
                       {mapping.sourceGroup && <span className="profile-mapping-badge">{mapping.sourceGroup}</span>}
                       {mapping.statusCardField && <span className="profile-mapping-badge">Status card</span>}
@@ -355,40 +537,63 @@ export default function DeviceProtocolProfileEditor({
                     {groups.map((group) => <option key={group.id} value={group.id}>{group.label}</option>)}
                   </select>
                 </label>
-                <label>Quantity<input value={selectedMapping.quantity || ''} onChange={(event) => updateField(selectedKey, 'quantity', event.target.value || undefined)} placeholder="temperature, fuel_pressure…" /></label>
-                <label>Status card field<input value={selectedMapping.statusCardField || ''} onChange={(event) => updateField(selectedKey, 'statusCardField', event.target.value || undefined)} placeholder="Optional stable preference key" /></label>
-                <label>Source unit<input value={selectedMapping.sourceUnit || ''} onChange={(event) => updateField(selectedKey, 'sourceUnit', event.target.value || undefined)} placeholder="Only when known" /></label>
-                <label>Canonical unit<input value={selectedMapping.canonicalUnit || ''} onChange={(event) => updateField(selectedKey, 'canonicalUnit', event.target.value || undefined)} placeholder="Physical base unit" /></label>
-                <label>Canonical scale<input type="number" step="any" value={selectedMapping.canonicalScale ?? ''} onChange={(event) => updateField(selectedKey, 'canonicalScale', event.target.value === '' ? undefined : Number(event.target.value))} /></label>
-                <label>Canonical offset<input type="number" step="any" value={selectedMapping.canonicalOffset ?? ''} onChange={(event) => updateField(selectedKey, 'canonicalOffset', event.target.value === '' ? undefined : Number(event.target.value))} /></label>
-                <label>Display unit fallback<input value={selectedMapping.units || ''} onChange={(event) => updateField(selectedKey, 'units', event.target.value || undefined)} /></label>
-                <label>Legacy conversion<input value={selectedMapping.conversion || ''} onChange={(event) => updateField(selectedKey, 'conversion', event.target.value || undefined)} placeholder="Select a supported conversion" /></label>
-                <label>Precision<input type="number" min="0" max="12" step="1" value={selectedMapping.precision ?? ''} onChange={(event) => updateField(selectedKey, 'precision', event.target.value === '' ? undefined : Number(event.target.value))} /></label>
-                <label className="profile-mapping-span-two">Sentinel values (JSON array)
-                  <input value={sentinelDraft} onChange={(event) => setSentinelDraft(event.target.value)} onBlur={() => {
-                    try {
-                      const values = JSON.parse(sentinelDraft)
-                      if (!Array.isArray(values)) throw new Error('Sentinels must be an array.')
-                      updateField(selectedKey, 'sentinelValues', values.length ? values : undefined)
-                      setLocalStatus('')
-                    } catch { setLocalStatus('Sentinel values must be a valid JSON array.') }
-                  }} />
+                <label>Measurement type
+                  <select value={selectedMapping.quantity || ''} onChange={(event) => updateField(selectedKey, 'quantity', event.target.value || undefined)}>
+                    <option value="">Choose if known</option>
+                    {selectedMapping.quantity && !TELEMETRY_QUANTITY_OPTIONS.some((option) => option.value === selectedMapping.quantity) && <option value={selectedMapping.quantity}>{selectedMapping.quantity} (current)</option>}
+                    {TELEMETRY_QUANTITY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
                 </label>
+                <label>Status card field<input value={selectedMapping.statusCardField || ''} onChange={(event) => updateField(selectedKey, 'statusCardField', event.target.value || undefined)} placeholder="Optional stable preference key" /></label>
+                <label>Received unit
+                  <select value={sourceUnitChoice} onChange={(event) => updateMapping(selectedKey, mappingForSourceUnit(selectedMapping, event.target.value))}>
+                    <option value="__unknown">Unknown</option><option value="__none">No unit</option>
+                    {getTelemetryUnitGroups().map((group) => <optgroup key={group.quantity} label={group.label}>{group.units.map((unit) => <option key={unit.symbol} value={unit.symbol}>{unit.label}</option>)}</optgroup>)}
+                    {customSourceUnit && <option value={customSourceUnit}>{customSourceUnit} (current)</option>}
+                  </select>
+                </label>
+                <label>Show as
+                  <select value={selectedMapping.displayUnit || ''} disabled={!displayChoices.length} onChange={(event) => updateField(selectedKey, 'displayUnit', event.target.value || undefined)}>
+                    <option value="">Follow display settings</option>{displayChoices.map((unit) => <option key={unit.symbol} value={unit.symbol}>{unit.label}</option>)}
+                  </select>
+                </label>
+                <details className="profile-mapping-advanced profile-mapping-span-two">
+                  <summary>Detailed conversion settings</summary>
+                  <div className="profile-mapping-form-grid">
+                    <label>Conversion multiplier<input type="number" step="any" value={selectedMapping.canonicalScale ?? ''} onChange={(event) => updateField(selectedKey, 'canonicalScale', event.target.value === '' ? undefined : Number(event.target.value))} /></label>
+                    <label>Conversion offset<input type="number" step="any" value={selectedMapping.canonicalOffset ?? ''} onChange={(event) => updateField(selectedKey, 'canonicalOffset', event.target.value === '' ? undefined : Number(event.target.value))} /></label>
+                    <label>Reference unit<input value={selectedMapping.canonicalUnit || ''} onChange={(event) => updateField(selectedKey, 'canonicalUnit', event.target.value || undefined)} placeholder="Only for custom conversions" /></label>
+                    <label>Legacy conversion<input value={selectedMapping.conversion || ''} onChange={(event) => updateField(selectedKey, 'conversion', event.target.value || undefined)} placeholder="Existing compatibility rule" /></label>
+                    <label>Precision<input type="number" min="0" max="12" step="1" value={selectedMapping.precision ?? ''} onChange={(event) => updateField(selectedKey, 'precision', event.target.value === '' ? undefined : Number(event.target.value))} /></label>
+                    <label className="profile-mapping-span-two">Unavailable sample values (JSON array)
+                      <input value={sentinelDraft} onChange={(event) => setSentinelDraft(event.target.value)} onBlur={() => {
+                        try {
+                          const values = JSON.parse(sentinelDraft)
+                          if (!Array.isArray(values)) throw new Error('Sentinels must be an array.')
+                          updateField(selectedKey, 'sentinelValues', values.length ? values : undefined)
+                          setLocalStatus('')
+                        } catch { setLocalStatus('Values must be a valid JSON array.') }
+                      }} />
+                    </label>
+                  </div>
+                </details>
               </div>
               </fieldset>
 
-              <section className="profile-mapping-preview" aria-label="Conversion preview">
-                <strong>Conversion preview</strong>
+              <section className="profile-mapping-preview" aria-label="Display preview">
+                <strong>How this value will display</strong>
                 <p>{describeConversion(selectedMapping, selectedDisplayUnit)}</p>
-                <label>Raw sample<input inputMode="decimal" value={sampleValue} onChange={(event) => setSampleValue(event.target.value)} placeholder="Enter a sample value" /></label>
+                {selectedMapping.sourceSignedBits && <p>Negative values are decoded from signed {selectedMapping.sourceSignedBits}-bit data before unit conversion.</p>}
+                {typeof selectedMapping.sourceReference === 'string' && selectedMapping.sourceReference.startsWith('https://') && <p><a href={selectedMapping.sourceReference} target="_blank" rel="noreferrer">Reference for this mapping</a></p>}
+                <label>Received sample value<input inputMode="decimal" value={sampleValue} onChange={(event) => setSampleValue(event.target.value)} placeholder="Enter a sample value" /></label>
                 <div className="profile-mapping-preview-values">
-                  <span>Raw<strong>{sampleValue.trim() ? `${sampleValue}${selectedMapping.sourceUnit ? ` ${selectedMapping.sourceUnit}` : ''}` : '—'}</strong></span>
-                  <span>Canonical<strong>{previewCanonical(unitProfile, selectedKey, sampleValue, selectedMapping)}</strong></span>
+                  <span>Received<strong>{sampleValue.trim() ? `${sampleValue}${selectedMapping.sourceUnit ? ` ${selectedMapping.sourceUnit}` : ''}` : '—'}</strong></span>
+                  <span>Your display<strong>{preview(unitProfile, selectedKey, sampleValue)}</strong></span>
                   <span>Imperial<strong>{preview(imperialProfile, selectedKey, sampleValue)}</strong></span>
                   <span>Metric<strong>{preview(metricProfile, selectedKey, sampleValue)}</strong></span>
                 </div>
               </section>
-              <button type="button" className="small danger" onClick={() => removeField(selectedKey)} disabled={!canSave}>Remove mapping</button>
+              {Object.hasOwn(attributeMap, selectedKey) && <button type="button" className="small danger" onClick={() => removeField(selectedKey)} disabled={!canSave}>Remove mapping</button>}
             </aside>
           )}
         </div>
@@ -407,6 +612,20 @@ export default function DeviceProtocolProfileEditor({
           </section>
         </div>
       )}
+      {submissionOpen && <TelemetryProfileSubmissionDialog
+        profile={{
+          id: profileId,
+          name: profileName,
+          schemaVersion: profileSchemaVersion,
+          attributeMap: parsed.value || {},
+          isDraft: dirty,
+        }}
+        devices={submissionDevices}
+        defaultDeviceId={submissionDefaultDeviceId}
+        apiBaseUrl={submissionApiBaseUrl}
+        fetchDevicePositions={fetchSubmissionPositions}
+        onClose={() => setSubmissionOpen(false)}
+      />}
     </div>
   )
 }

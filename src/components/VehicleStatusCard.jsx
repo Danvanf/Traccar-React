@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { isTelemetryPlaceholderValue } from '../lib/telemetry'
-import { DEFAULT_STATUS_CARD_FIELDS, STATUS_CARD_FIELDS, getStatusCardAttributeKeys, getStatusCardProfileKey, normalizeStatusCardFields } from '../lib/statusCardFields'
+import { DEFAULT_STATUS_CARD_FIELDS, getStatusCardAttributeKeys, normalizeStatusCardFields } from '../lib/statusCardFields'
 import { translateAttribute } from '../lib/carProfiles'
 
 function VehicleStatusCard({
@@ -111,7 +111,7 @@ function VehicleStatusCard({
   const profileValue = (field, key) => {
     if (!key) return ''
     const raw = attrs[key]
-    const translated = translateAttribute(profile, getStatusCardProfileKey(profile, field, key), raw)
+    const translated = translateAttribute(profile, key, raw)
     return ['missing', 'sentinel', 'invalid'].includes(translated.status) ? '' : translated.value
   }
   const formatProfileValue = (value) => {
@@ -121,10 +121,10 @@ function VehicleStatusCard({
       ? numeric.toLocaleString(undefined, { maximumFractionDigits: 2 })
       : value
   }
-  const values = STATUS_CARD_FIELDS.map((field) => {
+  const values = [...selectedFields].map((field) => {
     const key = rawKeyForStatusField(field)
     if (!key) return null
-    const translated = translateAttribute(profile, getStatusCardProfileKey(profile, field, key), attrs[key])
+    const translated = translateAttribute(profile, key, attrs[key])
     return [field, translated.label, profileValue(field, key), translated.unit.replace('degF', '°F')]
   }).filter(Boolean)
   const isKnown = (value) => value !== undefined && value !== null && value !== ''
@@ -159,11 +159,11 @@ function VehicleStatusCard({
     const formatted = Number.isFinite(numeric) ? numeric.toLocaleString(undefined, { maximumFractionDigits: 1 }) : value
     return `${formatted} ${unit}`
   }
-  const compactTelemetry = ['engineRpm', 'throttle', 'maf'].map((field) => {
-    if (!selectedFields.has(field)) return null
-    const row = values.find(([rowField]) => rowField === field)
-    return compactValue(row?.[2], row?.[3] || '')
-  }).filter((value) => value !== null)
+  const compactRows = ['engineRpm', 'throttle', 'maf']
+    .filter((field) => selectedFields.has(field))
+    .map((field) => values.find(([rowField]) => rowField === field) || [field, field, '', ''])
+  const compactRowsWithValues = compactRows.concat(values.filter((row) => !compactRows.some(([field]) => field === row[0])))
+  const compactTelemetry = compactRowsWithValues.slice(0, 3).map((row) => compactValue(row[2], row[3] || ''))
   const copyOtherFields = async (event) => {
     event.stopPropagation()
     try {

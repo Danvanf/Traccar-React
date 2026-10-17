@@ -6,6 +6,113 @@ public static class UserAccessEndpoints
 {
     public static void MapUserAccessEndpoints(this WebApplication app)
     {
+        app.MapGet("/api/user/profile", async Task<IResult> (Npgsql.NpgsqlDataSource dataSource, HttpContext context, CancellationToken cancellationToken) =>
+        {
+            var username = context.User.Identity?.Name;
+            if (string.IsNullOrWhiteSpace(username)) return Results.Unauthorized();
+
+            await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+            Guid userId;
+            string profileUsername;
+            string? firstName;
+            string? lastName;
+            string? email;
+            string role;
+            bool active;
+            bool autoAccessNewDevices;
+            await using (var command = new Npgsql.NpgsqlCommand("select id, username, first_name, last_name, email, role, active, auto_access_new_devices from app_users where username = @username", connection))
+            {
+                command.Parameters.AddWithValue("username", username);
+                await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                if (!await reader.ReadAsync(cancellationToken)) return Results.NotFound();
+                userId = reader.GetGuid(0);
+                profileUsername = reader.GetString(1);
+                firstName = reader.IsDBNull(2) ? null : reader.GetString(2);
+                lastName = reader.IsDBNull(3) ? null : reader.GetString(3);
+                email = reader.IsDBNull(4) ? null : reader.GetString(4);
+                role = reader.GetString(5);
+                active = reader.GetBoolean(6);
+                autoAccessNewDevices = reader.GetBoolean(7);
+            }
+
+            var groups = new List<SelfUserProfileGroup>();
+            await using (var command = new Npgsql.NpgsqlCommand("select g.id, g.name, g.auto_access_new_devices from app_group_memberships gm join app_groups g on g.id = gm.group_id where gm.user_id = @userId order by g.name", connection))
+            {
+                command.Parameters.AddWithValue("userId", userId);
+                await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
+                    groups.Add(new SelfUserProfileGroup(reader.GetGuid(0), reader.GetString(1), reader.GetBoolean(2)));
+            }
+
+            var vehicles = new List<SelfUserProfileVehicle>();
+            await using (var command = new Npgsql.NpgsqlCommand("""
+                select v.id, v.display_name, v.active, ua.user_id is not null,
+                       coalesce(array_agg(distinct g.name) filter (where g.name is not null), ARRAY[]::text[])
+                from vehicles v
+                left join app_user_vehicle_access ua on ua.vehicle_id = v.id and ua.user_id = @userId
+                left join app_group_memberships gm on gm.user_id = @userId
+                left join app_group_vehicle_access ga on ga.group_id = gm.group_id and ga.vehicle_id = v.id
+                left join app_groups g on g.id = ga.group_id
+                where @isAdmin or ua.user_id is not null or ga.group_id is not null
+                group by v.id, v.display_name, v.active, ua.user_id
+                order by v.display_name
+                """, connection))
+            {
+                command.Parameters.AddWithValue("userId", userId);
+                command.Parameters.AddWithValue("isAdmin", context.User.IsInRole("admin"));
+                await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
+                    vehicles.Add(new SelfUserProfileVehicle(reader.GetGuid(0), reader.GetString(1), reader.GetBoolean(2), reader.GetBoolean(3), reader.GetFieldValue<string[]>(4)));
+            }
+
+            var devices = new List<SelfUserProfileDevice>();
+            await using (var command = new Npgsql.NpgsqlCommand("""
+                select access.device_id, bool_or(access.is_direct),
+                       coalesce(array_agg(distinct access.group_name) filter (where access.group_name is not null), ARRAY[]::text[])
+                from (
+                    select traccar_device_id as device_id, true as is_direct, null::text as group_name
+                    from app_user_device_access where user_id = @userId
+                    union all
+                    select ga.traccar_device_id as device_id, false as is_direct, g.name as group_name
+                    from app_group_memberships gm
+                    join app_groups g on g.id = gm.group_id
+                    join app_group_device_access ga on ga.group_id = gm.group_id
+                    where gm.user_id = @userId
+                ) access
+                group by access.device_id
+                order by access.device_id
+                """, connection))
+            {
+                command.Parameters.AddWithValue("userId", userId);
+                await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
+                    devices.Add(new SelfUserProfileDevice(reader.GetInt32(0), reader.GetBoolean(1), reader.GetFieldValue<string[]>(2)));
+            }
+
+            return Results.Ok(new SelfUserProfileResponse(userId, profileUsername, firstName, lastName, email, role, active, autoAccessNewDevices, groups, vehicles, devices));
+        }).RequireAuthorization();
+
+        app.MapPatch("/api/user/profile", async Task<IResult> (UpdateSelfUserProfileRequest request, Npgsql.NpgsqlDataSource dataSource, HttpContext context, CancellationToken cancellationToken) =>
+        {
+            var username = context.User.Identity?.Name;
+            if (string.IsNullOrWhiteSpace(username)) return Results.Unauthorized();
+            var firstName = string.IsNullOrWhiteSpace(request.FirstName) ? null : request.FirstName.Trim();
+            var lastName = string.IsNullOrWhiteSpace(request.LastName) ? null : request.LastName.Trim();
+            var email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim();
+            if (firstName?.Length > 100 || lastName?.Length > 100 || email?.Length > 320)
+                return Results.BadRequest("Names must be 100 characters or fewer and email must be 320 characters or fewer.");
+            if (email is not null && (!System.Net.Mail.MailAddress.TryCreate(email, out var parsedEmail) || parsedEmail.Address != email))
+                return Results.BadRequest("Enter a valid email address or leave the field blank.");
+
+            await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+            await using var command = new Npgsql.NpgsqlCommand("update app_users set first_name = @firstName, last_name = @lastName, email = @email, updated_at = now() where username = @username", connection);
+            command.Parameters.AddWithValue("firstName", (object?)firstName ?? DBNull.Value);
+            command.Parameters.AddWithValue("lastName", (object?)lastName ?? DBNull.Value);
+            command.Parameters.AddWithValue("email", (object?)email ?? DBNull.Value);
+            command.Parameters.AddWithValue("username", username);
+            return await command.ExecuteNonQueryAsync(cancellationToken) == 0 ? Results.NotFound() : Results.NoContent();
+        }).RequireAuthorization();
+
         app.MapGet("/api/admin/users", async (Npgsql.NpgsqlDataSource dataSource, CancellationToken cancellationToken) =>
         {
             await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -264,6 +371,11 @@ public static class UserAccessEndpoints
 }
 
 public sealed record UserAccessResponse(Guid Id, string Username, string? FirstName, string? LastName, string? Email, string Role, bool Active, bool AutoAccessNewDevices);
+public sealed record SelfUserProfileResponse(Guid Id, string Username, string? FirstName, string? LastName, string? Email, string Role, bool Active, bool AutoAccessNewDevices, IReadOnlyList<SelfUserProfileGroup> Groups, IReadOnlyList<SelfUserProfileVehicle> Vehicles, IReadOnlyList<SelfUserProfileDevice> Devices);
+public sealed record SelfUserProfileGroup(Guid Id, string Name, bool AutoAccessNewDevices);
+public sealed record SelfUserProfileVehicle(Guid Id, string DisplayName, bool Active, bool Direct, IReadOnlyList<string> Groups);
+public sealed record SelfUserProfileDevice(int DeviceId, bool Direct, IReadOnlyList<string> Groups);
+public sealed record UpdateSelfUserProfileRequest(string? FirstName, string? LastName, string? Email);
 public sealed record GroupAccessResponse(Guid Id, string Name, bool AutoAccessNewDevices);
 public sealed record CreateUserRequest(string Username, string Password, string? FirstName, string? LastName, string? Email, string? Role, bool Active = true, bool AutoAccessNewDevices = false);
 public sealed record CreateGroupRequest(string Name, bool AutoAccessNewDevices = false);

@@ -13,7 +13,7 @@ test('Teltonika profile includes graph-ready OBD and OEM fields with conversions
   assert.equal(profile.decodeAttributeValue('io53', 20), 68)
   assert.ok(Math.abs(profile.decodeAttributeValue('io56', 10) - 14.5037738) < 1e-9)
   assert.ok(Math.abs(profile.decodeAttributeValue('io50', 99) - 29.234687625) < 1e-9)
-  assert.equal(profile.getAttributeInfo('io542').label, 'Intake Manifold Absolute Pressure')
+  assert.equal(profile.getAttributeInfo('io542').label, 'Intake Manifold Absolute Pressure (2-byte)')
 })
 
 test('profile display units switch mapped telemetry values between Imperial and Metric', () => {
@@ -41,22 +41,32 @@ test('profile display units switch mapped telemetry values between Imperial and 
   assert.equal(translateAttribute(metric, 'io60', 100).value, 1)
 })
 
-test('FMM003 AVL 12 and 13 remain raw until their configured meanings are verified', () => {
-  const definition = DEFAULT_PROFILE_DEFINITIONS['buick-enclave-2010']
-  const profile = createCarProfile(definition)
-
-  assert.equal(profile.decodeAttributeValue('io12', 4189), 4189)
-  assert.equal(profile.decodeAttributeValue('io13', 19), 19)
-  assert.match(profile.getAttributeInfo('io12').label, /device-configured/)
-  assert.match(profile.getAttributeInfo('io13').label, /device-configured/)
+test('FMM003 AVL 12/13 use documented GPS fuel units in each representation', () => {
+  const metric = createCarProfile(DEFAULT_PROFILE_DEFINITIONS['buick-enclave-2010'], 'metric')
+  assert.equal(translateAttribute(metric, 'io12', 4189).value, 4.189)
+  assert.equal(translateAttribute(metric, 'fuelUsed', 4.189).value, 4.189)
+  assert.equal(translateAttribute(metric, 'io13', 19).value, 0.19)
+  assert.equal(translateAttribute(metric, 'fuelConsumption', 0.19).value, 0.19)
+  assert.equal(metric.getAttributeInfo('io13').sourceUnit, '0.01 L/100km')
 })
 
-test('AVL 31 keeps its tentative label without applying a multiplier', () => {
-  const info = DEFAULT_PROFILE_DEFINITIONS['buick-enclave-2010'].attributeMap.io31
+test('AVL 31 has its confirmed Engine Load label without an extra multiplier', () => {
   const profile = createCarProfile(DEFAULT_PROFILE_DEFINITIONS['buick-enclave-2010'])
-
-  assert.equal(info.label, 'Engine Load??')
+  assert.equal(profile.getAttributeInfo('io31').label, 'Engine Load')
   assert.equal(profile.decodeAttributeValue('io31', 62), 62)
+})
+
+test('profile assignment history resolves the profile effective at a telemetry timestamp', () => {
+  const vehicles = [{ id: 'vehicle-1', profileId: 'new-profile' }]
+  const profileAssignments = [
+    { vehicleId: 'vehicle-1', profileId: 'old-profile', effectiveAt: '2026-01-01T00:00:00Z', recordedAt: '2026-01-01T00:00:00Z' },
+    { vehicleId: 'vehicle-1', profileId: 'new-profile', effectiveAt: '2026-06-01T00:00:00Z', recordedAt: '2026-06-01T00:00:00Z' },
+  ]
+  const profileMap = { 'old-profile': { id: 'old-profile' }, 'new-profile': { id: 'new-profile' } }
+
+  assert.equal(resolveProfileContext({ vehicleId: 'vehicle-1', at: '2026-03-01T00:00:00Z', vehicles, profileAssignments, profileMap }).profileId, 'old-profile')
+  assert.equal(resolveProfileContext({ vehicleId: 'vehicle-1', at: '2026-07-01T00:00:00Z', vehicles, profileAssignments, profileMap }).profileId, 'new-profile')
+  assert.equal(resolveProfileContext({ vehicleId: 'vehicle-1', vehicles, profileAssignments, profileMap }).profileId, 'new-profile')
 })
 
 test('AVL 206 uses the GSM Area Code label and preserves its raw code', () => {
@@ -143,11 +153,11 @@ test('status-card source keys and labels come from profile mappings', () => {
 
   for (const field of STATUS_CARD_FIELDS) assert.ok(statusFields[field], `missing profile mapping for ${field}`)
   assert.equal(fields[statusFields.barometricPressure].label, 'Barometric Pressure')
-  assert.equal(fields[statusFields.avl12].label, 'AVL 12 (device-configured value)')
+  assert.equal(fields[statusFields.avl12].label, 'GPS Fuel Used')
   assert.deepEqual(normalizeStatusCardFields(['fuelUsed', 'fuelRate']), ['avl12', 'avl13'])
 })
 
-test('schema 4 CAN-ID labels migrate to raw configured AVL values', () => {
+test('legacy CAN-ID defaults migrate to manufacturer-defined GPS fuel values', () => {
   const result = migrateProfileDefinition({
     id: 'buick-enclave-2010',
     schemaVersion: 4,
@@ -157,11 +167,11 @@ test('schema 4 CAN-ID labels migrate to raw configured AVL values', () => {
     },
   })
 
-  assert.equal(result.definition.schemaVersion, 14)
-  assert.equal(result.definition.attributeMap.io12.label, 'AVL 12 (device-configured value)')
-  assert.equal(result.definition.attributeMap.io13.label, 'AVL 13 (device-configured value)')
-  assert.equal(result.definition.attributeMap.io12.units, undefined)
-  assert.equal(result.definition.attributeMap.io13.sourceGroup, undefined)
+  assert.equal(result.definition.schemaVersion, 16)
+  assert.equal(result.definition.attributeMap.io12.label, 'GPS Fuel Used')
+  assert.equal(result.definition.attributeMap.io13.label, 'GPS Fuel Consumption')
+  assert.equal(result.definition.attributeMap.io12.units, 'L')
+  assert.equal(result.definition.attributeMap.io13.canonicalScale, 0.01)
 })
 
 test('schema 5 adds canonical conversion metadata only to matching built-in mappings', () => {
@@ -175,7 +185,7 @@ test('schema 5 adds canonical conversion metadata only to matching built-in mapp
     },
   })
 
-  assert.equal(result.definition.schemaVersion, 14)
+  assert.equal(result.definition.schemaVersion, 16)
   assert.equal(result.definition.attributeMap.io50.canonicalUnit, 'kPa')
   assert.equal(result.definition.attributeMap.io50.canonicalScale, 1)
   assert.equal(result.definition.attributeMap.io50.statusCardField, 'barometricPressure')
@@ -193,12 +203,12 @@ test('schema 8 adds observed catalog mappings without overwriting saved profile 
     },
   })
 
-  assert.equal(result.definition.schemaVersion, 14)
+  assert.equal(result.definition.schemaVersion, 16)
   assert.equal(result.definition.attributeMap.tripOdometer.label, 'My trip distance')
   assert.equal(result.definition.attributeMap.io104.avlId, 104)
   assert.equal(result.definition.attributeMap.io104.canonicalScale, 0.1)
   assert.equal(result.definition.attributeMap.bleTemp4.sentinelValues[0], 327.67)
-  assert.equal(result.definition.attributeMap.io31.label, 'Engine Load??')
+  assert.equal(result.definition.attributeMap.io31.label, 'Engine Load')
   assert.equal(result.definition.attributeMap.customField.label, 'Custom field')
 })
 
@@ -212,7 +222,7 @@ test('schema 11 removes verification metadata from all profile mappings', () => 
     },
   })
 
-  assert.equal(result.definition.schemaVersion, 14)
+  assert.equal(result.definition.schemaVersion, 16)
   assert.equal(result.definition.attributeMap.io20.label, 'BLE Battery #2')
   assert.equal(result.definition.attributeMap.io20.verificationStatus, undefined)
   assert.equal(result.definition.attributeMap.io31.verificationStatus, undefined)
@@ -231,11 +241,11 @@ test('schema 13 adds documented FMM003 mappings without overwriting saved fields
     },
   })
 
-  assert.equal(result.definition.schemaVersion, 14)
+  assert.equal(result.definition.schemaVersion, 16)
   assert.deepEqual(result.definition.attributeMap.io11, { label: 'Custom identifier label', avlId: 11, valueType: 'identifier' })
-  assert.deepEqual(result.definition.attributeMap.io14, { label: 'SIM ICCID 2 (LSB)', avlId: 14, valueType: 'identifier' })
+  assert.deepEqual(result.definition.attributeMap.io14, DEFAULT_PROFILE_DEFINITIONS['buick-enclave-2010'].attributeMap.io14)
   assert.deepEqual(result.definition.attributeMap.io237, { label: 'Custom network label', avlId: 237 })
-  assert.deepEqual(result.definition.attributeMap.io250, { label: 'Trip Status', avlId: 250 })
+  assert.deepEqual(result.definition.attributeMap.io250, DEFAULT_PROFILE_DEFINITIONS['buick-enclave-2010'].attributeMap.io250)
   assert.match(result.changes.join(' '), /io14, io250/)
 })
 
@@ -246,8 +256,8 @@ test('schema 12 adds GSM Area Code mapping to existing default profiles', () => 
     attributeMap: { io205: { label: 'GSM Cell ID', avlId: 205 } },
   })
 
-  assert.equal(result.definition.schemaVersion, 14)
-  assert.deepEqual(result.definition.attributeMap.io206, { label: 'GSM Area Code', avlId: 206 })
+  assert.equal(result.definition.schemaVersion, 16)
+  assert.deepEqual(result.definition.attributeMap.io206, DEFAULT_PROFILE_DEFINITIONS['buick-enclave-2010'].attributeMap.io206)
   assert.match(result.changes.join(' '), /Added the GSM Area Code mapping for AVL 206/)
 })
 
@@ -258,7 +268,7 @@ test('schema 14 marks saved FMM003 ICCID mappings as identifiers without replaci
     attributeMap: { io11: { label: 'My ICCID label', avlId: 11 }, io14: { label: 'My second ICCID label', avlId: 14 }, io100: { label: 'My CAN program', avlId: 100 }, io256: { label: 'My VIN', avlId: 256 } },
   })
 
-  assert.equal(result.definition.schemaVersion, 14)
+  assert.equal(result.definition.schemaVersion, 16)
   assert.deepEqual(result.definition.attributeMap.io11, { label: 'My ICCID label', avlId: 11, valueType: 'identifier' })
   assert.deepEqual(result.definition.attributeMap.io14, { label: 'My second ICCID label', avlId: 14, valueType: 'identifier' })
   assert.equal(result.definition.attributeMap.io100.valueType, 'identifier')
