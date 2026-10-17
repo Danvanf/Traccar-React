@@ -26,7 +26,7 @@ function Write-Step {
 }
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$backendRoot = Resolve-Path (Join-Path $repoRoot "backend\VehicleApp.Api")
+$backendRoot = Resolve-Path (Join-Path $repoRoot "backend\TraccarReact.Api")
 $smokeScript = Join-Path $PSScriptRoot "phase5_smoke_test.ps1"
 $bindingScript = Join-Path $PSScriptRoot "phase5_binding_integrity_test.ps1"
 $dtcSmokeScript = Join-Path $PSScriptRoot "phase5_dtc_smoke_test.ps1"

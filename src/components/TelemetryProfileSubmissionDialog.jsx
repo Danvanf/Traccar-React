@@ -5,7 +5,7 @@ import {
   TELEMETRY_PROFILE_MAX_RANGE_DAYS,
   TELEMETRY_PROFILE_SUPPORT_EMAIL,
 } from '../lib/telemetryProfileSubmission'
-import { downloadTelemetryProfileProposalArchive, fetchTelemetryProfileSubmissionStatus, submitTelemetryProfileProposal } from '../lib/vehicleAppApi'
+import { downloadTelemetryProfileProposalArchive, fetchTelemetryProfileSubmissionStatus, submitTelemetryProfileProposal } from '../lib/traccarReactApi'
 
 function localDateValue(date) {
   const year = date.getFullYear()

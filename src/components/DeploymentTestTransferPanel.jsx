@@ -16,7 +16,7 @@ function utcExclusiveDayAfter(value) {
 }
 
 function apiUrl(baseUrl, path) {
-  const base = String(baseUrl || '/vehicle-api').replace(/\/+$/, '')
+  const base = String(baseUrl || '/traccar-react-api').replace(/\/+$/, '')
   return new URL(`${base}${path}`, window.location.origin)
 }
 
@@ -77,7 +77,7 @@ export default function DeploymentTestTransferPanel({ baseUrl, isAdmin }) {
       const downloadUrl = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = downloadUrl
-      link.download = response.headers.get('content-disposition')?.match(/filename="?([^";]+)"?/i)?.[1] || 'vehicleapp-deployment-test.zip'
+      link.download = response.headers.get('content-disposition')?.match(/filename="?([^";]+)"?/i)?.[1] || 'traccar-react-api-deployment-test.zip'
       document.body.appendChild(link)
       link.click()
       link.remove()
@@ -95,7 +95,7 @@ export default function DeploymentTestTransferPanel({ baseUrl, isAdmin }) {
   return (
     <section className="profile-editor deployment-transfer-panel">
       <h4>Deployment test data export</h4>
-      <p className="profile-editor-help">Create a ZIP for a fresh test installation. It includes Traccar positions and selected VehicleApp history, including custom telemetry profiles and revisions. It excludes user accounts, passwords, provider secrets, and server settings.</p>
+      <p className="profile-editor-help">Create a ZIP for a fresh test installation. It includes Traccar positions and selected Traccar React API history, including custom telemetry profiles and revisions. It excludes user accounts, passwords, provider secrets, and server settings.</p>
       <p className="profile-editor-help"><strong>Privacy:</strong> the archive contains exact GPS locations, raw telemetry, and device identifiers. Keep it private and delete it when the test is complete.</p>
       <div className="settings-grid">
         <label>From date (UTC)<input type="date" value={from} onChange={(event) => setFrom(event.target.value)} disabled={busy} /></label>

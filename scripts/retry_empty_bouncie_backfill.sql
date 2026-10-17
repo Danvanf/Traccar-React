@@ -3,7 +3,7 @@
 -- Run after reconnecting Bouncie and deploying the current API build.
 --
 -- Usage:
---   sudo docker exec -i traccar-db psql -U traccar -d vehicle_app \
+--   sudo docker exec -i traccar-db psql -U traccar -d traccar_react_api \
 --     < ./scripts/retry_empty_bouncie_backfill.sql
 
 begin;

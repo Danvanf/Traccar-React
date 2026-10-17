@@ -9,7 +9,7 @@ param(
     [Parameter(Mandatory = $true)]
     [DateTimeOffset] $ThroughUtc,
 
-    [string] $ApiBaseUrl = $(if ($env:VEHICLE_APP_API_BASE_URL) { $env:VEHICLE_APP_API_BASE_URL } else { 'http://localhost:5124' }),
+    [string] $ApiBaseUrl = $(if ($env:TRACCAR_REACT_API_BASE_URL) { $env:TRACCAR_REACT_API_BASE_URL } else { 'http://localhost:5124' }),
 
     [string] $OutputPath
 )

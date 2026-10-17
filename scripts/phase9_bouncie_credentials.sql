@@ -1,5 +1,5 @@
 -- Phase 9: encrypted Bouncie OAuth credential envelope.
--- The ciphertext is produced by the API with VEHICLE_APP_BOUNCIE_ENCRYPTION_KEY.
+-- The ciphertext is produced by the API with TRACCAR_REACT_API_BOUNCIE_ENCRYPTION_KEY.
 -- Never put the encryption key, client secret, refresh token, or authorization
 -- code in this file or in source control.
 

@@ -1,4 +1,4 @@
--- Read-only audit: how did the trips visible around January 2022 enter VehicleApp?
+-- Read-only audit: how did the trips visible around January 2022 enter TraccarReactApi?
 select v.display_name,
        date_trunc('month', t.started_at at time zone 'UTC')::date as month_utc,
        case

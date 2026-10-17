@@ -15,7 +15,7 @@ import {
   saveVehicleEmailProviderAssignment,
   sendEmailTest,
   verifyEmailAlertCode,
-} from '../lib/vehicleAppApi'
+} from '../lib/traccarReactApi'
 
 const EVENT_LABELS = {
   maximum_speed: 'Maximum speed',

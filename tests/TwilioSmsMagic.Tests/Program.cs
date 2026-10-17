@@ -8,9 +8,9 @@ var handler = new MagicNumberResponseHandler();
 var service = new SmsDeliveryService(new SingleClientFactory(handler), new ConfigurationBuilder()
     .AddInMemoryCollection(new Dictionary<string, string?>
     {
-        ["VehicleApp:Sms:Provider"] = "Twilio",
-        ["VehicleApp:Sms:Twilio:TestAccountSid"] = testAccountSid,
-        ["VehicleApp:Sms:Twilio:TestAuthToken"] = testAuthToken,
+        ["TraccarReactApi:Sms:Provider"] = "Twilio",
+        ["TraccarReactApi:Sms:Twilio:TestAccountSid"] = testAccountSid,
+        ["TraccarReactApi:Sms:Twilio:TestAuthToken"] = testAuthToken,
     })
     .Build(), new ProviderAccountStore());
 
@@ -42,7 +42,7 @@ foreach (var test in cases)
         && auth == $"{testAccountSid}:{testAuthToken}"
         && request.Form.Contains($"To={Uri.EscapeDataString(test.To)}", StringComparison.Ordinal)
         && request.Form.Contains($"From={Uri.EscapeDataString(test.From)}", StringComparison.Ordinal)
-        && request.Form.Contains("Body=Vehicle+App+Twilio+magic-number+API+test.", StringComparison.Ordinal);
+        && request.Form.Contains("Body=Traccar+React+API+Twilio+magic-number+API+test.", StringComparison.Ordinal);
     var resultValid = result.Accepted == (test.ExpectedHttp == 201)
         && result.HttpStatusCode == test.ExpectedHttp
         && result.TwilioErrorCode == test.ExpectedErrorCode

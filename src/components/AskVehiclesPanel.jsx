@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fetchUsageSummaryReport, fetchVehicleCatalog } from '../lib/vehicleAppApi'
+import { fetchUsageSummaryReport, fetchVehicleCatalog } from '../lib/traccarReactApi'
 import { parseVehicleQuestion, summarizeVehicleReport } from '../lib/vehicleQuery'
 
 const EXAMPLES = [

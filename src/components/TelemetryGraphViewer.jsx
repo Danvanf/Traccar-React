@@ -7,7 +7,7 @@ import { findBundledAutomaticFieldMatch, findBundledFieldSuggestions } from '../
 import { hasDismissedSuggestions, isSuggestionDismissed, legacyTelemetryFieldScopeKey, telemetryFieldScopeKey } from '../lib/telemetryFieldScope'
 import { groupsMissingTelemetryAttributes, mergeFetchedTelemetryGroups, summarizeUnplottedTelemetryFields } from '../lib/telemetryGraphData.js'
 import TelemetryFieldEditor from './TelemetryFieldEditor'
-import { fetchTelemetrySourceMappings, fetchUserPreference, saveTelemetrySourceMapping, saveUserPreference } from '../lib/vehicleAppApi'
+import { fetchTelemetrySourceMappings, fetchUserPreference, saveTelemetrySourceMapping, saveUserPreference } from '../lib/traccarReactApi'
 import { appendSourceMappingRevision, createSourceMappingProfileResolver, sourceMappingUndoTarget } from '../lib/telemetrySourceMappings'
 
 const SPEED_KEY = '__speedMph'
@@ -200,7 +200,7 @@ function displayScaleFor(values) {
   return 1
 }
 
-function TelemetryGraphViewer({ groups: initialGroups, profile = null, title = 'Telemetry Graph', onClose, publicMode = false, vehicleMetadata = null, deviceMetadata = null, deviceMetadataList = [], vehicleMetadataList = [], traccarServerVersion = '', fetchGpsPositions = null, namedPlaces = [], profileOptions = [], profileVehicleCounts = {}, userName = '', isAuthenticated = false, canEditSharedProfiles = false, vehicleApiBaseUrl = '', onSaveSharedMapping = null, onSourceMappingSaved = null, resolvePointProfileContext = null }) {
+function TelemetryGraphViewer({ groups: initialGroups, profile = null, title = 'Telemetry Graph', onClose, publicMode = false, vehicleMetadata = null, deviceMetadata = null, deviceMetadataList = [], vehicleMetadataList = [], traccarServerVersion = '', fetchGpsPositions = null, namedPlaces = [], profileOptions = [], profileVehicleCounts = {}, userName = '', isAuthenticated = false, canEditSharedProfiles = false, traccarReactApiBaseUrl = '', onSaveSharedMapping = null, onSourceMappingSaved = null, resolvePointProfileContext = null }) {
   const [telemetryFetchState, setTelemetryFetchState] = useState(null)
   const [sourceMappingState, setSourceMappingState] = useState({})
   const [sourceMappingLoadedKey, setSourceMappingLoadedKey] = useState('')
@@ -218,9 +218,9 @@ function TelemetryGraphViewer({ groups: initialGroups, profile = null, title = '
   const sourceMappingDeviceKey = sourceMappingDeviceIds.join(',')
 
   useEffect(() => {
-    if (publicMode || !vehicleApiBaseUrl || !sourceMappingDeviceIds.length) return undefined
+    if (publicMode || !traccarReactApiBaseUrl || !sourceMappingDeviceIds.length) return undefined
     let active = true
-    Promise.all(sourceMappingDeviceIds.map(async (deviceId) => [deviceId, await fetchTelemetrySourceMappings(vehicleApiBaseUrl, deviceId)]))
+    Promise.all(sourceMappingDeviceIds.map(async (deviceId) => [deviceId, await fetchTelemetrySourceMappings(traccarReactApiBaseUrl, deviceId)]))
       .then((entries) => {
         if (!active) return
         setSourceMappingState(Object.fromEntries(entries))
@@ -233,7 +233,7 @@ function TelemetryGraphViewer({ groups: initialGroups, profile = null, title = '
         }
       })
     return () => { active = false }
-  }, [initialGroups, publicMode, sourceMappingDeviceIds, sourceMappingDeviceKey, vehicleApiBaseUrl])
+  }, [initialGroups, publicMode, sourceMappingDeviceIds, sourceMappingDeviceKey, traccarReactApiBaseUrl])
 
   useEffect(() => {
     let active = true
@@ -349,8 +349,8 @@ function TelemetryGraphViewer({ groups: initialGroups, profile = null, title = '
   const plotWrapRef = useRef(null)
   const pendingScrollRatio = useRef(null)
   const preferenceKey = `traccarTelemetryGraphSeries:${profile?.id || profile?.name || 'default'}`
-  const personalLabelsStorageKey = `vehicleApp:telemetry-field-labels:${userName.trim().toLocaleLowerCase() || 'local'}`
-  const dismissedSuggestionsStorageKey = `vehicleApp:telemetry-field-suggestions-dismissed:${userName.trim().toLocaleLowerCase() || 'local'}`
+  const personalLabelsStorageKey = `traccarReactApi:telemetry-field-labels:${userName.trim().toLocaleLowerCase() || 'local'}`
+  const dismissedSuggestionsStorageKey = `traccarReactApi:telemetry-field-suggestions-dismissed:${userName.trim().toLocaleLowerCase() || 'local'}`
   const loadedPreferenceKey = useRef('')
 
   useEffect(() => {
@@ -372,10 +372,10 @@ function TelemetryGraphViewer({ groups: initialGroups, profile = null, title = '
     } catch { /* keep suggestions visible */ }
     setPersonalFieldLabels(localLabels)
     setDismissedSuggestionTokens(localDismissals)
-    if (isAuthenticated && vehicleApiBaseUrl) {
+    if (isAuthenticated && traccarReactApiBaseUrl) {
       Promise.all([
-        fetchUserPreference(vehicleApiBaseUrl, 'telemetry-field-labels').catch(() => null),
-        fetchUserPreference(vehicleApiBaseUrl, 'telemetry-field-suggestions-dismissed').catch(() => null),
+        fetchUserPreference(traccarReactApiBaseUrl, 'telemetry-field-labels').catch(() => null),
+        fetchUserPreference(traccarReactApiBaseUrl, 'telemetry-field-suggestions-dismissed').catch(() => null),
       ]).then(([savedLabels, savedDismissals]) => {
         if (!active) return
         if (savedLabels && typeof savedLabels === 'object' && !Array.isArray(savedLabels)) {
@@ -391,7 +391,7 @@ function TelemetryGraphViewer({ groups: initialGroups, profile = null, title = '
       })
     }
     return () => { active = false }
-  }, [dismissedSuggestionsStorageKey, isAuthenticated, personalLabelsStorageKey, vehicleApiBaseUrl])
+  }, [dismissedSuggestionsStorageKey, isAuthenticated, personalLabelsStorageKey, traccarReactApiBaseUrl])
 
   useEffect(() => {
     if (loadedPreferenceKey.current !== preferenceKey) {
@@ -477,7 +477,7 @@ function TelemetryGraphViewer({ groups: initialGroups, profile = null, title = '
     || (Number(deviceMetadata?.id) === Number(group?.deviceId) ? deviceMetadata : null), [deviceMetadata, deviceMetadataList])
 
   useEffect(() => {
-    if (publicMode || !canEditSharedProfiles || !vehicleApiBaseUrl || !traccarServerVersion
+    if (publicMode || !canEditSharedProfiles || !traccarReactApiBaseUrl || !traccarServerVersion
       || sourceMappingLoadedKey !== sourceMappingDeviceKey || !sourceMappingDeviceIds.length) return undefined
     let active = true
     const applyMatches = async () => {
@@ -508,7 +508,7 @@ function TelemetryGraphViewer({ groups: initialGroups, profile = null, title = '
           automaticMappingAttempts.current.add(attemptKey)
           try {
             const expectedRevision = Math.max(0, ...existingHistory.map((item) => Number(item.revision) || 0))
-            const saved = await saveTelemetrySourceMapping(vehicleApiBaseUrl, deviceId, key, match.mapping, expectedRevision, 'documented-auto')
+            const saved = await saveTelemetrySourceMapping(traccarReactApiBaseUrl, deviceId, key, match.mapping, expectedRevision, 'documented-auto')
             const revision = { fieldKey: key, revision: saved.revision, effectiveAt: saved.effectiveAt, mapping: match.mapping, changeKind: 'documented-auto' }
             setSourceMappingState((current) => ({ ...current, [deviceId]: appendSourceMappingRevision(current[deviceId], revision) }))
             setAutomaticMappingStatus('A documented tracker mapping was applied for future data. You can undo it in the field editor.')
@@ -520,7 +520,7 @@ function TelemetryGraphViewer({ groups: initialGroups, profile = null, title = '
     }
     applyMatches()
     return () => { active = false }
-  }, [canEditSharedProfiles, deviceForGroup, groups, profile, publicMode, sourceMappingDeviceIds, sourceMappingDeviceKey, sourceMappingLoadedKey, sourceMappingState, traccarServerVersion, vehicleApiBaseUrl])
+  }, [canEditSharedProfiles, deviceForGroup, groups, profile, publicMode, sourceMappingDeviceIds, sourceMappingDeviceKey, sourceMappingLoadedKey, sourceMappingState, traccarServerVersion, traccarReactApiBaseUrl])
   const personalLabelKey = (profileId, vehicleId, deviceId, key) => telemetryFieldScopeKey(profileId, vehicleId, deviceId, key)
   const suggestionsForField = (key, keyProfile, group, scopeKey, legacyScopeKey) => {
     const deviceContext = telemetryDeviceMatchContext(deviceForGroup(group), traccarServerVersion)
@@ -597,9 +597,9 @@ function TelemetryGraphViewer({ groups: initialGroups, profile = null, title = '
     else delete next[scopeKey]
     setPersonalFieldLabels(next)
     localStorage.setItem(personalLabelsStorageKey, JSON.stringify(next))
-    if (isAuthenticated && vehicleApiBaseUrl) {
+    if (isAuthenticated && traccarReactApiBaseUrl) {
       try {
-        await saveUserPreference(vehicleApiBaseUrl, 'telemetry-field-labels', next)
+        await saveUserPreference(traccarReactApiBaseUrl, 'telemetry-field-labels', next)
         return { message: 'Personal description saved to your account.' }
       } catch (error) {
         return { message: `Saved on this device; account sync failed. ${error instanceof Error ? error.message : ''}`.trim() }
@@ -612,9 +612,9 @@ function TelemetryGraphViewer({ groups: initialGroups, profile = null, title = '
     const next = [...new Set([...dismissedSuggestionTokens, token])]
     setDismissedSuggestionTokens(next)
     localStorage.setItem(dismissedSuggestionsStorageKey, JSON.stringify(next))
-    if (isAuthenticated && vehicleApiBaseUrl) {
+    if (isAuthenticated && traccarReactApiBaseUrl) {
       try {
-        await saveUserPreference(vehicleApiBaseUrl, 'telemetry-field-suggestions-dismissed', next)
+        await saveUserPreference(traccarReactApiBaseUrl, 'telemetry-field-suggestions-dismissed', next)
         return { message: 'Suggestion dismissed for this account and field.' }
       } catch (error) {
         return { message: `Dismissed on this device; account sync failed. ${error instanceof Error ? error.message : ''}`.trim() }
@@ -629,9 +629,9 @@ function TelemetryGraphViewer({ groups: initialGroups, profile = null, title = '
     const next = [...new Set([...dismissedSuggestionTokens, ...tokens])]
     setDismissedSuggestionTokens(next)
     localStorage.setItem(dismissedSuggestionsStorageKey, JSON.stringify(next))
-    if (isAuthenticated && vehicleApiBaseUrl) {
+    if (isAuthenticated && traccarReactApiBaseUrl) {
       try {
-        await saveUserPreference(vehicleApiBaseUrl, 'telemetry-field-suggestions-dismissed', next)
+        await saveUserPreference(traccarReactApiBaseUrl, 'telemetry-field-suggestions-dismissed', next)
         return { message: candidates.length ? 'Suggestions dismissed for this account and field.' : 'This field remains unknown.' }
       } catch (error) {
         return { message: `Saved on this device; account sync failed. ${error instanceof Error ? error.message : ''}`.trim() }
@@ -644,9 +644,9 @@ function TelemetryGraphViewer({ groups: initialGroups, profile = null, title = '
     const next = dismissedSuggestionTokens.filter((token) => !prefixes.some((prefix) => token.startsWith(prefix)))
     setDismissedSuggestionTokens(next)
     localStorage.setItem(dismissedSuggestionsStorageKey, JSON.stringify(next))
-    if (isAuthenticated && vehicleApiBaseUrl) {
+    if (isAuthenticated && traccarReactApiBaseUrl) {
       try {
-        await saveUserPreference(vehicleApiBaseUrl, 'telemetry-field-suggestions-dismissed', next)
+        await saveUserPreference(traccarReactApiBaseUrl, 'telemetry-field-suggestions-dismissed', next)
         return { message: 'Dismissed suggestions restored.' }
       } catch (error) {
         return { message: `Restored on this device; account sync failed. ${error instanceof Error ? error.message : ''}`.trim() }
@@ -806,7 +806,7 @@ function TelemetryGraphViewer({ groups: initialGroups, profile = null, title = '
     setShareStatus('Creating link…')
     const guidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
     if (groups.some((group) => !guidPattern.test(String(group.id || '')))) {
-      setShareStatus('This trip has not been synchronized into VehicleApp yet. Refresh the day before sharing it.')
+      setShareStatus('This trip has not been synchronized into Traccar React API yet. Refresh the day before sharing it.')
       return
     }
     const first = points[0]?.timestamp
@@ -831,46 +831,46 @@ function TelemetryGraphViewer({ groups: initialGroups, profile = null, title = '
       return { tripId: group.id, occurredAt: point.timestamp, elapsedMilliseconds: first ? Math.max(0, point.timestamp - first) : 0, values }
     }).filter((point) => Object.keys(point.values).length > 0))
     try {
-      const response = await fetch('/vehicle-api/api/telemetry-shares', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ mode: shareMode, vehicleId: groups[0]?.vehicleId, tripIds: groups.map((group) => group.id), fromUtc: first?.toISOString(), throughUtc: last.toISOString(), fieldKeys: shareKeys, series, points: pointRows, title: shareTitle || title, message: shareMessage || null, allowExport, expiresAt: new Date(shareExpiresAt).toISOString() }) })
+      const response = await fetch('/traccar-react-api/api/telemetry-shares', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ mode: shareMode, vehicleId: groups[0]?.vehicleId, tripIds: groups.map((group) => group.id), fromUtc: first?.toISOString(), throughUtc: last.toISOString(), fieldKeys: shareKeys, series, points: pointRows, title: shareTitle || title, message: shareMessage || null, allowExport, expiresAt: new Date(shareExpiresAt).toISOString() }) })
       if (!response.ok) throw new Error((await response.text()) || 'Unable to create share')
       const result = await response.json()
       const link = `${window.location.origin}/shared/telemetry/${result.token}`
-      try { localStorage.setItem(`vehicleApp:telemetryShareToken:${result.shareId}`, result.token) } catch { /* optional browser storage */ }
+      try { localStorage.setItem(`traccarReactApi:telemetryShareToken:${result.shareId}`, result.token) } catch { /* optional browser storage */ }
       await navigator.clipboard?.writeText(link)
       setShareStatus(`Link copied to clipboard: ${link}`)
     } catch (error) { setShareStatus(error.message) }
   }
   async function loadShares() {
     try {
-      const response = await fetch('/vehicle-api/api/telemetry-shares', { credentials: 'include', headers: { Accept: 'application/json' } })
+      const response = await fetch('/traccar-react-api/api/telemetry-shares', { credentials: 'include', headers: { Accept: 'application/json' } })
       if (!response.ok) throw new Error('Unable to load shared links')
       setShares(await response.json())
     } catch (error) { setShareStatus(error.message) }
   }
   async function revokeShare(shareId) {
     if (!window.confirm('Revoke this shared link? Anyone using it will lose access.')) return
-    const response = await fetch(`/vehicle-api/api/telemetry-shares/${shareId}`, { method: 'DELETE', credentials: 'include' })
+    const response = await fetch(`/traccar-react-api/api/telemetry-shares/${shareId}`, { method: 'DELETE', credentials: 'include' })
     if (response.ok) loadShares()
   }
   async function rotateShare(shareId) {
-    const response = await fetch(`/vehicle-api/api/telemetry-shares/${shareId}/rotate`, { method: 'POST', credentials: 'include' })
+    const response = await fetch(`/traccar-react-api/api/telemetry-shares/${shareId}/rotate`, { method: 'POST', credentials: 'include' })
     if (!response.ok) return
     const result = await response.json()
     const link = `${window.location.origin}/shared/telemetry/${result.token}`
-    try { localStorage.setItem(`vehicleApp:telemetryShareToken:${shareId}`, result.token) } catch { /* optional browser storage */ }
+    try { localStorage.setItem(`traccarReactApi:telemetryShareToken:${shareId}`, result.token) } catch { /* optional browser storage */ }
     await navigator.clipboard?.writeText(link)
     setShareStatus(`Replacement link copied: ${link}`)
     loadShares()
   }
   async function enableShare(shareId) {
-    const response = await fetch(`/vehicle-api/api/telemetry-shares/${shareId}/enable`, { method: 'POST', credentials: 'include' })
+    const response = await fetch(`/traccar-react-api/api/telemetry-shares/${shareId}/enable`, { method: 'POST', credentials: 'include' })
     if (!response.ok) { setShareStatus('Unable to enable this shared link.'); return }
     setShareStatus('Shared link enabled.')
     loadShares()
   }
   async function updateShareExpiration(shareId) {
     if (!editingExpiration?.value) return
-    const response = await fetch(`/vehicle-api/api/telemetry-shares/${shareId}/expiration`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expiresAt: new Date(editingExpiration.value).toISOString() }) })
+    const response = await fetch(`/traccar-react-api/api/telemetry-shares/${shareId}/expiration`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expiresAt: new Date(editingExpiration.value).toISOString() }) })
     if (!response.ok) { setShareStatus((await response.text()) || 'Unable to update the expiration.'); return }
     setEditingExpiration(null)
     setShareStatus('Expiration updated.')
@@ -878,7 +878,7 @@ function TelemetryGraphViewer({ groups: initialGroups, profile = null, title = '
   }
   async function copyShare(share) {
     try {
-      const token = localStorage.getItem(`vehicleApp:telemetryShareToken:${share.shareId}`)
+      const token = localStorage.getItem(`traccarReactApi:telemetryShareToken:${share.shareId}`)
       if (!token) { setShareStatus('This browser does not have the original token. Rotate the link to create a new copyable URL.'); return }
       await navigator.clipboard?.writeText(`${window.location.origin}/shared/telemetry/${token}`)
       setShareStatus('Share link copied.')
@@ -915,7 +915,7 @@ function TelemetryGraphViewer({ groups: initialGroups, profile = null, title = '
       vehicleVin: vehicleMetadata?.vin || null,
       deviceVin,
       channelKeys: selectedExportKeys,
-      appVersion: import.meta.env.VITE_APP_VERSION || 'vehicle-app-react',
+      appVersion: import.meta.env.VITE_APP_VERSION || 'traccar-react-api-react',
     })
       const timing = telemetry.metadata.trackTiming || { laps: [], dragRuns: [], splitPassages: [], lapSummary: {} }
       const bestLap = Number.isFinite(timing.lapSummary.bestElapsedSeconds) ? ` Best lap ${timing.lapSummary.bestElapsedSeconds.toFixed(3)}s.` : ''
@@ -995,7 +995,7 @@ function TelemetryGraphViewer({ groups: initialGroups, profile = null, title = '
         if (validationError) return { ok: false, message: validationError }
         const history = sourceMappingState[deviceId] || []
         const expectedRevision = Math.max(0, ...history.filter((item) => item.fieldKey === editingFieldKey).map((item) => Number(item.revision) || 0))
-        const saved = await saveTelemetrySourceMapping(vehicleApiBaseUrl, deviceId, editingFieldKey, mapping, expectedRevision, 'manual')
+        const saved = await saveTelemetrySourceMapping(traccarReactApiBaseUrl, deviceId, editingFieldKey, mapping, expectedRevision, 'manual')
         const revision = { fieldKey: editingFieldKey, revision: saved.revision, effectiveAt: saved.effectiveAt, mapping, changeKind: 'manual' }
         setSourceMappingState((current) => ({ ...current, [deviceId]: appendSourceMappingRevision(current[deviceId], revision) }))
         onSourceMappingSaved?.(deviceId, revision)
@@ -1007,7 +1007,7 @@ function TelemetryGraphViewer({ groups: initialGroups, profile = null, title = '
         const history = (sourceMappingState[deviceId] || []).filter((item) => item.fieldKey === editingFieldKey)
         const target = sourceMappingUndoTarget(history)
         if (!target) return { ok: false, message: 'No tracker-only mapping exists to undo.' }
-        const saved = await saveTelemetrySourceMapping(vehicleApiBaseUrl, deviceId, editingFieldKey, target.mapping, target.expectedRevision, 'undo')
+        const saved = await saveTelemetrySourceMapping(traccarReactApiBaseUrl, deviceId, editingFieldKey, target.mapping, target.expectedRevision, 'undo')
         const mapping = target.mapping
         const revision = { fieldKey: editingFieldKey, revision: saved.revision, effectiveAt: saved.effectiveAt, mapping, changeKind: 'undo' }
         setSourceMappingState((state) => ({ ...state, [deviceId]: appendSourceMappingRevision(state[deviceId], revision) }))

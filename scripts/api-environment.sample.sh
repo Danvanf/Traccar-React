@@ -11,15 +11,15 @@ export AllowedHosts='*'
 export Logging__LogLevel__Default='Information'
 export Logging__LogLevel__Microsoft='Warning'
 
-# PostgreSQL connection used by the Vehicle App API
-export ConnectionStrings__VehicleApp='Host=localhost;Port=5432;Database=vehicle_app;Username=REPLACE_ME;Password=REPLACE_ME'
+# PostgreSQL connection used by the Traccar React API
+export ConnectionStrings__TraccarReactApi='Host=localhost;Port=5432;Database=traccar_react_api;Username=REPLACE_ME;Password=REPLACE_ME'
 
 # Optional bootstrap administrator. Ordinary user accounts and passwords are
 # managed in Settings > Users and Groups and stored in app_users.
 # Set these only when provisioning the initial administrator for a new database.
-# export VehicleApp__Auth__Username='REPLACE_ME'
-# export VehicleApp__Auth__Password='REPLACE_ME'
-export VehicleApp__Auth__AllowUnauthenticatedDevelopment='false'
+# export TraccarReactApi__Auth__Username='REPLACE_ME'
+# export TraccarReactApi__Auth__Password='REPLACE_ME'
+export TraccarReactApi__Auth__AllowUnauthenticatedDevelopment='false'
 
 # Optional read-only Traccar account used for device protocol diagnostics
 export Traccar__BaseUrl=''
@@ -33,49 +33,49 @@ export Traccar__Password=''
 # Legacy Bouncie key (Base64-encoded 32-byte key). Keep this while any existing Bouncie
 # credentials or backups still use it; after the shared key ring is configured, startup
 # migrates stored Bouncie credentials to the shared format without removing this key.
-export VehicleApp__Bouncie__EncryptionKey=''
-# Legacy alias, only if VehicleApp__Bouncie__EncryptionKey is unset.
-# export VEHICLE_APP_BOUNCIE_ENCRYPTION_KEY='REPLACE_WITH_BASE64_32_BYTE_KEY'
+export TraccarReactApi__Bouncie__EncryptionKey=''
+# Legacy alias, only if TraccarReactApi__Bouncie__EncryptionKey is unset.
+# export TRACCAR_REACT_API_BOUNCIE_ENCRYPTION_KEY='REPLACE_WITH_BASE64_32_BYTE_KEY'
 
 # Provider credential encryption key ring. Generate and back up a random 32-byte key outside PostgreSQL.
 # Keep old key IDs configured while encrypted records or backups may still depend on them.
 # Generate a key with: openssl rand -base64 32
-export VehicleApp__CredentialEncryption__ActiveKeyId='primary'
-export VehicleApp__CredentialEncryption__Keys__primary=''
+export TraccarReactApi__CredentialEncryption__ActiveKeyId='primary'
+export TraccarReactApi__CredentialEncryption__Keys__primary=''
 
 # Legacy email provider fallback. A database default account in Settings takes priority over these values.
 # Email delivery: Disabled, Graph, Resend, or Brevo
-export VehicleApp__Email__Provider='Disabled'
-export VehicleApp__Email__DailyLimit='75'
+export TraccarReactApi__Email__Provider='Disabled'
+export TraccarReactApi__Email__DailyLimit='75'
 # Microsoft Graph fallback (used only when Provider=Graph and there is no database default)
-export VehicleApp__Email__Graph__TenantId=''
-export VehicleApp__Email__Graph__ClientId=''
-export VehicleApp__Email__Graph__ClientSecret=''
+export TraccarReactApi__Email__Graph__TenantId=''
+export TraccarReactApi__Email__Graph__ClientId=''
+export TraccarReactApi__Email__Graph__ClientSecret=''
 # Resend fallback (used only when Provider=Resend and there is no database default)
-export VehicleApp__Email__Resend__ApiKey=''
-export VehicleApp__Email__Resend__From=''
-export VehicleApp__Email__Resend__WebhookSecret=''
+export TraccarReactApi__Email__Resend__ApiKey=''
+export TraccarReactApi__Email__Resend__From=''
+export TraccarReactApi__Email__Resend__WebhookSecret=''
 # Brevo fallback (used only when Provider=Brevo and there is no database default)
-export VehicleApp__Email__Brevo__ApiKey=''
-export VehicleApp__Email__Brevo__FromEmail=''
-export VehicleApp__Email__Brevo__FromName=''
-export VehicleApp__Email__Brevo__WebhookToken=''
+export TraccarReactApi__Email__Brevo__ApiKey=''
+export TraccarReactApi__Email__Brevo__FromEmail=''
+export TraccarReactApi__Email__Brevo__FromName=''
+export TraccarReactApi__Email__Brevo__WebhookToken=''
 
 # Legacy SMS provider fallback. A database default account in Settings takes priority over these values.
 # SMS delivery: Disabled, Textbelt, or Twilio
-export VehicleApp__Sms__Provider='Disabled'
-export VehicleApp__Sms__DailyLimit='1'
-export VehicleApp__Sms__AlertDailyLimit='25'
+export TraccarReactApi__Sms__Provider='Disabled'
+export TraccarReactApi__Sms__DailyLimit='1'
+export TraccarReactApi__Sms__AlertDailyLimit='25'
 # Textbelt fallback (used only when Provider=Textbelt and there is no database default)
-export VehicleApp__Sms__Textbelt__ApiKey=''
+export TraccarReactApi__Sms__Textbelt__ApiKey=''
 # Twilio fallback for live sending and automatic alert webhooks
-export VehicleApp__Sms__Twilio__AccountSid=''
-export VehicleApp__Sms__Twilio__ApiKeySid=''
-export VehicleApp__Sms__Twilio__ApiKeySecret=''
-export VehicleApp__Sms__Twilio__FromNumber=''
-export VehicleApp__Sms__Twilio__WebhookBaseUrl=''
-export VehicleApp__Sms__Twilio__WebhookUsername=''
-export VehicleApp__Sms__Twilio__WebhookPassword=''
+export TraccarReactApi__Sms__Twilio__AccountSid=''
+export TraccarReactApi__Sms__Twilio__ApiKeySid=''
+export TraccarReactApi__Sms__Twilio__ApiKeySecret=''
+export TraccarReactApi__Sms__Twilio__FromNumber=''
+export TraccarReactApi__Sms__Twilio__WebhookBaseUrl=''
+export TraccarReactApi__Sms__Twilio__WebhookUsername=''
+export TraccarReactApi__Sms__Twilio__WebhookPassword=''
 # Development-only magic-number tests; use Twilio test-account credentials, never live credentials.
-export VehicleApp__Sms__Twilio__TestAccountSid=''
-export VehicleApp__Sms__Twilio__TestAuthToken=''
+export TraccarReactApi__Sms__Twilio__TestAccountSid=''
+export TraccarReactApi__Sms__Twilio__TestAuthToken=''

@@ -1,4 +1,4 @@
 -- Adds an explicit mapping schema version to shared telemetry profile rows.
--- Safe to re-run after the Phase 3 vehicle app schema has been installed.
+-- Safe to re-run after the Phase 3 Traccar React API schema has been installed.
 ALTER TABLE IF EXISTS telemetry_profiles
   ADD COLUMN IF NOT EXISTS schema_version integer NOT NULL DEFAULT 1;

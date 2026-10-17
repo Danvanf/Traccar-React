@@ -33,12 +33,15 @@ tests/**/obj/
 # .NET build outputs
 backend/**/bin/
 backend/**/obj/
+backend/**/bin_*/
+backend/**/obj_*/
 
 # Local one-off build folders
 backend/**/bin_check*/
 
 # Script artifacts
 scripts/artifacts/
+__pycache__/
 
 # Internal/private documentation (kept local, not published)
 docs/internal/

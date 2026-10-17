@@ -25,12 +25,35 @@ CheckThrows("retired key is unavailable", () => CreateProtectorWithKeys([("new",
 var missingKeyProtector = CreateProtectorWithKeys([], "missing");
 Check("missing active key disables credential writes", !missingKeyProtector.CanProtect);
 CheckThrows("missing active key rejects credential writes", () => missingKeyProtector.Protect(accountId, "ClientSecret", "secret"));
-Console.WriteLine("Credential protection: 11 checks passed; no database or network access.");
+var aliases = new ConfigurationManager();
+aliases.AddInMemoryCollection(new Dictionary<string, string?> {
+    ["TraccarReactApi:Auth:Username"] = "default",
+    ["ConnectionStrings:TraccarReactApi"] = "default-db",
+});
+aliases.AddInMemoryCollection(new Dictionary<string, string?> {
+    ["VehicleApp:Auth:Username"] = "legacy-environment",
+    ["VehicleApp:CredentialEncryption:ActiveKeyId"] = "old",
+    ["VehicleApp:CredentialEncryption:Keys:old"] = oldKey,
+    ["ConnectionStrings:VehicleApp"] = "existing-db",
+});
+aliases.AddInMemoryCollection(new Dictionary<string, string?> {
+    ["VehicleApp:Auth:Password"] = "legacy-password",
+    ["TraccarReactApi:Auth:Password"] = "current-password",
+});
+ApiConfigurationAliases.Apply(aliases);
+Check("legacy environment wins over new defaults", aliases["TraccarReactApi:Auth:Username"] == "legacy-environment");
+Check("current key wins at equal provider priority", aliases["TraccarReactApi:Auth:Password"] == "current-password");
+Check("existing connection string survives rename", aliases.GetConnectionString("TraccarReactApi") == "existing-db");
+Check("legacy key ring still decrypts stored ciphertext", new CredentialProtectionService(aliases).Unprotect(accountId, "ClientSecret", oldEnvelope) == "a provider secret");
+var upgradedSettings = System.Text.Json.Nodes.JsonNode.Parse(ApiNamingMigration.UpgradeGeneralSettingsJson("""{"vehicleApiBaseUrl":"https://example.test/vehicle-api","pollIntervalMs":12000}"""))!;
+Check("server settings preserve custom host", upgradedSettings["traccarReactApiBaseUrl"]!.GetValue<string>() == "https://example.test/traccar-react-api");
+Check("server settings preserve unrelated fields", upgradedSettings["pollIntervalMs"]!.GetValue<int>() == 12000);
+Console.WriteLine("Credential protection and API naming migration: all checks passed; no database or network access.");
 
 static CredentialProtectionService CreateProtectorWithKeys((string Id, string Value)[] keys, string active)
 {
-    var values = new Dictionary<string, string?> { ["VehicleApp:CredentialEncryption:ActiveKeyId"] = active };
-    foreach (var (id, value) in keys) values[$"VehicleApp:CredentialEncryption:Keys:{id}"] = value;
+    var values = new Dictionary<string, string?> { ["TraccarReactApi:CredentialEncryption:ActiveKeyId"] = active };
+    foreach (var (id, value) in keys) values[$"TraccarReactApi:CredentialEncryption:Keys:{id}"] = value;
     var configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
     return new CredentialProtectionService(configuration);
 }

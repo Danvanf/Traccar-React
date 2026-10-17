@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom'
 import { useEffect, useState } from 'react'
-import { fetchBusinessMileageReport, fetchDataCompletenessReport, fetchDeviceBindingHistory, fetchEventReport, fetchMonthlySummaryReport, fetchNamedPlaces, fetchPlaceReport, fetchSpeedBandReport, fetchTripLogReport, fetchTripTags, fetchUsageSummaryReport, fetchUtilizationReport, fetchVehicleCatalog, fetchVehicleSpeedBands } from '../../lib/vehicleAppApi'
+import { fetchBusinessMileageReport, fetchDataCompletenessReport, fetchDeviceBindingHistory, fetchEventReport, fetchMonthlySummaryReport, fetchNamedPlaces, fetchPlaceReport, fetchSpeedBandReport, fetchTripLogReport, fetchTripTags, fetchUsageSummaryReport, fetchUtilizationReport, fetchVehicleCatalog, fetchVehicleSpeedBands } from '../../lib/traccarReactApi'
 import { DEFAULT_SPEED_BANDS } from '../../lib/speedBands'
 import { resolveProfileContext, translateAttribute } from '../../lib/carProfiles'
 import { resolveProfileRevision } from '../../lib/profileHistory'

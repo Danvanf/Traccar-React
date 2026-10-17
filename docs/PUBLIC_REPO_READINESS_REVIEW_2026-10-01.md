@@ -62,7 +62,7 @@ This review focuses on GitHub/public-release readiness with an emphasis on docum
 - `AI_OVERVIEW.md` (public architecture/status summary)
 - `docs/TELTONIKA_FMB003_DATA_CATALOG.md`
 - private internal runbooks (not published)
-- `VEHICLE_APP_DOCKER_DEPLOYMENT.md`
+- `TRACCAR_REACT_API_DOCKER_DEPLOYMENT.md`
 - `SECURITY.md`
 - `CONTRIBUTING.md`
 - `LICENSE`

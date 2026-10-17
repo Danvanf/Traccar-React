@@ -1,8 +1,8 @@
 # Uses Twilio's test Account SID/Auth Token configured on the API process as
-# VehicleApp__Sms__Twilio__TestAccountSid and VehicleApp__Sms__Twilio__TestAuthToken.
+# TraccarReactApi__Sms__Twilio__TestAccountSid and TraccarReactApi__Sms__Twilio__TestAuthToken.
 # It calls a Development-only API route and never uses the live Twilio credentials.
 param(
-    [string] $ApiBaseUrl = $(if ($env:VEHICLE_APP_API_BASE_URL) { $env:VEHICLE_APP_API_BASE_URL } else { 'http://localhost:5124' })
+    [string] $ApiBaseUrl = $(if ($env:TRACCAR_REACT_API_BASE_URL) { $env:TRACCAR_REACT_API_BASE_URL } else { 'http://localhost:5124' })
 )
 
 $endpoint = "$($ApiBaseUrl.TrimEnd('/'))/api/admin/sms/twilio-magic-test"

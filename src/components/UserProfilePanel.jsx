@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchUserProfile, saveUserProfile } from '../lib/vehicleAppApi'
+import { fetchUserProfile, saveUserProfile } from '../lib/traccarReactApi'
 
 function AccessSource({ direct, groups = [], administrator = false }) {
   if (administrator) return <small className="user-profile-access-source">Administrator access</small>

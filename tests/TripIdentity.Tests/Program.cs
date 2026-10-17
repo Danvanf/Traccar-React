@@ -1,6 +1,6 @@
 var start = DateTimeOffset.Parse("2026-01-15T12:00:00Z");
 var end = start.AddMinutes(30);
-var saved = new SavedTripIdentity(Guid.NewGuid(), Guid.NewGuid(), 5, start, end, 101, 202, "Keep my note");
+var saved = new SavedTripIdentity(Guid.NewGuid(), Guid.NewGuid(), 5, start, end, 101, 202, "Keep my note", null, null);
 var count = 0;
 void Check(string name, IEnumerable<SavedTripIdentity> rows, TripIdentityStatus expected,
     int device = 5, DateTimeOffset? from = null, DateTimeOffset? to = null, long? first = 101, long? last = 202)

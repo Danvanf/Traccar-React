@@ -1,4 +1,4 @@
--- Apply while connected to the vehicle_app DATABASE, using the app's search_path.
+-- Apply while connected to the traccar_react_api DATABASE, using the app's search_path.
 -- This protects exact identities against writers outside the serialized API too.
 -- Existing duplicates must be reconciled first; this script never merges/deletes trips.
 -- Overlap detection remains the responsibility of the import API.
