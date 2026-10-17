@@ -1,6 +1,8 @@
 # VehicleApp API deployment with Docker
 
-This guide runs the VehicleApp API on the Linux host that already runs Traccar and PostgreSQL. It does not replace or recreate the existing Traccar containers.
+This guide deploys the VehicleApp API alongside an **existing** Traccar and PostgreSQL installation. It does not replace, recreate, or migrate the existing Traccar containers or databases. The clean, same-machine WSL test installation is documented separately in the private `communications-plan/First_test.md` file outside this repository.
+
+The API project currently targets .NET 9. .NET 9 support ends on November 10, 2026, so use this guide to reproduce the current build, and plan a move to a supported .NET release before using it for a long-lived production deployment. See Microsoft's [official .NET support policy](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core).
 
 The recommended production layout is:
 
@@ -49,7 +51,7 @@ git clone <repository-url> traccar-react
 cd traccar-react
 ```
 
-Keep the deployment checkout separate from `~/docker/traccar`. The API source can be updated and rebuilt without touching the Traccar compose directory.
+Keep the deployment checkout separate from `~/docker/traccar`. The API source can be updated and rebuilt without touching the Traccar compose directory. In the rest of this guide, the compose and environment files are in `~/vehicle-app`, and the repository checkout is in `~/vehicle-app/traccar-react`.
 
 Using a different stable base folder is also valid. For example, this guide's commands work the same if you use:
 
@@ -85,13 +87,14 @@ The API listens on port `5124` inside the container. It does not need to be publ
 
 ## 4. Create a protected environment file
 
-Create a file outside the repository, for example `~/vehicle-app/vehicle-app.env`:
+Create a file outside the repository at `~/vehicle-app/vehicle-app.env`:
 
 ```text
 ConnectionStrings__VehicleApp=Host=traccar-db;Port=5432;Database=vehicle_app;Username=traccar;Password=REPLACE_ME
-VEHICLE_APP_AUTH_USERNAME=REPLACE_ME
-VEHICLE_APP_AUTH_PASSWORD=REPLACE_ME
-VEHICLE_APP_BOUNCIE_ENCRYPTION_KEY=REPLACE_WITH_BASE64_32_BYTE_KEY
+VehicleApp__Auth__Username=REPLACE_ME
+VehicleApp__Auth__Password=REPLACE_ME
+VehicleApp__CredentialEncryption__ActiveKeyId=primary
+VehicleApp__CredentialEncryption__Keys__primary=REPLACE_WITH_BASE64_32_BYTE_KEY
 ```
 
 Protect it:
@@ -102,13 +105,13 @@ chmod 600 ~/vehicle-app/vehicle-app.env
 
 If your deployment root is `~/docker/vehicle-app`, keeping `vehicle-app.env` there is fine as long as it remains outside Git and locked down with `chmod 600`.
 
-The Bouncie encryption key must be the base64 encoding of exactly 32 random bytes. Generate one once and keep it stable:
+The credential-encryption key must be the base64 encoding of exactly 32 random bytes. Generate one once and keep it stable:
 
 ```bash
 openssl rand -base64 32
 ```
 
-Changing that key makes previously encrypted Bouncie credentials unreadable. Do not put this file in Git, a Docker image, or a browser setting.
+Changing or losing a key makes credentials encrypted with it unreadable. Do not put this file in Git, a Docker image, or a browser setting. The API creates the initial admin account from `VehicleApp__Auth__Username` and `VehicleApp__Auth__Password` when it first starts against a new database. After sign-in, manage normal accounts in Settings > Users and Groups; keep the bootstrap values stable for this deployment.
 
 Device protocol diagnostics are optional tooling for profile development and support in a test environment. Production installations do not need a Traccar diagnostic account or these environment variables to run the application. When using the tool, configure `TRACCAR_BASE_URL`, `TRACCAR_USERNAME`, and `TRACCAR_PASSWORD` only on the test API host, using a read-only Traccar account. The diagnostic endpoint is loopback-only and does not require a VehicleApp browser session. Run its PowerShell helper on the API host. For development outside Docker, use the reachable Traccar host URL (for example `http://limestone:8082`) instead of `http://traccar:8082`. The endpoint returns the Traccar version, device model/category, and at most 2,000 decoded telemetry samples from a requested 24-hour window. It excludes coordinates and device identifiers. It cannot return raw tracker packets or the tracker's AVL configuration.
 
@@ -126,22 +129,20 @@ The script calls the local VehicleApp API, which authenticates to Traccar using 
 
 ## 5. Create the API compose file
 
-Create `~/vehicle-app/vehicle-app.compose.yml` and replace `traccar_default` if your inspected network has a different name:
+Create `~/vehicle-app/vehicle-app.compose.yml` and replace `traccar_default` if your inspected network has a different name. Paths below are relative to the compose file directory, avoiding shell-specific `~` expansion inside YAML:
 
 ```yaml
 services:
   vehicle-app-api:
     build:
-      context: ~/vehicle-app/traccar-react
+      context: ./traccar-react
       dockerfile: backend/VehicleApp.Api/Dockerfile
     container_name: vehicle-app-api
     restart: unless-stopped
     env_file:
-      - ~/vehicle-app/vehicle-app.env
+      - ./vehicle-app.env
     environment:
       ASPNETCORE_ENVIRONMENT: Production
-    ports:
-      - 5124:5124
     expose:
       - "5124"
     networks:
@@ -152,21 +153,14 @@ networks:
     external: true
 ```
 
-Start it:
+The API is exposed only to containers on the Docker network. If your reverse proxy runs directly on the Linux host, publish it on loopback instead by adding `ports: ["127.0.0.1:5124:5124"]`; do not bind this port to every interface. Start the API:
 
 ```bash
 sudo docker compose -f ~/vehicle-app/vehicle-app.compose.yml up -d --build
 sudo docker compose -f ~/vehicle-app/vehicle-app.compose.yml logs -f vehicle-app-api
 ```
 
-If you are using `~/docker/vehicle-app`, the equivalent command path is:
-
-```bash
-sudo docker compose -f ~/docker/vehicle-app/vehicle-app.compose.yml up -d --build
-sudo docker compose -f ~/docker/vehicle-app/vehicle-app.compose.yml logs -f vehicle-app-api
-```
-
-Use that same compose-file path substitution in later sections (updates, restart, and shutdown commands).
+Use the same compose-file path for later updates, restarts, and shutdown commands. If you choose a different deployment root, change the paths consistently.
 
 The first successful startup should show the API listening and completing its schema bootstrap. Leave the log view with `Ctrl+C`; that does not stop the container.
 
@@ -174,10 +168,10 @@ The first successful startup should show the API listening and completing its sc
 
 Back up `vehicle_app` before applying a new schema script. Keep the backup/restore procedure in your private internal runbook.
 
-Run scripts from the Linux host by streaming them into the existing database container:
-Change to the traccar-react folder
+Run only the migration scripts required by the database's current schema. These commands are for an existing `vehicle_app` database and run from the repository checkout:
+
 ```bash
-cd traccar-react
+cd ~/vehicle-app/traccar-react
 
 sudo docker exec -i traccar-db psql -U traccar -d vehicle_app \
   < scripts/phase7_trip_events_schema.sql
@@ -222,13 +216,13 @@ sudo docker logs --tail 100 vehicle-app-api
 
 ## 8. Put a reverse proxy in front
 
-For a usable browser deployment, serve the built React files from Caddy or Nginx and proxy `/vehicle-api/` to:
+For a usable browser deployment, build the frontend from the repository checkout (`npm ci && npm run build`, which writes `dist/`), serve those static files from Caddy or Nginx, and proxy `/vehicle-api/` to:
 
 ```text
 http://vehicle-app-api:5124/
 ```
 
-The proxy and API must share the Docker network. Use HTTPS before exposing the application outside the trusted LAN. The HttpOnly session cookie and Bouncie OAuth callback should use the final HTTPS hostname.
+If the proxy is a container, it and the API must share the Docker network and the target above works. If the proxy runs on the Linux host, publish API port 5124 on `127.0.0.1` and use `http://127.0.0.1:5124/` as its upstream. Use HTTPS before exposing the application outside the trusted LAN. The HttpOnly session cookie and Bouncie OAuth callback should use the final HTTPS hostname.
 
 Lightweight host check (what is already installed):
 
@@ -283,9 +277,10 @@ https://vehicle.example.com/signin-bouncie
 
 ## 9. Updating the API later
 
-From the deployment checkout:
+From the deployment checkout, update the source and rebuild the API image:
 
 ```bash
+cd ~/vehicle-app/traccar-react
 git pull
 sudo docker compose -f ~/vehicle-app/vehicle-app.compose.yml up -d --build
 sudo docker compose -f ~/vehicle-app/vehicle-app.compose.yml logs --tail 100 vehicle-app-api
