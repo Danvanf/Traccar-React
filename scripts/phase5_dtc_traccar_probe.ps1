@@ -129,15 +129,15 @@ Write-Host "Traccar device ID: $TraccarDeviceId"
 Write-Host ("Source: {0}, Window UTC: {1} -> {2}" -f $Source, $FromUtc.ToString("o"), $ToUtc.ToString("o"))
 
 if ([string]::IsNullOrWhiteSpace($TraccarUsername)) {
-    $TraccarUsername = [Environment]::GetEnvironmentVariable("TRACCAR_USERNAME")
+    $TraccarUsername = [Environment]::GetEnvironmentVariable("Traccar__Username")
 }
 
 if ([string]::IsNullOrWhiteSpace($TraccarPassword)) {
-    $TraccarPassword = [Environment]::GetEnvironmentVariable("TRACCAR_PASSWORD")
+    $TraccarPassword = [Environment]::GetEnvironmentVariable("Traccar__Password")
 }
 
 if ([string]::IsNullOrWhiteSpace($TraccarUsername) -or [string]::IsNullOrWhiteSpace($TraccarPassword)) {
-    throw "Traccar credentials are required. Pass -TraccarUsername/-TraccarPassword or set TRACCAR_USERNAME/TRACCAR_PASSWORD environment variables."
+    throw "Traccar credentials are required. Pass -TraccarUsername/-TraccarPassword or set Traccar__Username/Traccar__Password environment variables."
 }
 
 if ($FromUtc -gt $ToUtc) {

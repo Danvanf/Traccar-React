@@ -11,15 +11,13 @@ public static class EmailProviderWebhookEndpoints
 
     public static void MapEmailProviderWebhookEndpoints(this WebApplication app)
     {
-        app.MapPost("/api/email/webhooks/resend", (HttpRequest request, IConfiguration config, NpgsqlDataSource data, ProviderAccountStore store, CancellationToken token) => ReceiveResendAsync(request, null, config, data, store, token)).AllowAnonymous();
-        app.MapPost("/api/email/webhooks/resend/{accountId:guid}", (HttpRequest request, Guid accountId, IConfiguration config, NpgsqlDataSource data, ProviderAccountStore store, CancellationToken token) => ReceiveResendAsync(request, accountId, config, data, store, token)).AllowAnonymous();
-        app.MapPost("/api/email/webhooks/brevo", (HttpRequest request, IConfiguration config, NpgsqlDataSource data, ProviderAccountStore store, CancellationToken token) => ReceiveBrevoAsync(request, null, config, data, store, token)).AllowAnonymous();
-        app.MapPost("/api/email/webhooks/brevo/{accountId:guid}", (HttpRequest request, Guid accountId, IConfiguration config, NpgsqlDataSource data, ProviderAccountStore store, CancellationToken token) => ReceiveBrevoAsync(request, accountId, config, data, store, token)).AllowAnonymous();
+        app.MapPost("/api/email/webhooks/resend/{accountId:guid}", (HttpRequest request, Guid accountId, NpgsqlDataSource data, ProviderAccountStore store, CancellationToken token) => ReceiveResendAsync(request, accountId, data, store, token)).AllowAnonymous();
+        app.MapPost("/api/email/webhooks/brevo/{accountId:guid}", (HttpRequest request, Guid accountId, NpgsqlDataSource data, ProviderAccountStore store, CancellationToken token) => ReceiveBrevoAsync(request, accountId, data, store, token)).AllowAnonymous();
     }
 
-    private static async Task<IResult> ReceiveResendAsync(HttpRequest request, Guid? accountId, IConfiguration configuration, NpgsqlDataSource dataSource, ProviderAccountStore accounts, CancellationToken cancellationToken)
+    private static async Task<IResult> ReceiveResendAsync(HttpRequest request, Guid accountId, NpgsqlDataSource dataSource, ProviderAccountStore accounts, CancellationToken cancellationToken)
     {
-        var secret = await GetWebhookSecretAsync("Resend", "WebhookSecret", accountId, configuration, accounts, cancellationToken);
+        var secret = await GetWebhookSecretAsync("Resend", "WebhookSecret", accountId, accounts, cancellationToken);
         if (string.IsNullOrWhiteSpace(secret)) return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
         var body = await ReadBodyAsync(request, cancellationToken);
         if (body is null) return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
@@ -46,9 +44,9 @@ public static class EmailProviderWebhookEndpoints
         }
     }
 
-    private static async Task<IResult> ReceiveBrevoAsync(HttpRequest request, Guid? accountId, IConfiguration configuration, NpgsqlDataSource dataSource, ProviderAccountStore accounts, CancellationToken cancellationToken)
+    private static async Task<IResult> ReceiveBrevoAsync(HttpRequest request, Guid accountId, NpgsqlDataSource dataSource, ProviderAccountStore accounts, CancellationToken cancellationToken)
     {
-        var secret = await GetWebhookSecretAsync("Brevo", "WebhookToken", accountId, configuration, accounts, cancellationToken);
+        var secret = await GetWebhookSecretAsync("Brevo", "WebhookToken", accountId, accounts, cancellationToken);
         if (string.IsNullOrWhiteSpace(secret)) return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
         if (!HasBearerToken(request, secret)) return Results.Unauthorized();
         var body = await ReadBodyAsync(request, cancellationToken);
@@ -79,16 +77,12 @@ public static class EmailProviderWebhookEndpoints
         }
     }
 
-    private static async Task<string?> GetWebhookSecretAsync(string provider, string secretName, Guid? accountId, IConfiguration configuration, ProviderAccountStore accounts, CancellationToken cancellationToken)
+    private static async Task<string?> GetWebhookSecretAsync(string provider, string secretName, Guid accountId, ProviderAccountStore accounts, CancellationToken cancellationToken)
     {
-        if (accountId.HasValue)
-        {
-            var account = await accounts.GetByIdAsync(accountId.Value, cancellationToken);
-            return account is not null && account.Channel == "email" && account.Provider.Equals(provider, StringComparison.OrdinalIgnoreCase)
-                ? account.Secrets.GetValueOrDefault(secretName)
-                : null;
-        }
-        return configuration[$"TraccarReactApi:Email:{provider}:{secretName}"];
+        var account = await accounts.GetByIdAsync(accountId, cancellationToken);
+        return account is not null && account.Channel == "email" && account.Provider.Equals(provider, StringComparison.OrdinalIgnoreCase)
+            ? account.Secrets.GetValueOrDefault(secretName)
+            : null;
     }
 
     private static async Task PersistEventAsync(NpgsqlDataSource dataSource, string provider, string eventId, string messageId, string eventType, string deliveryStatus, DateTimeOffset? eventAt, CancellationToken cancellationToken)

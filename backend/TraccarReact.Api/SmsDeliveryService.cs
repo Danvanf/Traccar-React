@@ -60,7 +60,7 @@ public sealed class SmsDeliveryService(IHttpClientFactory httpClientFactory, ICo
 
     public async Task<bool> AuthenticateWebhookAsync(string? authorizationHeader, Guid? accountId, CancellationToken cancellationToken)
     {
-        var resolved = await ResolveConfigurationAsync(cancellationToken, accountId, environmentOnly: !accountId.HasValue);
+        var resolved = await ResolveConfigurationAsync(cancellationToken, accountId);
         if (!resolved.Provider.Equals("Twilio", StringComparison.OrdinalIgnoreCase)) return false;
         var expectedUser = resolved.Get("WebhookUsername");
         var expectedPassword = resolved.Secret("WebhookPassword");
@@ -84,14 +84,14 @@ public sealed class SmsDeliveryService(IHttpClientFactory httpClientFactory, ICo
 
     public async Task<bool> IsTwilioDestinationAsync(string to, Guid? accountId, CancellationToken cancellationToken)
     {
-        var resolved = await ResolveConfigurationAsync(cancellationToken, accountId, environmentOnly: !accountId.HasValue);
+        var resolved = await ResolveConfigurationAsync(cancellationToken, accountId);
         return resolved.Provider.Equals("Twilio", StringComparison.OrdinalIgnoreCase)
             && string.Equals(resolved.Get("FromNumber"), to, StringComparison.Ordinal);
     }
 
-    private async Task<SmsProviderConfiguration> ResolveConfigurationAsync(CancellationToken cancellationToken, Guid? accountId = null, bool environmentOnly = false)
+    private async Task<SmsProviderConfiguration> ResolveConfigurationAsync(CancellationToken cancellationToken, Guid? accountId = null)
     {
-        var account = environmentOnly ? null : accountId.HasValue
+        var account = accountId.HasValue
             ? await providerAccounts.GetByIdAsync(accountId.Value, cancellationToken)
             : await providerAccounts.GetDefaultAsync("sms", cancellationToken);
         if (account is not null)
@@ -99,28 +99,8 @@ public sealed class SmsDeliveryService(IHttpClientFactory httpClientFactory, ICo
         if (accountId.HasValue)
             return new SmsProviderConfiguration(accountId, "Unavailable", false, new(), new(), "The SMS provider account assigned to this queued alert is unavailable.", "database");
 
-        var provider = configuration[$"{Section}:Provider"]?.Trim() ?? "Disabled";
-        var settings = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["AccountSid"] = configuration[$"{Section}:Twilio:AccountSid"],
-            ["ApiKeySid"] = configuration[$"{Section}:Twilio:ApiKeySid"],
-            ["FromNumber"] = configuration[$"{Section}:Twilio:FromNumber"],
-            ["WebhookBaseUrl"] = configuration[$"{Section}:Twilio:WebhookBaseUrl"],
-            ["WebhookUsername"] = configuration[$"{Section}:Twilio:WebhookUsername"],
-            ["TestAccountSid"] = configuration[$"{Section}:Twilio:TestAccountSid"],
-        };
-        var secrets = provider.ToLowerInvariant() switch
-        {
-            "twilio" => new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["ApiKeySecret"] = configuration[$"{Section}:Twilio:ApiKeySecret"] ?? "",
-                ["WebhookPassword"] = configuration[$"{Section}:Twilio:WebhookPassword"] ?? "",
-                ["TestAuthToken"] = configuration[$"{Section}:Twilio:TestAuthToken"] ?? "",
-            },
-            "textbelt" => new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["ApiKey"] = configuration[$"{Section}:Textbelt:ApiKey"] ?? "" },
-            _ => new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
-        };
-        return new SmsProviderConfiguration(null, provider, true, settings, secrets, null);
+        return new SmsProviderConfiguration(null, "Disabled", false, new(), new(),
+            "No default SMS provider account is configured. Create and select one in Settings > SMS Test.", "database");
     }
 
     public async Task<TwilioConnectionCheck> CheckTwilioConnectionAsync(CancellationToken cancellationToken, Guid? accountId = null)
@@ -307,10 +287,10 @@ public sealed class SmsDeliveryService(IHttpClientFactory httpClientFactory, ICo
 
     private string? BuildTwilioWebhookUrl(string endpoint, SmsProviderConfiguration resolved)
     {
-        if (!TryGetWebhookBase(resolved, out var baseUri)) return null;
+        if (!resolved.Id.HasValue || !TryGetWebhookBase(resolved, out var baseUri)) return null;
         var builder = new UriBuilder(baseUri)
         {
-            Path = $"{baseUri.AbsolutePath.TrimEnd('/')}/api/sms/webhooks/twilio/{(resolved.Id.HasValue ? $"{resolved.Id.Value:D}/" : string.Empty)}{endpoint}",
+            Path = $"{baseUri.AbsolutePath.TrimEnd('/')}/api/sms/webhooks/twilio/{resolved.Id.Value:D}/{endpoint}",
             UserName = resolved.Get("WebhookUsername"),
             Password = resolved.Secret("WebhookPassword"),
         };
@@ -331,13 +311,13 @@ public sealed class SmsDeliveryService(IHttpClientFactory httpClientFactory, ICo
 
 }
 
-public sealed record SmsConfigurationStatus(string Provider, bool Ready, IReadOnlyList<string> MissingSettings, int DailyLimit, bool AutomaticAlertsReady, IReadOnlyList<string> AutomaticAlertsMissingSettings, string ConfigurationSource = "environment");
+public sealed record SmsConfigurationStatus(string Provider, bool Ready, IReadOnlyList<string> MissingSettings, int DailyLimit, bool AutomaticAlertsReady, IReadOnlyList<string> AutomaticAlertsMissingSettings, string ConfigurationSource = "database");
 public sealed record SmsDeliveryResult(bool Accepted, int? ProviderStatusCode, string? Error, string? ProviderMessageId = null, string? InitialStatus = null);
 public sealed record TwilioConnectionCheck(bool Authenticated, int? HttpStatusCode, string? AccountStatus, string? Error);
 public sealed record TwilioMagicTestResult(bool Accepted, int? HttpStatusCode, int? TwilioErrorCode, string? MessageSid, string? MessageStatus, string? Message);
 
 public sealed record SmsProviderConfiguration(Guid? Id, string Provider, bool Enabled, Dictionary<string, string?> Settings,
-    Dictionary<string, string> Secrets, string? ConfigurationError, string Source = "environment")
+    Dictionary<string, string> Secrets, string? ConfigurationError, string Source = "database")
 {
     public string Get(string key) => Settings.TryGetValue(key, out var value) ? value?.Trim() ?? "" : "";
     public string Secret(string key) => Secrets.TryGetValue(key, out var value) ? value.Trim() : "";

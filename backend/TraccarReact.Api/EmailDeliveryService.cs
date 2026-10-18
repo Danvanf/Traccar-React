@@ -129,32 +129,8 @@ public sealed class EmailDeliveryService(IHttpClientFactory httpClientFactory, I
             return new EmailProviderConfiguration("Unavailable", false, "database", new(), new(),
                 "The email provider account assigned to this queued alert is unavailable. Select or restore that account before retrying.");
 
-        var environmentValues = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["TenantId"] = configuration[$"{Section}:Graph:TenantId"],
-            ["ClientId"] = configuration[$"{Section}:Graph:ClientId"],
-            ["ClientSecret"] = configuration[$"{Section}:Graph:ClientSecret"],
-            ["From"] = configuration[$"{Section}:Resend:From"],
-            ["FromEmail"] = configuration[$"{Section}:Brevo:FromEmail"],
-            ["FromName"] = configuration[$"{Section}:Brevo:FromName"],
-        };
-        var provider = configuration[$"{Section}:Provider"]?.Trim() ?? "Disabled";
-        var environmentSecrets = provider.ToLowerInvariant() switch
-        {
-            "graph" => new Dictionary<string, string>(StringComparer.Ordinal) { ["ClientSecret"] = configuration[$"{Section}:Graph:ClientSecret"] ?? "" },
-            "resend" => new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["ApiKey"] = configuration[$"{Section}:Resend:ApiKey"] ?? "",
-                ["WebhookSecret"] = configuration[$"{Section}:Resend:WebhookSecret"] ?? "",
-            },
-            "brevo" => new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["ApiKey"] = configuration[$"{Section}:Brevo:ApiKey"] ?? "",
-                ["WebhookToken"] = configuration[$"{Section}:Brevo:WebhookToken"] ?? "",
-            },
-            _ => new Dictionary<string, string>(StringComparer.Ordinal),
-        };
-        return new EmailProviderConfiguration(provider, true, "environment", environmentValues, environmentSecrets, null);
+        return new EmailProviderConfiguration("Disabled", false, "database", new(), new(),
+            "No default email provider account is configured. Create and select one in Settings > Email Alerts.");
     }
 
     private async Task<EmailDeliveryResult> SendGraphAsync(string to, string subject, string body, string senderUserId, EmailProviderConfiguration resolved, CancellationToken cancellationToken, IReadOnlyList<EmailAttachment>? attachments)
@@ -281,7 +257,7 @@ public sealed class EmailDeliveryService(IHttpClientFactory httpClientFactory, I
             $"{stage} failed (HTTP {(int)response.StatusCode}). Check provider credentials, permissions, and sender setup.", stage);
 }
 
-public sealed record EmailConfigurationStatus(string Provider, bool Ready, IReadOnlyList<string> MissingSettings, string Source = "environment");
+public sealed record EmailConfigurationStatus(string Provider, bool Ready, IReadOnlyList<string> MissingSettings, string Source = "database");
 public sealed record EmailConnectionCheckResult(bool Success, string Message);
 public sealed record EmailDeliveryResult(bool Accepted, int? ProviderStatusCode, string? Error, string? Stage = null, string? ProviderMessageId = null);
 public sealed record EmailAttachment(string FileName, string ContentType, byte[] Content);

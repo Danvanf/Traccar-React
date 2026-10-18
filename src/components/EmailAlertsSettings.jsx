@@ -356,7 +356,7 @@ export default function EmailAlertsSettings({ baseUrl, vehicleAuth, vehicles }) 
     {vehicleAuth?.authenticated && !draft && <p className="profile-editor-help">{message ? 'Email alert preferences are unavailable.' : 'Loading email alert preferences…'}</p>}
     {draft && <>
       {providerStatus && <p className="profile-editor-help">
-        Email provider: {providerStatus.provider} ({providerStatus.configurationSource || 'environment'}) — {providerStatus.ready ? 'configured; send a test to check delivery' : 'needs settings'}
+        Email provider: {providerStatus.provider} ({providerStatus.configurationSource || 'database'}) — {providerStatus.ready ? 'configured; send a test to check delivery' : 'needs settings'}
         {providerStatus.missingSettings?.length > 0 ? ` (missing ${providerStatus.missingSettings.join(', ')})` : ''}
       </p>}
       {vehicleAuth?.role === 'admin' && <div className="actions">
@@ -364,7 +364,7 @@ export default function EmailAlertsSettings({ baseUrl, vehicleAuth, vehicles }) 
       </div>}
       {vehicleAuth?.role === 'admin' && <>
         <h5>Microsoft Graph API account</h5>
-        <p className="profile-editor-help">A default database account takes priority over email provider environment settings. Saving changes applies to subsequent requests without an API restart.</p>
+        <p className="profile-editor-help">Select a default provider account here. Saving changes applies to subsequent requests without an API restart.</p>
         <label>Graph account
           <select value={graphAccount?.id || ''} onChange={(event) => startGraphAccount(providerAccounts.find((account) => account.id === event.target.value) || null)}>
             <option value="">Select account to edit…</option>

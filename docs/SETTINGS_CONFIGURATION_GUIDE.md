@@ -231,3 +231,8 @@ Practical check:
 - Settings appear to reset:
 	- Some fields are browser-local; others are backend persisted.
 	- Verify you are signed into the expected Traccar React API environment.
+
+
+## Server configuration boundary
+
+Provider credentials and webhook secrets are configured only through the Settings account editors. Environment fallback/import support has been removed. Database connectivity, encryption keys, hosting, delivery caps, and optional developer diagnostics remain server configuration. See [API environment configuration](API_ENVIRONMENT_CONFIGURATION.md) for the supported variables and reasons.

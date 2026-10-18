@@ -22,7 +22,6 @@ public static class ProviderAccountEndpoints
         group.MapPost("", CreateAsync);
         group.MapPut("/{accountId:guid}", UpdateAsync);
         group.MapPost("/rotate-credentials", RotateCredentialsAsync);
-        group.MapPost("/import-legacy/{channel}", ImportLegacyAsync);
         group.MapGet("/vehicle-assignments/{channel}", ListVehicleAssignmentsAsync);
         group.MapPut("/vehicles/{vehicleId:guid}/{channel}", SetVehicleAssignmentAsync);
     }
@@ -150,74 +149,6 @@ public static class ProviderAccountEndpoints
         var assignments = new Dictionary<Guid, Guid>();
         while (await reader.ReadAsync(cancellationToken)) assignments[reader.GetGuid(0)] = reader.GetGuid(1);
         return Results.Ok(assignments);
-    }
-
-    private static async Task<IResult> ImportLegacyAsync(string channel, IConfiguration configuration, NpgsqlDataSource dataSource,
-        CredentialProtectionService protection, HttpContext context, CancellationToken cancellationToken)
-    {
-        if (channel is not ("email" or "sms")) return Results.BadRequest(new { error = "Choose email or sms." });
-        var section = channel == "email" ? "TraccarReactApi:Email" : "TraccarReactApi:Sms";
-        var provider = configuration[$"{section}:Provider"]?.Trim();
-        if (string.IsNullOrWhiteSpace(provider) || !Providers.TryGetValue(provider, out var definition) || definition.Channel != channel)
-            return Results.Conflict(new { error = "No supported legacy provider is selected in the environment." });
-        provider = Providers.Keys.First(key => key.Equals(provider, StringComparison.OrdinalIgnoreCase));
-
-        var settings = new Dictionary<string, string?>(StringComparer.Ordinal);
-        var secrets = new Dictionary<string, string?>(StringComparer.Ordinal);
-        void Setting(string name, string key) => settings[name] = configuration[$"{section}:{key}"];
-        void Secret(string name, string key) => secrets[name] = configuration[$"{section}:{key}"];
-        switch (provider.ToLowerInvariant())
-        {
-            case "graph": Setting("TenantId", "Graph:TenantId"); Setting("ClientId", "Graph:ClientId"); Secret("ClientSecret", "Graph:ClientSecret"); break;
-            case "resend": Setting("From", "Resend:From"); Secret("ApiKey", "Resend:ApiKey"); Secret("WebhookSecret", "Resend:WebhookSecret"); break;
-            case "brevo": Setting("FromEmail", "Brevo:FromEmail"); Setting("FromName", "Brevo:FromName"); Secret("ApiKey", "Brevo:ApiKey"); Secret("WebhookToken", "Brevo:WebhookToken"); break;
-            case "textbelt": Secret("ApiKey", "Textbelt:ApiKey"); break;
-            case "twilio":
-                Setting("AccountSid", "Twilio:AccountSid"); Setting("ApiKeySid", "Twilio:ApiKeySid"); Setting("FromNumber", "Twilio:FromNumber");
-                Setting("WebhookBaseUrl", "Twilio:WebhookBaseUrl"); Setting("WebhookUsername", "Twilio:WebhookUsername"); Setting("TestAccountSid", "Twilio:TestAccountSid");
-                Secret("ApiKeySecret", "Twilio:ApiKeySecret"); Secret("WebhookPassword", "Twilio:WebhookPassword"); Secret("TestAuthToken", "Twilio:TestAuthToken");
-                break;
-        }
-        settings = settings.Where(item => !string.IsNullOrWhiteSpace(item.Value)).ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal);
-        secrets = secrets.Where(item => !string.IsNullOrWhiteSpace(item.Value)).ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal);
-        if (settings.Count == 0 && secrets.Count == 0)
-            return Results.Conflict(new { error = "The selected legacy provider has no configuration values to import." });
-
-        var sourceKey = $"environment:{channel}:{provider}";
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-        var accountId = Guid.NewGuid();
-        var name = $"Imported {provider} (review before enabling)";
-        Dictionary<string, string> encrypted;
-        try { encrypted = EncryptChanges(protection, accountId, secrets); }
-        catch (CredentialProtectionException exception) { return Results.Problem(exception.Message, statusCode: StatusCodes.Status503ServiceUnavailable); }
-        await using (var insert = new NpgsqlCommand("""
-            insert into provider_accounts (id, channel, provider, name, enabled, is_default, settings, legacy_source_key)
-            values (@id, @channel, @provider, @name, false, false, @settings, @sourceKey)
-            on conflict do nothing
-            returning id
-            """, connection, transaction))
-        {
-            insert.Parameters.AddWithValue("id", accountId);
-            insert.Parameters.AddWithValue("channel", channel);
-            insert.Parameters.AddWithValue("provider", provider);
-            insert.Parameters.AddWithValue("name", name);
-            insert.Parameters.Add("settings", NpgsqlDbType.Jsonb).Value = JsonSerializer.Serialize(settings);
-            insert.Parameters.AddWithValue("sourceKey", sourceKey);
-            if (await insert.ExecuteScalarAsync(cancellationToken) is null)
-            {
-                await using var existing = new NpgsqlCommand("select id from provider_accounts where legacy_source_key = @sourceKey", connection, transaction);
-                existing.Parameters.AddWithValue("sourceKey", sourceKey);
-                var existingId = (Guid)(await existing.ExecuteScalarAsync(cancellationToken))!;
-                await transaction.CommitAsync(cancellationToken);
-                return Results.Ok(new { id = existingId, alreadyImported = true, requiresReview = true });
-            }
-        }
-        await WriteSecretsAsync(connection, transaction, accountId, secrets, encrypted, cancellationToken);
-        var changed = settings.Keys.Concat(secrets.Keys.Select(key => $"secret:{key}")).ToArray();
-        await WriteAuditAsync(connection, transaction, accountId, context.User.Identity?.Name ?? "unknown", "created", changed, cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        return Results.Created($"/api/admin/provider-accounts/{accountId}", new { id = accountId, revision = 1, requiresReview = true });
     }
 
     private static async Task<IResult> SetVehicleAssignmentAsync(Guid vehicleId, string channel, VehicleProviderAccountRequest request, NpgsqlDataSource dataSource, CancellationToken cancellationToken)

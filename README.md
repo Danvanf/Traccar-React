@@ -84,7 +84,7 @@ For local AI/development access, `backend/TraccarReact.Api/appsettings.Developme
 
 ## Traccar React API Environment Variables
 
-The `scripts/api-environment.sample.ps1` and `scripts/api-environment.sample.sh` files are separate PowerShell and Bash templates for configuring the API process. **Each sample lists all supported API environment variables, grouped by purpose, with comments for optional or provider-specific settings.** Values are examples or blank placeholders; review and replace them for the installation. Email and SMS are disabled in the samples to avoid enabling outbound messages accidentally. Keep credentials and encryption keys private, and do not commit populated copies.
+The `scripts/api-environment.sample.ps1` and `scripts/api-environment.sample.sh` templates separate required database/key-ring configuration, first-admin bootstrap, and optional hosting, delivery-limit, and developer diagnostic settings. Replace placeholders before use and keep populated copies private. Email/SMS provider accounts, secrets, webhook settings, and Bouncie authorization are managed in Settings, with no environment fallback. See [API configuration](docs/API_ENVIRONMENT_CONFIGURATION.md) for the complete boundary and the reason each remaining setting belongs on the server.
 
 Source the matching file in the same terminal session used to start the API. PowerShell:
 
@@ -100,7 +100,7 @@ source ./scripts/api-environment.sample.sh
 dotnet run --project ./backend/TraccarReact.Api/TraccarReact.Api.csproj
 ```
 
-The primary names use ASP.NET Core's `__` separator for configuration sections (for example, `TraccarReactApi__Sms__Provider`). A few legacy fallback names are included as commented alternatives. The credential key ring uses `TraccarReactApi__CredentialEncryption__ActiveKeyId` and `TraccarReactApi__CredentialEncryption__Keys__<key-id>`; each key value must be Base64 for exactly 32 random bytes. Generate one with `[Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))` in PowerShell or `openssl rand -base64 32` in Bash. Store backups of these keys separately from PostgreSQL. Losing a key makes credentials encrypted with it unrecoverable. Keep old key IDs available through re-encryption and backup-retention periods.
+The primary names use ASP.NET Core's `__` separator for configuration sections (for example, `TraccarReactApi__Email__DailyLimit`). Obsolete aliases and provider credential environment variables are no longer read. The credential key ring uses `TraccarReactApi__CredentialEncryption__ActiveKeyId` and `TraccarReactApi__CredentialEncryption__Keys__<key-id>`; each key value must be Base64 for exactly 32 random bytes. Generate one with `[Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))` in PowerShell or `openssl rand -base64 32` in Bash. Store backups of these keys separately from PostgreSQL. Losing a key makes credentials encrypted with it unrecoverable. Keep old key IDs available through re-encryption and backup-retention periods.
 
 ### Rotate the provider credential key
 
@@ -111,11 +111,11 @@ The primary names use ASP.NET Core's `__` separator for configuration sections (
 
 If rotation reports that a credential could not be decrypted, the current batch is rolled back. Keep the old key configured and restore the correct key value. If that key is lost, the affected provider secret must be replaced in Settings; do not remove the key that still decrypts other records.
 
-The Graph sender mailbox is configured through the app's Settings rather than an environment variable; this lets it vary independently from API credentials. Provider accounts saved in the database take priority over provider environment settings. Environment provider credentials remain a compatibility fallback when there is no database default account. `VITE_*` variables configure the frontend build or development proxy, so they are not included in these API samples.
+The Graph sender mailbox is configured through the app's Settings rather than an environment variable; this lets it vary independently from API credentials. Provider accounts and webhook secrets are read only from the database. Requests using the installation default cannot send until a default account is selected in Settings. `VITE_*` variables configure the frontend build or development proxy, so they are not included in these API samples.
 
 Administrators can manage Microsoft Graph accounts under Settings > Email Alerts and Twilio accounts under Settings > SMS Test, including per-vehicle account overrides. The API encrypts provider secrets before storing them in PostgreSQL; the browser only sees whether each secret is configured. “Check Graph Credentials” requests an OAuth token from Microsoft Entra but does not verify Graph `Mail.Send` permission or the sender mailbox. “Check Connection” for Twilio verifies its API credentials. Test sends remain separate deliberate actions. New email and automatic SMS alerts retain the selected account when they enter the queue; email alerts also retain the sender mailbox. Changing defaults does not redirect alerts already queued. Keep the configured key ring with the database backups needed to restore these accounts.
 
-Existing Bouncie credentials encrypted with `TraccarReactApi__Bouncie__EncryptionKey` remain readable during migration. Once the shared credential key ring is configured, API startup migrates those records to the shared format. Keep the legacy Bouncie key configured until migration has succeeded and any backups that need it have expired. New Bouncie credentials use the shared key ring.
+Bouncie credentials use the shared key ring. The former standalone Bouncie key and its migration path have been removed. Reconnect in Settings if credentials still use the old format.
 
 ## Proxy Target
 

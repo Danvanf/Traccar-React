@@ -18,7 +18,6 @@ public static class ProviderAccountSchema
                     enabled boolean not null default true,
                     is_default boolean not null default false,
                     settings jsonb not null default '{}'::jsonb,
-                    legacy_source_key text,
                     revision integer not null default 1 check (revision > 0),
                     created_at timestamptz not null default now(),
                     updated_at timestamptz not null default now(),
@@ -27,11 +26,6 @@ public static class ProviderAccountSchema
                 );
                 create unique index if not exists provider_accounts_one_default_per_channel
                     on provider_accounts (channel) where is_default;
-                alter table provider_accounts add column if not exists legacy_source_key text;
-                create unique index if not exists provider_accounts_legacy_source_key
-                    on provider_accounts (legacy_source_key) where legacy_source_key is not null;
-                create unique index if not exists provider_accounts_legacy_source_key_v2
-                    on provider_accounts (legacy_source_key) where legacy_source_key is not null;
 
                 create table if not exists provider_account_secrets (
                     account_id uuid not null references provider_accounts(id) on delete cascade,

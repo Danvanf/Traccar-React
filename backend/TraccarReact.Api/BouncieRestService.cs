@@ -24,7 +24,6 @@ public sealed class BouncieRestService
     private readonly NpgsqlDataSource dataSource;
     private readonly ILogger<BouncieRestService> logger;
     private readonly CredentialProtectionService credentialProtection;
-    private readonly byte[]? encryptionKey;
     private readonly HttpClient http = new() { Timeout = TimeSpan.FromSeconds(45) };
     private readonly SemaphoreSlim tokenRefreshGate = new(1, 1);
     private readonly SemaphoreSlim connectionRestoreGate = new(1, 1);
@@ -35,30 +34,16 @@ public sealed class BouncieRestService
     private CancellationTokenSource? syncCancellation;
     private TaskCompletionSource<bool>? emptyResponseDecision;
 
-    public BouncieRestService(NpgsqlDataSource dataSource, ILogger<BouncieRestService> logger, IConfiguration configuration, CredentialProtectionService credentialProtection)
+    public BouncieRestService(NpgsqlDataSource dataSource, ILogger<BouncieRestService> logger, CredentialProtectionService credentialProtection)
     {
         this.dataSource = dataSource;
         this.logger = logger;
         this.credentialProtection = credentialProtection;
-        var encodedKey = configuration["TraccarReactApi:Bouncie:EncryptionKey"]
-            ?? Environment.GetEnvironmentVariable("TRACCAR_REACT_API_BOUNCIE_ENCRYPTION_KEY");
-        if (!string.IsNullOrWhiteSpace(encodedKey))
-        {
-            try
-            {
-                var decoded = Convert.FromBase64String(encodedKey.Trim());
-                if (decoded.Length == 32) encryptionKey = decoded;
-            }
-            catch (FormatException)
-            {
-                // The missing/invalid key is reported when a connection is attempted.
-            }
-        }
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
-        if (encryptionKey is null && !credentialProtection.HasConfiguration) return;
+        if (!credentialProtection.HasConfiguration) return;
         await connectionRestoreGate.WaitAsync(cancellationToken);
         try
         {
@@ -71,8 +56,6 @@ public sealed class BouncieRestService
             lock (gate) hasStoredCredentials = true;
             var clientSecret = Unprotect(stored.ClientSecretCiphertext, ClientSecretPurpose);
             var refreshToken = Unprotect(stored.RefreshTokenCiphertext, RefreshTokenPurpose);
-            if (credentialProtection.CanProtect)
-                await MigrateLegacyCredentialsAsync(stored, clientSecret, refreshToken, cancellationToken);
             var restored = await RefreshConnectionAsync(stored.ClientId, clientSecret, refreshToken, stored.RedirectUri, cancellationToken);
             lock (gate)
             {
@@ -330,10 +313,9 @@ public sealed class BouncieRestService
 
     private void EnsureEncryptionKey()
     {
-        if (credentialProtection.HasConfiguration && !credentialProtection.CanProtect)
-            throw new InvalidOperationException(credentialProtection.ConfigurationError ?? "The shared credential encryption key ring is invalid.");
-        if (!credentialProtection.CanProtect && encryptionKey is null)
-            throw new InvalidOperationException("Credential encryption is not configured. Set the shared TraccarReactApi:CredentialEncryption key ring before saving credentials. The legacy Bouncie key is supported only for existing installations during migration.");
+        if (!credentialProtection.CanProtect)
+            throw new InvalidOperationException(credentialProtection.ConfigurationError
+                ?? "Set the shared TraccarReactApi:CredentialEncryption key ring before saving credentials.");
     }
 
     private static string FormatDetail(string? detail) => string.IsNullOrWhiteSpace(detail) ? "." : $" Bouncie response: {detail}.";
@@ -426,33 +408,6 @@ public sealed class BouncieRestService
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    private async Task MigrateLegacyCredentialsAsync(StoredBouncieCredentials stored, string clientSecret, string refreshToken, CancellationToken cancellationToken)
-    {
-        if (stored.ClientSecretCiphertext.StartsWith("v1.", StringComparison.Ordinal)
-            && stored.RefreshTokenCiphertext.StartsWith("v1.", StringComparison.Ordinal)) return;
-        var clientSecretCiphertext = ProtectClientSecret(clientSecret);
-        var refreshTokenCiphertext = ProtectRefreshToken(refreshToken);
-        try
-        {
-            await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-            await using var command = new NpgsqlCommand("""
-                update bouncie_credentials
-                set client_secret_ciphertext = @clientSecret, refresh_token_ciphertext = @refreshToken, updated_at = now()
-                where id = 1 and client_secret_ciphertext = @oldClientSecret and refresh_token_ciphertext = @oldRefreshToken
-                """, connection);
-            command.Parameters.AddWithValue("clientSecret", clientSecretCiphertext);
-            command.Parameters.AddWithValue("refreshToken", refreshTokenCiphertext);
-            command.Parameters.AddWithValue("oldClientSecret", stored.ClientSecretCiphertext);
-            command.Parameters.AddWithValue("oldRefreshToken", stored.RefreshTokenCiphertext);
-            var migrated = await command.ExecuteNonQueryAsync(cancellationToken);
-            if (migrated > 0) logger.LogInformation("Migrated stored Bouncie credentials to the shared credential key ring.");
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            logger.LogWarning(exception, "Bouncie credentials remain in the legacy encryption format; the legacy key must remain configured until migration succeeds.");
-        }
-    }
-
     private async Task SaveSourceSnapshotAsync(string sourceType, string sourceKey, JsonElement payload, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -476,43 +431,11 @@ public sealed class BouncieRestService
     private string Protect(string plaintext, string purpose)
     {
         EnsureEncryptionKey();
-        if (credentialProtection.CanProtect)
-            return credentialProtection.Protect(SharedCredentialAccountId, purpose, plaintext);
-        var plaintextBytes = Encoding.UTF8.GetBytes(plaintext);
-        var nonce = RandomNumberGenerator.GetBytes(12);
-        var tag = new byte[16];
-        var ciphertext = new byte[plaintextBytes.Length];
-        using var aes = new AesGcm(encryptionKey!, 16);
-        aes.Encrypt(nonce, plaintextBytes, ciphertext, tag);
-        CryptographicOperations.ZeroMemory(plaintextBytes);
-        var envelope = new byte[1 + nonce.Length + tag.Length + ciphertext.Length];
-        envelope[0] = 1;
-        Buffer.BlockCopy(nonce, 0, envelope, 1, nonce.Length);
-        Buffer.BlockCopy(tag, 0, envelope, 1 + nonce.Length, tag.Length);
-        Buffer.BlockCopy(ciphertext, 0, envelope, 1 + nonce.Length + tag.Length, ciphertext.Length);
-        CryptographicOperations.ZeroMemory(ciphertext);
-        return Convert.ToBase64String(envelope);
+        return credentialProtection.Protect(SharedCredentialAccountId, purpose, plaintext);
     }
 
-    private string Unprotect(string encoded, string purpose)
-    {
-        if (encoded.StartsWith("v1.", StringComparison.Ordinal))
-            return credentialProtection.Unprotect(SharedCredentialAccountId, purpose, encoded);
-        if (encryptionKey is null)
-            throw new InvalidOperationException("The legacy Bouncie encryption key is required to read credentials that have not yet been migrated.");
-        var envelope = Convert.FromBase64String(encoded);
-        if (envelope.Length < 29 || envelope[0] != 1) throw new InvalidOperationException("Stored Bouncie credential encryption envelope is invalid.");
-        var nonce = envelope.AsSpan(1, 12).ToArray();
-        var tag = envelope.AsSpan(13, 16).ToArray();
-        var ciphertext = envelope.AsSpan(29).ToArray();
-        var plaintext = new byte[ciphertext.Length];
-        using var aes = new AesGcm(encryptionKey!, 16);
-        aes.Decrypt(nonce, ciphertext, tag, plaintext);
-        var value = Encoding.UTF8.GetString(plaintext);
-        CryptographicOperations.ZeroMemory(plaintext);
-        CryptographicOperations.ZeroMemory(ciphertext);
-        return value;
-    }
+    private string Unprotect(string encoded, string purpose) =>
+        credentialProtection.Unprotect(SharedCredentialAccountId, purpose, encoded);
 
     private async Task RunImportAsync(Guid jobId, DateTimeOffset from, DateTimeOffset through, CancellationToken cancellationToken)
     {

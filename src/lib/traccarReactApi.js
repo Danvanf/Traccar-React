@@ -223,13 +223,6 @@ export async function saveProviderAccount(baseUrl, account, accountId = null) {
   return response.json()
 }
 
-export async function importLegacyProviderAccount(baseUrl, channel) {
-  const url = `${normalizeTraccarReactApiBase(baseUrl)}/api/admin/provider-accounts/import-legacy/${encodeURIComponent(channel)}`
-  const response = await vehicleFetch(url, { method: 'POST', headers: { Accept: 'application/json' } })
-  if (!response.ok) throw await toResponseError(response, 'Importing legacy provider configuration failed', url)
-  return response.json()
-}
-
 export async function checkEmailProviderAccount(baseUrl, accountId) {
   const url = `${normalizeTraccarReactApiBase(baseUrl)}/api/admin/email/provider-accounts/${encodeURIComponent(accountId)}/check`
   const response = await vehicleFetch(url, { method: 'POST', headers: { Accept: 'application/json' } })

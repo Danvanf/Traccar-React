@@ -60,8 +60,6 @@ services:
       TraccarReactApi__CredentialEncryption__ActiveKeyId: first-test
       TraccarReactApi__CredentialEncryption__Keys__first-test: ${TRACCAR_REACT_API_CREDENTIAL_KEY}
       Traccar__BaseUrl: http://traccar:8082
-      TraccarReactApi__Email__Provider: Disabled
-      TraccarReactApi__Sms__Provider: Disabled
     expose:
       - "5124"
 

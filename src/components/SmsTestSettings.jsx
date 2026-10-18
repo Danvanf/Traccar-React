@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { checkTwilioProviderAccount, fetchProviderAccounts, fetchSmsProviderStatus, fetchVehicleSmsProviderAssignments, importLegacyProviderAccount, saveProviderAccount, saveVehicleSmsProviderAssignment, sendSmsTest } from '../lib/traccarReactApi'
+import { checkTwilioProviderAccount, fetchProviderAccounts, fetchSmsProviderStatus, fetchVehicleSmsProviderAssignments, saveProviderAccount, saveVehicleSmsProviderAssignment, sendSmsTest } from '../lib/traccarReactApi'
 
 const fromTwilioAccount = (account) => {
   const setting = (name) => account.settings?.[name] || account.settings?.[name[0].toLowerCase() + name.slice(1)] || ''
@@ -145,23 +145,6 @@ export default function SmsTestSettings({ baseUrl, vehicles = [] }) {
     } catch (error) { setMessage(error.message) } finally { setBusy(false) }
   }
 
-  const importLegacySms = async () => {
-    setBusy(true)
-    setMessage('')
-    try {
-      const imported = await importLegacyProviderAccount(baseUrl, 'sms')
-      const accounts = await fetchProviderAccounts(baseUrl)
-      setProviderAccounts(accounts)
-      const account = accounts.find((item) => item.id === imported.id)
-      if (account?.provider === 'Twilio') startTwilioAccount(account)
-      if (account?.provider === 'Textbelt') setTextbeltAccount(fromTextbeltAccount(account))
-      setStatus(await fetchSmsProviderStatus(baseUrl))
-      setMessage(imported.alreadyImported
-        ? 'This legacy SMS configuration was already imported; its saved values were left unchanged.'
-        : 'Legacy SMS settings imported as a disabled account. Review it, then enable and select it when ready.')
-    } catch (error) { setMessage(error.message) } finally { setBusy(false) }
-  }
-
   const send = async () => {
     setBusy(true)
     setMessage('')
@@ -178,9 +161,8 @@ export default function SmsTestSettings({ baseUrl, vehicles = [] }) {
 
   return <div className="profile-editor">
     <h4>SMS Test</h4>
-    <div className="actions"><button type="button" className="secondary" onClick={importLegacySms} disabled={busy}>Import Legacy SMS Settings</button></div>
     <h5>Twilio provider account</h5>
-    <p className="profile-editor-help">Database account settings take priority over SMS environment variables and apply without an API restart.</p>
+    <p className="profile-editor-help">Provider accounts are managed here. Saved changes apply without an API restart.</p>
     <label>Twilio account
       <select value={twilioAccount?.id || ''} onChange={(event) => startTwilioAccount(providerAccounts.find((account) => account.id === event.target.value) || null)}>
         <option value="">Select account to edit…</option>
@@ -240,7 +222,7 @@ export default function SmsTestSettings({ baseUrl, vehicles = [] }) {
     </label>)}
     <p className="profile-editor-help">Send one administrator-requested test text to a recipient who has agreed to receive it.</p>
     {status && <p className="profile-editor-help">
-      Provider: {status.provider} ({status.configurationSource || 'environment'}) — {status.ready ? 'configured' : 'needs settings'} · installation limit {status.dailyLimit} accepted test text{status.dailyLimit === 1 ? '' : 's'} per day
+      Provider: {status.provider} ({status.configurationSource || 'database'}) — {status.ready ? 'configured' : 'needs settings'} · installation limit {status.dailyLimit} accepted test text{status.dailyLimit === 1 ? '' : 's'} per day
       {status.missingSettings?.length > 0 ? ` (missing ${status.missingSettings.join(', ')})` : ''}
     </p>}
     {status && <p className="profile-editor-help">

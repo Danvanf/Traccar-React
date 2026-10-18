@@ -5,14 +5,13 @@ using System.Net.Http.Headers;
 var testAccountSid = "AC_TEST_ACCOUNT";
 var testAuthToken = "TEST_AUTH_TOKEN";
 var handler = new MagicNumberResponseHandler();
-var service = new SmsDeliveryService(new SingleClientFactory(handler), new ConfigurationBuilder()
-    .AddInMemoryCollection(new Dictionary<string, string?>
-    {
-        ["TraccarReactApi:Sms:Provider"] = "Twilio",
-        ["TraccarReactApi:Sms:Twilio:TestAccountSid"] = testAccountSid,
-        ["TraccarReactApi:Sms:Twilio:TestAuthToken"] = testAuthToken,
-    })
-    .Build(), new ProviderAccountStore());
+var accounts = new ProviderAccountStore
+{
+    DefaultAccount = new ResolvedProviderAccount(Guid.NewGuid(), "sms", "Twilio", "Test Twilio", true,
+        new() { ["TestAccountSid"] = testAccountSid }, 1,
+        new() { ["TestAuthToken"] = testAuthToken }, null),
+};
+var service = new SmsDeliveryService(new SingleClientFactory(handler), new ConfigurationBuilder().Build(), accounts);
 
 var validTo = "+5571981265131";
 var cases = new (string Name, string From, string To, int ExpectedHttp, int? ExpectedErrorCode)[]
@@ -62,6 +61,79 @@ if (rejected.HttpStatusCode is not null || handler.RequestCount != requestsBefor
 Console.WriteLine("PASS rejects non-magic inputs before contacting Twilio");
 passed++;
 
+// Retired environment configuration must never activate sending or webhook authentication.
+var retired = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+{
+    ["TraccarReactApi:Sms:Provider"] = "Twilio",
+    ["TraccarReactApi:Sms:Twilio:AccountSid"] = "OLD_ACCOUNT",
+    ["TraccarReactApi:Sms:Twilio:ApiKeySid"] = "OLD_KEY",
+    ["TraccarReactApi:Sms:Twilio:ApiKeySecret"] = "OLD_SECRET",
+    ["TraccarReactApi:Sms:Twilio:FromNumber"] = "+15005550006",
+    ["TraccarReactApi:Sms:Twilio:TestAccountSid"] = "OLD_TEST",
+    ["TraccarReactApi:Sms:Twilio:TestAuthToken"] = "OLD_TOKEN",
+    ["TraccarReactApi:Sms:Twilio:WebhookUsername"] = "old",
+    ["TraccarReactApi:Sms:Twilio:WebhookPassword"] = "old",
+    ["TraccarReactApi:Email:Provider"] = "Graph",
+    ["TraccarReactApi:Email:Graph:TenantId"] = "OLD_TENANT",
+    ["TraccarReactApi:Email:Graph:ClientId"] = "OLD_CLIENT",
+    ["TraccarReactApi:Email:Graph:ClientSecret"] = "OLD_SECRET",
+    ["TraccarReactApi:Email:DailyLimit"] = "123",
+    ["TraccarReactApi:Sms:DailyLimit"] = "2",
+    ["TraccarReactApi:Sms:AlertDailyLimit"] = "30",
+}).Build();
+var emptyAccounts = new ProviderAccountStore();
+var sms = new SmsDeliveryService(new SingleClientFactory(handler), retired, emptyAccounts);
+var email = new EmailDeliveryService(new SingleClientFactory(handler), retired, emptyAccounts);
+var requestsBeforeFallbackChecks = handler.RequestCount;
+if ((await sms.GetStatusAsync(CancellationToken.None)).Ready
+    || (await email.GetStatusAsync(CancellationToken.None)).Ready
+    || (await sms.SendTwilioMagicTestAsync("+15005550006", validTo, CancellationToken.None)).Accepted
+    || (await email.SendAsync("test@example.com", "Test", "Test", CancellationToken.None, senderUserId: "test@example.com")).Accepted
+    || await sms.AuthenticateWebhookAsync("Basic b2xkOm9sZA==", null, CancellationToken.None)
+    || handler.RequestCount != requestsBeforeFallbackChecks)
+    throw new Exception("FAIL retired environment credentials must not enable delivery or webhook authentication.");
+if (email.GetDailyLimit() != 123 || sms.GetDailyLimit() != 2 || sms.GetAlertDailyLimit() != 30)
+    throw new Exception("FAIL server delivery limits must remain configurable.");
+Console.WriteLine("PASS retired environment credentials ignored; server limits retained");
+passed++;
+
+// Saved account selection must not fall back when the requested account is missing or disabled.
+accounts.DefaultAccount = accounts.DefaultAccount! with
+{
+    Settings = new() { ["AccountSid"] = "SAVED", ["ApiKeySid"] = "SAVED", ["FromNumber"] = "+15005550006",
+        ["WebhookBaseUrl"] = "https://example.com/traccar-react-api", ["WebhookUsername"] = "saved" },
+    Secrets = new() { ["ApiKeySecret"] = "SAVED", ["WebhookPassword"] = "secret" },
+};
+var savedStatus = await service.GetStatusAsync(CancellationToken.None);
+var callback = await service.GetTwilioStatusCallbackUrlAsync(CancellationToken.None);
+if (!savedStatus.Ready || savedStatus.ConfigurationSource != "database"
+    || callback is null || !callback.Contains($"/twilio/{accounts.DefaultAccount.Id:D}/status")
+    || !await service.AuthenticateWebhookAsync("Basic c2F2ZWQ6c2VjcmV0", accounts.DefaultAccount.Id, CancellationToken.None)
+    || await service.AuthenticateWebhookAsync("Basic c2F2ZWQ6c2VjcmV0", Guid.NewGuid(), CancellationToken.None)
+    || (await service.GetStatusForAccountAsync(Guid.NewGuid(), CancellationToken.None)).Ready)
+    throw new Exception("FAIL saved SMS account selection or webhook identity.");
+accounts.DefaultAccount = accounts.DefaultAccount with { Enabled = false };
+if ((await service.GetStatusAsync(CancellationToken.None)).Ready)
+    throw new Exception("FAIL disabled SMS account must remain disabled.");
+Console.WriteLine("PASS saved SMS account and webhook selection; missing/disabled accounts fail closed");
+passed++;
+
+var emailAccounts = new ProviderAccountStore
+{
+    DefaultAccount = new ResolvedProviderAccount(Guid.NewGuid(), "email", "Graph", "Saved Graph", true,
+        new() { ["TenantId"] = "SAVED_TENANT", ["ClientId"] = "SAVED_CLIENT" }, 1,
+        new() { ["ClientSecret"] = "SAVED_SECRET" }, null),
+};
+var savedEmail = new EmailDeliveryService(new SingleClientFactory(handler), retired, emailAccounts);
+if (!(await savedEmail.GetStatusAsync(CancellationToken.None)).Ready
+    || (await savedEmail.GetStatusForAccountAsync(Guid.NewGuid(), CancellationToken.None)).Ready)
+    throw new Exception("FAIL saved email account selection.");
+emailAccounts.DefaultAccount = emailAccounts.DefaultAccount with { Enabled = false };
+if ((await savedEmail.GetStatusAsync(CancellationToken.None)).Ready)
+    throw new Exception("FAIL disabled email account must remain disabled.");
+Console.WriteLine("PASS saved email account selection; missing/disabled accounts fail closed");
+passed++;
+
 Console.WriteLine($"All {passed} local Twilio API service checks passed. These checks used mocked HTTP responses; no network request was made.");
 
 sealed class SingleClientFactory(HttpMessageHandler handler) : IHttpClientFactory
@@ -98,8 +170,11 @@ sealed record CapturedRequest(HttpMethod Method, string Uri, AuthenticationHeade
 
 public sealed class ProviderAccountStore
 {
-    public Task<ResolvedProviderAccount?> GetDefaultAsync(string channel, CancellationToken cancellationToken) => Task.FromResult<ResolvedProviderAccount?>(null);
-    public Task<ResolvedProviderAccount?> GetByIdAsync(Guid accountId, CancellationToken cancellationToken) => Task.FromResult<ResolvedProviderAccount?>(null);
+    public ResolvedProviderAccount? DefaultAccount { get; set; }
+    public Task<ResolvedProviderAccount?> GetDefaultAsync(string channel, CancellationToken cancellationToken) =>
+        Task.FromResult(DefaultAccount?.Channel == channel ? DefaultAccount : null);
+    public Task<ResolvedProviderAccount?> GetByIdAsync(Guid accountId, CancellationToken cancellationToken) =>
+        Task.FromResult(DefaultAccount?.Id == accountId ? DefaultAccount : null);
 }
 
 public sealed record ResolvedProviderAccount(

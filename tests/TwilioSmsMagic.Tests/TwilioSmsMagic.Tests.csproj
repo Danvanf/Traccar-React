@@ -8,5 +8,6 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <Compile Include="../../backend/TraccarReact.Api/SmsDeliveryService.cs" Link="SmsDeliveryService.cs" />
+    <Compile Include="../../backend/TraccarReact.Api/EmailDeliveryService.cs" Link="EmailDeliveryService.cs" />
   </ItemGroup>
 </Project>

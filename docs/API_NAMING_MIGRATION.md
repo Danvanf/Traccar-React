@@ -65,3 +65,8 @@ Vite's development proxy forwards browser requests beginning with `/traccar-reac
 - Obsolete tracked validation-build outputs have been removed from source control. Generated `bin_*` and `obj_*` folders are ignored.
 
 The application code rename does not itself migrate a live database, restart services, or publish the application repository. Perform the database and deployment steps before restarting an existing installation against the new defaults.
+
+
+## Current configuration after the rename
+
+Use only variables listed in the current [API configuration guide](API_ENVIRONMENT_CONFIGURATION.md). Provider credentials and webhook secrets now come exclusively from accounts saved through Settings; do not rename or recreate old provider environment variables. The standalone Bouncie key, legacy environment aliases, and provider import path have been retired. Preserve the shared encryption key ring used by saved credentials.

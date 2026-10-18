@@ -1,6 +1,5 @@
-# Uses Twilio's test Account SID/Auth Token configured on the API process as
-# TraccarReactApi__Sms__Twilio__TestAccountSid and TraccarReactApi__Sms__Twilio__TestAuthToken.
-# It calls a Development-only API route and never uses the live Twilio credentials.
+# Uses Twilio test Account SID/Auth Token saved on the default Twilio provider
+# account in Settings > SMS Test. It calls a Development-only API route and never uses the live Twilio credentials.
 param(
     [string] $ApiBaseUrl = $(if ($env:TRACCAR_REACT_API_BASE_URL) { $env:TRACCAR_REACT_API_BASE_URL } else { 'http://localhost:5124' })
 )

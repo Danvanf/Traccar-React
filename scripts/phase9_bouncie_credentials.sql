@@ -1,5 +1,5 @@
 -- Phase 9: encrypted Bouncie OAuth credential envelope.
--- The ciphertext is produced by the API with TRACCAR_REACT_API_BOUNCIE_ENCRYPTION_KEY.
+-- The API encrypts credentials with the shared TraccarReactApi:CredentialEncryption key ring.
 -- Never put the encryption key, client secret, refresh token, or authorization
 -- code in this file or in source control.
 

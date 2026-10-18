@@ -10,10 +10,8 @@ using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var authUsername = builder.Configuration["TraccarReactApi:Auth:Username"]
-    ?? Environment.GetEnvironmentVariable("TRACCAR_REACT_API_AUTH_USERNAME");
-var authPassword = builder.Configuration["TraccarReactApi:Auth:Password"]
-    ?? Environment.GetEnvironmentVariable("TRACCAR_REACT_API_AUTH_PASSWORD");
+var authUsername = builder.Configuration["TraccarReactApi:Auth:Username"];
+var authPassword = builder.Configuration["TraccarReactApi:Auth:Password"];
 var allowUnauthenticatedDevelopment = builder.Environment.IsDevelopment()
     && builder.Configuration.GetValue<bool>("TraccarReactApi:Auth:AllowUnauthenticatedDevelopment");
 var authOptions = new TraccarReactApiAuthOptions(authUsername, authPassword, allowUnauthenticatedDevelopment);
@@ -29,9 +27,9 @@ builder.Services.AddProblemDetails(options =>
 builder.Services.AddOpenApi();
 builder.Services.AddSingleton(authOptions);
 builder.Services.AddSingleton(new TraccarDiagnosticsOptions(
-    builder.Configuration["Traccar:BaseUrl"] ?? Environment.GetEnvironmentVariable("TRACCAR_BASE_URL"),
-    builder.Configuration["Traccar:Username"] ?? Environment.GetEnvironmentVariable("TRACCAR_USERNAME"),
-    builder.Configuration["Traccar:Password"] ?? Environment.GetEnvironmentVariable("TRACCAR_PASSWORD")));
+    builder.Configuration["Traccar:BaseUrl"],
+    builder.Configuration["Traccar:Username"],
+    builder.Configuration["Traccar:Password"]));
 builder.Services.AddHttpClient(nameof(DeviceProtocolDiagnosticsEndpoints), client => client.Timeout = TimeSpan.FromSeconds(30));
 builder.Services.AddHttpClient("TraccarProxy", client => client.Timeout = TimeSpan.FromSeconds(60))
     .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
@@ -59,8 +57,7 @@ builder.Services.AddHttpClient("TraccarProxy", client => client.Timeout = TimeSp
             throw new HttpRequestException("Unable to connect to the configured Traccar host.", lastError);
         },
     });
-var traccarProxyBaseUrl = Environment.GetEnvironmentVariable("TRACCAR_BASE_URL")
-    ?? builder.Configuration["Traccar:BaseUrl"]
+var traccarProxyBaseUrl = builder.Configuration["Traccar:BaseUrl"]
     ?? (builder.Environment.IsDevelopment() ? "http://localhost:8082" : "http://traccar:8082");
 builder.Services.AddSingleton(new TraccarProxyOptions(traccarProxyBaseUrl));
 builder.Services.AddHttpClient(nameof(EmailDeliveryService), client => client.Timeout = TimeSpan.FromSeconds(30));

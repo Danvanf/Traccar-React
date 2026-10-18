@@ -9,13 +9,11 @@ public static class SmsAlertWebhookEndpoints
 
     public static void MapSmsAlertWebhookEndpoints(this WebApplication app)
     {
-        app.MapPost("/api/sms/webhooks/twilio/inbound", (HttpRequest request, SmsDeliveryService sms, NpgsqlDataSource dataSource, CancellationToken token) => InboundAsync(request, null, sms, dataSource, token)).AllowAnonymous();
-        app.MapPost("/api/sms/webhooks/twilio/status", (HttpRequest request, SmsDeliveryService sms, NpgsqlDataSource dataSource, CancellationToken token) => StatusAsync(request, null, sms, dataSource, token)).AllowAnonymous();
         app.MapPost("/api/sms/webhooks/twilio/{accountId:guid}/inbound", (HttpRequest request, Guid accountId, SmsDeliveryService sms, NpgsqlDataSource dataSource, CancellationToken token) => InboundAsync(request, accountId, sms, dataSource, token)).AllowAnonymous();
         app.MapPost("/api/sms/webhooks/twilio/{accountId:guid}/status", (HttpRequest request, Guid accountId, SmsDeliveryService sms, NpgsqlDataSource dataSource, CancellationToken token) => StatusAsync(request, accountId, sms, dataSource, token)).AllowAnonymous();
     }
 
-    private static async Task<IResult> InboundAsync(HttpRequest request, Guid? accountId, SmsDeliveryService sms, NpgsqlDataSource dataSource, CancellationToken cancellationToken)
+    private static async Task<IResult> InboundAsync(HttpRequest request, Guid accountId, SmsDeliveryService sms, NpgsqlDataSource dataSource, CancellationToken cancellationToken)
     {
         if (!await sms.AuthenticateWebhookAsync(request.Headers.Authorization.ToString(), accountId, cancellationToken)) return Results.Unauthorized();
         if (!request.HasFormContentType) return Results.BadRequest();
@@ -65,7 +63,7 @@ public static class SmsAlertWebhookEndpoints
         return TwimlOk();
     }
 
-    private static async Task<IResult> StatusAsync(HttpRequest request, Guid? accountId, SmsDeliveryService sms, NpgsqlDataSource dataSource, CancellationToken cancellationToken)
+    private static async Task<IResult> StatusAsync(HttpRequest request, Guid accountId, SmsDeliveryService sms, NpgsqlDataSource dataSource, CancellationToken cancellationToken)
     {
         if (!await sms.AuthenticateWebhookAsync(request.Headers.Authorization.ToString(), accountId, cancellationToken)) return Results.Unauthorized();
         if (!request.HasFormContentType) return Results.BadRequest();
