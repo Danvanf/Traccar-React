@@ -3,7 +3,7 @@
 
 Traccar-focused telemetry tooling for a full self-hosted vehicle history. Includes Bouncie trip-history import downloading all trip data points. Modern React + Vite frontend with a .NET backend for trip analysis, telemetry, and import workflows.
 
-The backend is **Traccar React API** (`traccar_react_api`). See the [Docker deployment guide](TRACCAR_REACT_API_DOCKER_DEPLOYMENT.md) and [migration notes for existing installations](docs/API_NAMING_MIGRATION.md).
+The backend is **Traccar React API** (`traccar_react_api`). For a clean first-test installation of Traccar and Traccar React with one script, see the [automated installation guide on the Wiki](https://github.com/Danvanf/Traccar-React/wiki/Install-Traccar-and-Traccar-React) or its [repository copy](docs/FULL_STACK_INSTALLATION.md). For adding the API to an existing Traccar deployment, see the [Docker deployment guide](TRACCAR_REACT_API_DOCKER_DEPLOYMENT.md); existing installations should also review the [migration notes](docs/API_NAMING_MIGRATION.md).
 
 ## Who This Is For
 
