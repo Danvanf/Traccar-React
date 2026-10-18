@@ -1,8 +1,10 @@
-# Internal Planning Note
+# Current work index
 
-This root file is intentionally minimal for public readability.
+Active project plans and their unresolved items are maintained in the repository so future contributors can review them alongside the code. Historical planning snapshots are in [docs/archive/project-plans](docs/archive/project-plans/README.md).
 
-Current internal roadmap and checklist:
+## Active plans
 
-- maintained in local internal notes (excluded from this public repository)
-- `POST /api/trips/import-by-device` 409 conflict UX implemented: actionable cause codes, retry guidance, and in-UI recovery flow are now active.
+- [Telemetry discovery and focused field editing](docs/TELEMETRY_DISCOVERY_AND_FIELD_EDITING_PLAN.md) — open implementation review items and multi-user verification.
+- [Device protocol profiles](docs/DEVICE_PROTOCOL_PROFILE_TODO.md) — remaining mapping evidence and device profile follow-up.
+
+Check the status near the top of each plan before starting work. Do not treat archived checklists as current.

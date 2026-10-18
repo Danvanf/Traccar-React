@@ -1,0 +1,65 @@
+services:
+  database:
+    image: timescale/timescaledb:latest-pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: traccar_react
+      POSTGRES_USER: traccar_react
+      POSTGRES_PASSWORD: ${TRACCAR_REACT_API_DB_PASSWORD}
+      TRACCAR_REACT_API_DB_PASSWORD: ${TRACCAR_REACT_API_DB_PASSWORD}
+      TIMESCALEDB_TELEMETRY: "off"
+    volumes:
+      - database-data:/var/lib/postgresql/data
+      - ${TRACCAR_REACT_SOURCE_DIR}/scripts/docker_init_traccar_react_api_db.sh:/docker-entrypoint-initdb.d/10-create-traccar-react-api-db.sh:ro
+      - ${TRACCAR_REACT_SOURCE_DIR}/scripts:/traccar-react-api-bootstrap:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U traccar_react -d traccar_react"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  traccar-react-api-api:
+    build:
+      context: ${TRACCAR_REACT_SOURCE_DIR}
+      dockerfile: scripts/installer-templates/Dockerfile.first-test-api
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:5124
+      ConnectionStrings__TraccarReactApi: "Host=database;Port=5432;Database=traccar_react_api;Username=traccar_react_api;Password=${TRACCAR_REACT_API_DB_PASSWORD}"
+      TraccarReactApi__Auth__Username: ${APP_ADMIN_USERNAME}
+      TraccarReactApi__Auth__Password: ${APP_ADMIN_PASSWORD}
+      TraccarReactApi__Auth__AllowUnauthenticatedDevelopment: "false"
+      TraccarReactApi__CredentialEncryption__ActiveKeyId: install
+      TraccarReactApi__CredentialEncryption__Keys__install: ${TRACCAR_REACT_API_CREDENTIAL_KEY}
+      Traccar__BaseUrl: ${TRACCAR_SERVER_URL}
+    expose:
+      - "5124"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - traccar
+
+  web:
+    build:
+      context: ${TRACCAR_REACT_SOURCE_DIR}
+      dockerfile: scripts/installer-templates/Dockerfile.traccar-react-web
+    restart: unless-stopped
+    depends_on:
+      traccar-react-api-api:
+        condition: service_started
+    ports:
+      - "${WEB_BIND_ADDRESS}:${WEB_PORT}:80"
+
+volumes:
+  database-data:
+
+networks:
+  default: {}
+  traccar:
+    external: true
+    name: ${TRACCAR_DOCKER_NETWORK}

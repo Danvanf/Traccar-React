@@ -45,7 +45,7 @@ Recommended defaults still open to refinement: shared interpretation edits apply
 - `DeviceProtocolProfileEditor.jsx` already has the card, inspector, sample preview, mapping validation, and add-key workflow. Extract reusable field-editor content rather than implement a second editor.
 - `carProfiles.js` provides one read-time translator, raw/display values, measurement metadata, legacy conversions, and profile resolution. Keep it as the common interpretation path for graphs, status, reports, and exports.
 - `device-profiles/` supplies the FMM003 baseline and experimental Teltonika/Queclink definitions. It does not currently include an FMM00A definition. Experimental status does not make every mapping eligible for automatic application.
-- `AddingOtherDevices/Output/field-ledger*.csv` and companion notes contain source references, device scope, decoder behavior, and unresolved questions. These are input to a structured catalog, not evidence that illustrative values were captured from hardware.
+- `docs/archive/project-plans/AddingOtherDevices_Output_field-ledger*.csv` and companion notes contain source references, device scope, decoder behavior, and unresolved questions. These are input to a structured catalog, not evidence that illustrative values were captured from hardware.
 - `TelemetryProfileEndpoints.cs` shares profiles with administrator-only writes. Personal labels, immutable revisions, field suggestions, and optimistic concurrency need explicit support.
 - An open graph stores profile objects in `graphGroups[*].profileContext`. A field save must refresh all affected contexts without remounting the graph or leaving it with stale translations.
 - `saveProfileEdits` currently constructs a new definition with selected properties. New provenance/version metadata must survive save, import, export, synchronization, and migration.
@@ -218,7 +218,7 @@ Queclink source review (2026-10-15): public protocol documents used for the GV30
 ## Principal references
 
 - `docs/DEVICE_PROTOCOL_PROFILES.md`, `docs/DEVICE_PROTOCOL_PROFILE_TODO.md`, `docs/TELTONIKA_FMB003_DATA_CATALOG.md`, and `device-profiles/README.md`.
-- Workspace evidence: `../DEVICE_PROFILE_EXPANSION_PROGRESS.md` and `../AddingOtherDevices/Output/` relative to the repository root. These are local review material and are not required runtime resources.
+- Workspace evidence: archived device profile expansion notes and four field ledgers are in docs/archive/project-plans/ and indexed in its README. These are research artifacts, not runtime resources.
 - [Teltonika FMM00A AVL reference](https://wiki.teltonika-gps.com/view/FMM00A_Teltonika_Data_Sending_Parameters_ID): manufacturer meanings require model/hardware/firmware context.
 - [Traccar Teltonika decoder at v6.14.5](https://github.com/traccar/traccar/blob/v6.14.5/src/main/java/org/traccar/protocol/TeltonikaProtocolDecoder.java): pinned reference for generic `io<ID>` fallback and the model-scoped AVL 247 alarm handler. Confirm the actual installed release and device model before treating it as the current decoder contract.
 

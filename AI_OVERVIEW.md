@@ -31,3 +31,7 @@ Telemetry graph export has four outputs: a native-sample telemetry CSV, telemetr
 `src/components/reports/ReportsWorkspace.jsx` offers Usage Summary, Trip Log, Monthly Summary, Named Places, Data Completeness, Driving Events, Utilization Calendar, Business Mileage, Speed Bands, Vehicle Health, and Tracker Health; export is JSON, CSV, or print/save PDF. The saved-data reports use Traccar React API `/api/reports/*`. Speed Bands starts with Traccar React API trip windows, then reads Traccar point speeds; Vehicle/Tracker Health similarly use live Traccar telemetry. Admin-only `/api/admin/reports/{daily|growth|maintenance|retention-preview}` reads `traccar_react_api` operational metrics. Related SQL: `scripts/phase6_*_health.sql` and `scripts/traccar_react_api_*audit.sql`.
 
 Start points: `README.md` (run/test), `TRACCAR_REACT_API_DOCKER_DEPLOYMENT.md` (deployment), `docs/TELTONIKA_FMB003_DATA_CATALOG.md` (device fields), and the API endpoint files for exact contracts. Keep hosts, credentials, and production data out of this handoff.
+
+## Planning documents
+
+Start with NEXT_TODO.md for active plans. The current telemetry and device-profile plans are linked there. Historical plans and session notes are preserved in docs/archive/project-plans/README.md; check the archive status banner and prefer current docs/code when older notes conflict.
