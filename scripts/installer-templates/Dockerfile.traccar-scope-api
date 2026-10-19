@@ -1,0 +1,14 @@
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+WORKDIR /src
+COPY backend/TraccarScope.Api/TraccarScope.Api.csproj backend/TraccarScope.Api/
+RUN dotnet restore backend/TraccarScope.Api/TraccarScope.Api.csproj
+COPY backend/TraccarScope.Api/ backend/TraccarScope.Api/
+RUN dotnet publish backend/TraccarScope.Api/TraccarScope.Api.csproj \
+    -c Release -o /app/publish --no-restore
+
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
+WORKDIR /app
+ENV ASPNETCORE_URLS=http://+:5124
+EXPOSE 5124
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "traccar_scope_api.dll"]
