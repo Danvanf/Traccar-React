@@ -9,7 +9,7 @@ public static class CompletenessReportEndpoints
 
     private static async Task<IResult> GetAsync(
         DateTimeOffset? from, DateTimeOffset? to, Guid? vehicleId, Guid? tagId, string? format, NpgsqlDataSource dataSource,
-        TraccarReactApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken)
+        TraccarScopeApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken)
     {
         var start = from ?? DateTimeOffset.UtcNow.AddMonths(-1);
         var end = to ?? DateTimeOffset.UtcNow;

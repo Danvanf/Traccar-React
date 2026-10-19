@@ -21,7 +21,7 @@ test('app position export round trips into restorable points', () => {
   })
 
   const parsed = parseAppPositionCsv([csv.headers, ...csv.rows].map((row) => row.join(',')).join('\n'), 5)
-  assert.equal(parsed.format, 'traccar-react-positions-v1')
+  assert.equal(parsed.format, 'traccar-scope-positions-v1')
   assert.equal(parsed.rows.length, 1)
   assert.equal(parsed.rows[0].deviceId, 5)
   assert.equal(parsed.rows[0].latitude, 39.92388)

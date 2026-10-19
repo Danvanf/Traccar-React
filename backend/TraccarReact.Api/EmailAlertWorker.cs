@@ -155,7 +155,7 @@ public sealed class EmailAlertWorker(
                    o.provider_batch_id, o.provider_account_id
             from email_alert_outbox o
             join vehicles v on v.id = o.vehicle_id
-            cross join traccar_react_api_email_settings es
+            cross join traccar_scope_api_email_settings es
             left join vehicle_email_senders vs on vs.vehicle_id = o.vehicle_id
             where o.status = 'digest_pending' and o.next_attempt_at <= now()
             order by o.next_attempt_at, o.created_at
@@ -185,7 +185,7 @@ public sealed class EmailAlertWorker(
             select o.id
             from email_alert_outbox o
             join vehicles v on v.id = o.vehicle_id
-            cross join traccar_react_api_email_settings es
+            cross join traccar_scope_api_email_settings es
             left join vehicle_email_senders vs on vs.vehicle_id = o.vehicle_id
             where o.status = 'digest_pending' and o.next_attempt_at = @dueAt
               and o.user_id = @userId and o.recipient_email = @recipient
@@ -322,7 +322,7 @@ public sealed class EmailAlertWorker(
             return;
         }
 
-        var body = new StringBuilder($"Traccar React API quiet-hours digest ({events.Count} events)");
+        var body = new StringBuilder($"Traccar Scope API quiet-hours digest ({events.Count} events)");
         foreach (var item in events)
         {
             var value = item.MeasuredValue.HasValue
@@ -340,7 +340,7 @@ public sealed class EmailAlertWorker(
             await UpdateDigestRowsAsync(connection, events.Select(item => item.Id).ToArray(), "failed", reason, null, null, cancellationToken);
             return;
         }
-        var result = await sender.SendAsync(claim.RecipientEmail, $"Traccar React API: {events.Count} quiet-hours alerts", body.ToString(), cancellationToken, idempotencyKey, claim.SenderUserId, claim.ProviderAccountId);
+        var result = await sender.SendAsync(claim.RecipientEmail, $"Traccar Scope API: {events.Count} quiet-hours alerts", body.ToString(), cancellationToken, idempotencyKey, claim.SenderUserId, claim.ProviderAccountId);
         if (result.Accepted)
         {
             await using var accepted = new NpgsqlCommand("""
@@ -398,7 +398,7 @@ public sealed class EmailAlertWorker(
             from email_alert_outbox o
             join trip_events e on e.id = o.event_id
             join vehicles v on v.id = e.vehicle_id
-            cross join traccar_react_api_email_settings es
+            cross join traccar_scope_api_email_settings es
             left join vehicle_email_senders vs on vs.vehicle_id = e.vehicle_id
             join app_users u on u.id = o.user_id
             join email_alert_preferences p on p.user_id = u.id
@@ -510,7 +510,7 @@ public sealed class EmailAlertWorker(
             await unavailable.ExecuteNonQueryAsync(cancellationToken);
             return;
         }
-        var result = await sender.SendAsync(claim.RecipientEmail, $"Traccar React API: {label}", body, cancellationToken, claim.Id.ToString("N"), senderUserId, claim.ProviderAccountId);
+        var result = await sender.SendAsync(claim.RecipientEmail, $"Traccar Scope API: {label}", body, cancellationToken, claim.Id.ToString("N"), senderUserId, claim.ProviderAccountId);
         if (result.Accepted)
         {
             await using var accepted = new NpgsqlCommand("""

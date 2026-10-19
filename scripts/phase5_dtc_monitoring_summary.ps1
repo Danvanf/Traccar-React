@@ -37,7 +37,7 @@ function Get-WindowMetrics {
 }
 
 Write-Host "Phase 5 DTC monitoring summary" -ForegroundColor Green
-Write-Host "Traccar React API: $ApiBaseUrl"
+Write-Host "Traccar Scope API: $ApiBaseUrl"
 Write-Host "Lookback days: $LookbackDays"
 Write-Host "Limit per vehicle: $LimitPerVehicle"
 

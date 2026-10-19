@@ -1,5 +1,5 @@
--- Phase 5 extension: DTC enrichment tables for traccar_react_api
--- Run against the traccar_react_api database.
+-- Phase 5 extension: DTC enrichment tables for traccar_scope_api
+-- Run against the traccar_scope_api database.
 
 create table if not exists dtc_catalog (
   code text primary key,

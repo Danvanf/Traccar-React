@@ -1,9 +1,9 @@
-# Traccar React Migration
+# Traccar Scope Migration
 
 
 Traccar-focused telemetry tooling for a full self-hosted vehicle history. Includes Bouncie trip-history import downloading all trip data points. Modern React + Vite frontend with a .NET backend for trip analysis, telemetry, and import workflows.
 
-The backend is **Traccar React API** (`traccar_react_api`). To install Traccar React alongside an existing Traccar server with one script, see the [existing-Traccar installation guide](docs/INSTALL_TRACCAR_REACT_ALONGSIDE_TRACCAR.md). For a clean first-test installation of both apps, see the [automated installation guide on the Wiki](https://github.com/Danvanf/Traccar-React/wiki/Install-Traccar-and-Traccar-React) or its [repository copy](docs/FULL_STACK_INSTALLATION.md). For adding the API to an existing Docker deployment manually, see the [Docker deployment guide](TRACCAR_REACT_API_DOCKER_DEPLOYMENT.md); existing installations should also review the [migration notes](docs/API_NAMING_MIGRATION.md).
+The backend is **Traccar Scope API** (`traccar_scope_api`). To install Traccar Scope alongside an existing Traccar server with one script, see the [existing-Traccar installation guide](docs/INSTALL_TRACCAR_SCOPE_ALONGSIDE_TRACCAR.md). For a clean first-test installation of both apps, see the [automated installation guide on the Wiki](https://github.com/Danvanf/Traccar-Scope/wiki/Install-Traccar-and-Traccar-Scope) or its [repository copy](docs/INSTALL_FULL_STACK.md). For adding the API to an existing Docker deployment manually, see [Install Traccar Scope Manual Deployment](docs/INSTALL_TRACCAR_SCOPE_MANUAL_DEPLOYMENT.md). Current API settings are described in the [environment configuration guide](docs/API_ENVIRONMENT_CONFIGURATION.md).
 
 ## Who This Is For
 
@@ -71,18 +71,18 @@ For Settings walkthrough screenshots and section-by-section setup guidance, see:
 ## Run Locally
 
 ```bash
-cd traccar-react
+cd traccar-scope
 npm install
 npm run dev
 ```
 
 Default API base in the app is `/api`.
 
-Traccar React API users authenticate with accounts managed in **Settings > Users and Groups**; those usernames and password hashes are stored in `app_users`. Authentication is independent of server bootstrap credentials, so it remains enabled even when no auth credentials are present in environment variables. The optional `TraccarReactApi:Auth:Username` and `TraccarReactApi:Auth:Password` values are for provisioning a first administrator on a new database, not for normal user sign-in.
+Traccar Scope API users authenticate with accounts managed in **Settings > Users and Groups**; those usernames and password hashes are stored in `app_users`. Authentication is independent of server bootstrap credentials, so it remains enabled even when no auth credentials are present in environment variables. The optional `TraccarScopeApi:Auth:Username` and `TraccarScopeApi:Auth:Password` values are for provisioning a first administrator on a new database, not for normal user sign-in.
 
-For local AI/development access, `backend/TraccarReact.Api/appsettings.Development.json` can set `TraccarReactApi:Auth:AllowUnauthenticatedDevelopment` to `true`. This grants a development admin identity to loopback API requests without a user cookie, while `/auth/status` still reports the actual browser login state so the frontend prompts for and displays a named user. The option is ignored outside `Development`; do not enable it in production.
+For local AI/development access, `backend/TraccarScope.Api/appsettings.Development.json` can set `TraccarScopeApi:Auth:AllowUnauthenticatedDevelopment` to `true`. This grants a development admin identity to loopback API requests without a user cookie, while `/auth/status` still reports the actual browser login state so the frontend prompts for and displays a named user. The option is ignored outside `Development`; do not enable it in production.
 
-## Traccar React API Environment Variables
+## Traccar Scope API Environment Variables
 
 The `scripts/api-environment.sample.ps1` and `scripts/api-environment.sample.sh` templates separate required database/key-ring configuration, first-admin bootstrap, and optional hosting, delivery-limit, and developer diagnostic settings. Replace placeholders before use and keep populated copies private. Email/SMS provider accounts, secrets, webhook settings, and Bouncie authorization are managed in Settings, with no environment fallback. See [API configuration](docs/API_ENVIRONMENT_CONFIGURATION.md) for the complete boundary and the reason each remaining setting belongs on the server.
 
@@ -90,17 +90,17 @@ Source the matching file in the same terminal session used to start the API. Pow
 
 ```powershell
 . .\scripts\api-environment.sample.ps1
-dotnet run --project .\backend\TraccarReact.Api\TraccarReact.Api.csproj
+dotnet run --project .\backend\TraccarScope.Api\TraccarScope.Api.csproj
 ```
 
 Bash:
 
 ```bash
 source ./scripts/api-environment.sample.sh
-dotnet run --project ./backend/TraccarReact.Api/TraccarReact.Api.csproj
+dotnet run --project ./backend/TraccarScope.Api/TraccarScope.Api.csproj
 ```
 
-The primary names use ASP.NET Core's `__` separator for configuration sections (for example, `TraccarReactApi__Email__DailyLimit`). Obsolete aliases and provider credential environment variables are no longer read. The credential key ring uses `TraccarReactApi__CredentialEncryption__ActiveKeyId` and `TraccarReactApi__CredentialEncryption__Keys__<key-id>`; each key value must be Base64 for exactly 32 random bytes. Generate one with `[Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))` in PowerShell or `openssl rand -base64 32` in Bash. Store backups of these keys separately from PostgreSQL. Losing a key makes credentials encrypted with it unrecoverable. Keep old key IDs available through re-encryption and backup-retention periods.
+The primary names use ASP.NET Core's `__` separator for configuration sections (for example, `TraccarScopeApi__Email__DailyLimit`). Obsolete aliases and provider credential environment variables are no longer read. The credential key ring uses `TraccarScopeApi__CredentialEncryption__ActiveKeyId` and `TraccarScopeApi__CredentialEncryption__Keys__<key-id>`; each key value must be Base64 for exactly 32 random bytes. Generate one with `[Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))` in PowerShell or `openssl rand -base64 32` in Bash. Store backups of these keys separately from PostgreSQL. Losing a key makes credentials encrypted with it unrecoverable. Keep old key IDs available through re-encryption and backup-retention periods.
 
 ### Rotate the provider credential key
 
@@ -148,7 +148,7 @@ Settings walkthrough and configuration notes are documented in:
 This README is intentionally brief. Deep operational steps and scripts live in dedicated docs:
 
 - `AI_OVERVIEW.md` (architecture and current milestone status)
-- `TRACCAR_REACT_API_DOCKER_DEPLOYMENT.md` (deployment guidance)
+- `docs/INSTALL_TRACCAR_SCOPE_MANUAL_DEPLOYMENT.md` (manual deployment guidance)
 - `scripts/` (schema migrations, smoke tests, regression runners, health/retention SQL)
 
 Quick checks from repo root:

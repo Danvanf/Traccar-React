@@ -2,7 +2,7 @@ using Npgsql;
 
 public static class VehicleAccess
 {
-    public static async Task<bool> CanReadDeviceAsync(int deviceId, NpgsqlDataSource dataSource, TraccarReactApiAuthOptions options, HttpContext context, CancellationToken cancellationToken)
+    public static async Task<bool> CanReadDeviceAsync(int deviceId, NpgsqlDataSource dataSource, TraccarScopeApiAuthOptions options, HttpContext context, CancellationToken cancellationToken)
     {
         if (!options.Enabled || context.User.IsInRole("admin")) return true;
         if (deviceId <= 0) return false;
@@ -28,7 +28,7 @@ public static class VehicleAccess
         return (bool)(await command.ExecuteScalarAsync(cancellationToken) ?? false);
     }
 
-    public static async Task<HashSet<int>?> GetReadableDeviceIdsAsync(NpgsqlDataSource dataSource, TraccarReactApiAuthOptions options, HttpContext context, CancellationToken cancellationToken)
+    public static async Task<HashSet<int>?> GetReadableDeviceIdsAsync(NpgsqlDataSource dataSource, TraccarScopeApiAuthOptions options, HttpContext context, CancellationToken cancellationToken)
     {
         if (!options.Enabled || context.User.IsInRole("admin")) return null;
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -50,7 +50,7 @@ public static class VehicleAccess
         return ids;
     }
 
-    public static async Task<bool> CanReadTripAsync(Guid tripId, NpgsqlDataSource dataSource, TraccarReactApiAuthOptions options, HttpContext context, CancellationToken cancellationToken)
+    public static async Task<bool> CanReadTripAsync(Guid tripId, NpgsqlDataSource dataSource, TraccarScopeApiAuthOptions options, HttpContext context, CancellationToken cancellationToken)
     {
         if (!options.Enabled || context.User.IsInRole("admin")) return true;
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);

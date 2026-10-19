@@ -23,7 +23,7 @@ public static class ReportEndpoints
         string? timeZone,
         string? units,
         NpgsqlDataSource dataSource,
-        TraccarReactApiAuthOptions authOptions,
+        TraccarScopeApiAuthOptions authOptions,
         HttpContext context,
         CancellationToken cancellationToken)
         => GetUsageSummaryAsync(from, to, "trip", vehicleId, tagId, format, timeZone, units, dataSource, authOptions, context, cancellationToken, "trip-log");
@@ -37,7 +37,7 @@ public static class ReportEndpoints
         string? timeZone,
         string? units,
         NpgsqlDataSource dataSource,
-        TraccarReactApiAuthOptions authOptions,
+        TraccarScopeApiAuthOptions authOptions,
         HttpContext context,
         CancellationToken cancellationToken)
         => GetUsageSummaryAsync(from, to, "month", vehicleId, tagId, format, timeZone, units, dataSource, authOptions, context, cancellationToken, "monthly-summary");
@@ -52,7 +52,7 @@ public static class ReportEndpoints
         string? timeZone,
         string? units,
         NpgsqlDataSource dataSource,
-        TraccarReactApiAuthOptions authOptions,
+        TraccarScopeApiAuthOptions authOptions,
         HttpContext context,
         CancellationToken cancellationToken,
         string reportType = "usage-summary")

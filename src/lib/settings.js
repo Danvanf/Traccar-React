@@ -1,8 +1,8 @@
-export const SETTINGS_KEY = 'traccarReactSettings'
+export const SETTINGS_KEY = 'traccarScopeSettings'
 
 export const DEFAULT_SETTINGS = {
   apiBaseUrl: '/api',
-  traccarReactApiBaseUrl: '/traccar-react-api',
+  traccarScopeApiBaseUrl: '/traccar-scope-api',
   useBackendVehicleCatalog: false,
   username: '',
   password: '',
@@ -34,14 +34,14 @@ export function readSettings() {
     }
 
     const saved = JSON.parse(raw)
-    // Migrate the old property without losing a custom API host.
-    const legacyBase = saved.vehicleApiBaseUrl
-    delete saved.vehicleApiBaseUrl
-    const traccarReactApiBaseUrl = saved.traccarReactApiBaseUrl ?? legacyBase ?? DEFAULT_SETTINGS.traccarReactApiBaseUrl
+    const currentSettings = Object.fromEntries(
+      Object.entries(saved).filter(([key]) =>
+        key !== 'traccarReactApiBaseUrl' && key !== 'vehicleApiBaseUrl',
+      ),
+    )
     return {
       ...DEFAULT_SETTINGS,
-      ...saved,
-      traccarReactApiBaseUrl: String(traccarReactApiBaseUrl).replace(/\/vehicle-api\/?$/i, '/traccar-react-api'),
+      ...currentSettings,
     }
   } catch {
     return DEFAULT_SETTINGS

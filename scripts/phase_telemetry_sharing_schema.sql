@@ -1,6 +1,6 @@
 -- Phase: secure Trip Telemetry Graph sharing foundation.
--- Additive migration. Run against traccar_react_api with:
---   psql -U traccar -d traccar_react_api -f phase_telemetry_sharing_schema.sql
+-- Additive migration. Run against traccar_scope_api with:
+--   psql -U traccar -d traccar_scope_api -f phase_telemetry_sharing_schema.sql
 --
 -- The public URL token is never stored. The API stores only token_hash.
 begin;

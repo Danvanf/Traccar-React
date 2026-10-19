@@ -1,5 +1,5 @@
 export const TELEMETRY_PROFILE_SUPPORT_EMAIL = 'support@rvthinker.com'
-export const TELEMETRY_PROFILE_SUBMISSION_SUBJECT_PREFIX = 'Traccar React:'
+export const TELEMETRY_PROFILE_SUBMISSION_SUBJECT_PREFIX = 'Traccar Scope:'
 export const TELEMETRY_PROFILE_MAX_RANGE_DAYS = 14
 
 export function cloneTelemetryProfile(profile) {

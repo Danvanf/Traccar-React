@@ -5,7 +5,7 @@ public static class SpeedBandReportEndpoints
 {
     public static void MapSpeedBandReportEndpoints(this WebApplication app) => app.MapGet("/api/reports/speed-bands", GetAsync).WithName("GetSpeedBandReport");
 
-    private static async Task<IResult> GetAsync(DateTimeOffset? from, DateTimeOffset? to, Guid? vehicleId, Guid? tagId, NpgsqlDataSource dataSource, TraccarReactApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken)
+    private static async Task<IResult> GetAsync(DateTimeOffset? from, DateTimeOffset? to, Guid? vehicleId, Guid? tagId, NpgsqlDataSource dataSource, TraccarScopeApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken)
     {
         var start = from ?? DateTimeOffset.UtcNow.AddMonths(-1); var end = to ?? DateTimeOffset.UtcNow;
         if (end < start) return Results.BadRequest(new { title = "Invalid report range" });

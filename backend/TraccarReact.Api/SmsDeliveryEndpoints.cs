@@ -59,7 +59,7 @@ public static class SmsDeliveryEndpoints
                     return Results.Problem("The installation-wide SMS test limit has been reached for today.", statusCode: StatusCodes.Status429TooManyRequests);
             }
 
-            const string message = "Traccar React API SMS test. This is a message requested by your system administrator.";
+            const string message = "Traccar Scope API SMS test. This is a message requested by your system administrator.";
             var result = await sms.SendAsync(to, message, cancellationToken);
             await using var audit = new NpgsqlCommand("""
                 insert into sms_test_sends (provider, accepted, provider_status_code)

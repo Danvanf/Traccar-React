@@ -4,7 +4,7 @@ using System.Text.Json;
 
 public sealed class EmailDeliveryService(IHttpClientFactory httpClientFactory, IConfiguration configuration, ProviderAccountStore providerAccounts)
 {
-    private const string Section = "TraccarReactApi:Email";
+    private const string Section = "TraccarScopeApi:Email";
 
     public int GetDailyLimit() => int.TryParse(configuration[$"{Section}:DailyLimit"], out var limit)
         ? Math.Clamp(limit, 1, 10_000)

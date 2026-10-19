@@ -14,7 +14,7 @@ This guide explains each section of the Settings modal, what each setting contro
 For a reverse-proxy deployment, these two values must be correct before most features work:
 
 - `API Base URL`: Traccar API path (commonly `/api` when proxied).
-- `Traccar React API Base URL`: Traccar React API path (commonly `/traccar-react-api` when proxied).
+- `Traccar Scope API Base URL`: Traccar Scope API path (commonly `/traccar-scope-api` when proxied).
 
 If either URL is wrong, symptoms can include empty device lists, missing history, or JSON parse errors.
 
@@ -25,7 +25,7 @@ Shown in [Settings panel 1](screenshots/07-Settings1.png).
 Use this section to set connection and runtime behavior:
 
 - API base URL
-- Traccar React API base URL
+- Traccar Scope API base URL
 - Traccar login credentials
 - polling interval
 - realtime lookback window
@@ -40,10 +40,10 @@ Field details:
 	- Typical value: `/api` (when Apache/Nginx maps `/api/` to Traccar).
 	- Alternate value: `http://<host>:8082/api` if not using reverse-proxy path mapping.
 
-- `Traccar React API Base URL`:
+- `Traccar Scope API Base URL`:
 	- Purpose: base path for app-owned endpoints (`/api/trips/...`, bindings, places, tags, Bouncie).
-	- Typical value: `/traccar-react-api` (when reverse proxy maps it to port 5124).
-	- Alternate value: `http://<host>:5124` when directly exposing Traccar React API.
+	- Typical value: `/traccar-scope-api` (when reverse proxy maps it to port 5124).
+	- Alternate value: `http://<host>:5124` when directly exposing Traccar Scope API.
 
 - `Username (email)` and `Password`:
 	- Purpose: Traccar credentials used for Traccar API access from the frontend session.
@@ -77,7 +77,7 @@ Field details:
 
 - `Device Source`:
 	- `Traccar /devices (default)`: reads active device list directly from Traccar.
-	- `Traccar React API /api/vehicles`: reads from app catalog/binding model.
+	- `Traccar Scope API /api/vehicles`: reads from app catalog/binding model.
 	- Use backend mode when you want catalog-driven visibility instead of raw Traccar device inventory.
 
 ## 2. Vehicle Catalog
@@ -230,7 +230,7 @@ Practical check:
 
 - Settings appear to reset:
 	- Some fields are browser-local; others are backend persisted.
-	- Verify you are signed into the expected Traccar React API environment.
+	- Verify you are signed into the expected Traccar Scope API environment.
 
 
 ## Server configuration boundary

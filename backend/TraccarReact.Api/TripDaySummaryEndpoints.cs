@@ -19,7 +19,7 @@ public static class TripDaySummaryEndpoints
 
     private static async Task<IResult> GetHistorySpanAsync(
         Guid? vehicleId,
-        NpgsqlDataSource dataSource, TraccarReactApiAuthOptions authOptions, HttpContext context,
+        NpgsqlDataSource dataSource, TraccarScopeApiAuthOptions authOptions, HttpContext context,
         CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -47,7 +47,7 @@ public static class TripDaySummaryEndpoints
 
     private static async Task<IResult> GetHistoryMonthSummariesAsync(
         Guid? vehicleId,
-        NpgsqlDataSource dataSource, TraccarReactApiAuthOptions authOptions, HttpContext context,
+        NpgsqlDataSource dataSource, TraccarScopeApiAuthOptions authOptions, HttpContext context,
         CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -82,7 +82,7 @@ public static class TripDaySummaryEndpoints
 
     private static async Task<IResult> GetAsync(
         DateTimeOffset? from, DateTimeOffset? to, Guid? vehicleId,
-        NpgsqlDataSource dataSource, TraccarReactApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken)
+        NpgsqlDataSource dataSource, TraccarScopeApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken)
     {
         if (from.HasValue && to.HasValue && to < from)
             return TypedResults.BadRequest("to must be on or after from.");
@@ -135,7 +135,7 @@ public static class TripDaySummaryEndpoints
         return TypedResults.Ok(rows);
     }
 
-    private static void AddAccessParameters(NpgsqlCommand command, TraccarReactApiAuthOptions options, HttpContext context)
+    private static void AddAccessParameters(NpgsqlCommand command, TraccarScopeApiAuthOptions options, HttpContext context)
     {
         command.Parameters.AddWithValue("authEnabled", options.Enabled);
         command.Parameters.AddWithValue("isAdmin", context.User.IsInRole("admin"));

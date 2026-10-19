@@ -82,7 +82,7 @@ public static class SmsAlertEndpoints
                 stopped.Parameters.AddWithValue("username", context.User.Identity?.Name ?? string.Empty);
                 stopped.Parameters.AddWithValue("phone", phone);
                 if (request.Enabled && (bool?)await stopped.ExecuteScalarAsync(cancellationToken) == true)
-                    return Results.Conflict(new { error = "This number texted STOP. Text START to the Traccar React API number before enabling alerts again." });
+                    return Results.Conflict(new { error = "This number texted STOP. Text START to the Traccar Scope API number before enabling alerts again." });
             }
 
             await using var command = new NpgsqlCommand("""
@@ -195,7 +195,7 @@ public static class SmsAlertEndpoints
                 await transaction.CommitAsync(cancellationToken);
             }
 
-            var result = await sms.SendAsync(phone, $"Traccar React API verification code: {code}. Msg & data rates may apply. Reply STOP to opt out.", cancellationToken);
+            var result = await sms.SendAsync(phone, $"Traccar Scope API verification code: {code}. Msg & data rates may apply. Reply STOP to opt out.", cancellationToken);
             return result.Accepted
                 ? Results.Ok(new { sent = true })
                 : Results.Problem(result.Error, statusCode: StatusCodes.Status502BadGateway);

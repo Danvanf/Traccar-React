@@ -7,7 +7,7 @@ public static class UtilizationReportEndpoints
     public static void MapUtilizationReportEndpoints(this WebApplication app)
         => app.MapGet("/api/reports/utilization", GetAsync).WithName("GetUtilizationReport");
 
-    private static async Task<IResult> GetAsync(DateTimeOffset? from, DateTimeOffset? to, Guid? vehicleId, Guid? tagId, string? format, string? timeZone, string? units, string? groupBy, NpgsqlDataSource dataSource, TraccarReactApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken)
+    private static async Task<IResult> GetAsync(DateTimeOffset? from, DateTimeOffset? to, Guid? vehicleId, Guid? tagId, string? format, string? timeZone, string? units, string? groupBy, NpgsqlDataSource dataSource, TraccarScopeApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken)
     {
         var start = from ?? DateTimeOffset.UtcNow.AddMonths(-1); var end = to ?? DateTimeOffset.UtcNow;
         if (end < start) return Results.BadRequest(new { title = "Invalid report range", detail = "The through date must be on or after the from date." });

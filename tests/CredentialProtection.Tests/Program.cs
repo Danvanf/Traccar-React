@@ -26,14 +26,14 @@ var missingKeyProtector = CreateProtectorWithKeys([], "missing");
 Check("missing active key disables credential writes", !missingKeyProtector.CanProtect);
 CheckThrows("missing active key rejects credential writes", () => missingKeyProtector.Protect(accountId, "ClientSecret", "secret"));
 var upgradedSettings = System.Text.Json.Nodes.JsonNode.Parse(ApiNamingMigration.UpgradeGeneralSettingsJson("""{"vehicleApiBaseUrl":"https://example.test/vehicle-api","pollIntervalMs":12000}"""))!;
-Check("server settings preserve custom host", upgradedSettings["traccarReactApiBaseUrl"]!.GetValue<string>() == "https://example.test/traccar-react-api");
+Check("server settings preserve custom host", upgradedSettings["traccarScopeApiBaseUrl"]!.GetValue<string>() == "https://example.test/traccar-scope-api");
 Check("server settings preserve unrelated fields", upgradedSettings["pollIntervalMs"]!.GetValue<int>() == 12000);
 Console.WriteLine("Credential protection and API naming migration: all checks passed; no database or network access.");
 
 static CredentialProtectionService CreateProtectorWithKeys((string Id, string Value)[] keys, string active)
 {
-    var values = new Dictionary<string, string?> { ["TraccarReactApi:CredentialEncryption:ActiveKeyId"] = active };
-    foreach (var (id, value) in keys) values[$"TraccarReactApi:CredentialEncryption:Keys:{id}"] = value;
+    var values = new Dictionary<string, string?> { ["TraccarScopeApi:CredentialEncryption:ActiveKeyId"] = active };
+    foreach (var (id, value) in keys) values[$"TraccarScopeApi:CredentialEncryption:Keys:{id}"] = value;
     var configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
     return new CredentialProtectionService(configuration);
 }

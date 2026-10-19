@@ -1,7 +1,7 @@
 # Uses Twilio test Account SID/Auth Token saved on the default Twilio provider
 # account in Settings > SMS Test. It calls a Development-only API route and never uses the live Twilio credentials.
 param(
-    [string] $ApiBaseUrl = $(if ($env:TRACCAR_REACT_API_BASE_URL) { $env:TRACCAR_REACT_API_BASE_URL } else { 'http://localhost:5124' })
+    [string] $ApiBaseUrl = $(if ($env:TRACCAR_SCOPE_API_BASE_URL) { $env:TRACCAR_SCOPE_API_BASE_URL } else { 'http://localhost:5124' })
 )
 
 $endpoint = "$($ApiBaseUrl.TrimEnd('/'))/api/admin/sms/twilio-magic-test"

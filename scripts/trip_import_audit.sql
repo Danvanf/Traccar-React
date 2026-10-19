@@ -1,4 +1,4 @@
--- Read-only audit. Connect to the traccar_react_api DATABASE with the app's search_path.
+-- Read-only audit. Connect to the traccar_scope_api DATABASE with the app's search_path.
 -- Do not automatically delete duplicates: their notes/tags/DTC links may differ.
 select traccar_device_id, started_at, ended_at, count(*) as duplicate_count,
        array_agg(id order by id) as trip_ids

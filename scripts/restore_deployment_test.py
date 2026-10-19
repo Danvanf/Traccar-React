@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Restore a Traccar React deployment-test export into a disposable Linux host.
+"""Restore a Traccar Scope deployment-test export into a disposable Linux host.
 
 The tool deliberately supports only the export format/version documented in
 docs/DEPLOYMENT_TEST_DATA_TRANSFER.md. It validates everything before writes,
-and requires separate, explicit PostgreSQL services for Traccar and TraccarReactApi.
+and requires separate, explicit PostgreSQL services for Traccar and TraccarScopeApi.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 
-EXPECTED_FORMAT = 1
+EXPECTED_FORMAT = 2
 SUPPORTED_TRACCAR_VERSION = "6.14.5"
 MAX_ARCHIVE_UNCOMPRESSED = 8 * 1024 * 1024 * 1024
 APP_TABLE_ORDER = (
@@ -116,13 +116,13 @@ def inspect_archive(path: Path) -> tuple[dict[str, Any], dict[str, zipfile.ZipIn
                 fail("Manifest UTC date range is reversed or empty")
         except (KeyError, TypeError, ValueError):
             fail("Manifest UTC date range is invalid")
-        app_prefix = "traccar-react-api"
-        included = manifest.get("includedTraccarReactApiTables")
+        app_prefix = "traccar-scope-api"
+        included = manifest.get("includedTraccarScopeApiTables")
         if not isinstance(included, list) or any(not isinstance(t, str) or t not in APP_TABLE_ORDER for t in included):
-            fail("Manifest has an unknown Traccar React API table list")
+            fail("Manifest has an unknown Traccar Scope API table list")
         missing_required = REQUIRED_APP_TABLES - set(included)
         if missing_required:
-            fail("Archive is missing required Traccar React API tables: " + ", ".join(sorted(missing_required)))
+            fail("Archive is missing required Traccar Scope API tables: " + ", ".join(sorted(missing_required)))
 
         summaries = manifest.get("files")
         if not isinstance(summaries, list):
@@ -164,7 +164,7 @@ def inspect_archive(path: Path) -> tuple[dict[str, Any], dict[str, zipfile.ZipIn
                         records += 1
             if records != summary["records"] or digest.hexdigest() != summary["sha256"]:
                 fail(f"Integrity check failed for {name}: expected {summary['records']} records / {summary['sha256']}, got {records} / {digest.hexdigest()}")
-        manifest["includedTraccarReactApiTables"] = included
+        manifest["includedTraccarScopeApiTables"] = included
         return manifest, infos
 
 
@@ -257,10 +257,10 @@ from (
     rows = json.loads(psql(app_service, sql))
     found = {row["table"] for row in rows}
     if found != set(included_tables):
-        fail("Target Traccar React API schema must be migrated before restore; missing: " + ", ".join(sorted(set(included_tables) - found)))
+        fail("Target Traccar Scope API schema must be migrated before restore; missing: " + ", ".join(sorted(set(included_tables) - found)))
     nonempty = [f"{row['table']}={row['rows']}" for row in rows if row["rows"]]
     if nonempty:
-        fail("Target Traccar React API transfer tables are not empty; refusing to overwrite: " + ", ".join(nonempty))
+        fail("Target Traccar Scope API transfer tables are not empty; refusing to overwrite: " + ", ".join(nonempty))
 
 
 def map_record(record: dict[str, Any], mapping: dict[int, int], table: str) -> dict[str, Any]:
@@ -294,9 +294,9 @@ def map_record(record: dict[str, Any], mapping: dict[int, int], table: str) -> d
         result["eventtime"] = event_time if event_time is not None else server_time
         if result.get("attributes") is not None and not isinstance(result["attributes"], str):
             result["attributes"] = json.dumps(result["attributes"], separators=(",", ":"), ensure_ascii=False)
-    if table == "traccar-react-api/traccar_sources.jsonl" and "base_url" in result:
+    if table == "traccar-scope-api/traccar_sources.jsonl" and "base_url" in result:
         fail("Archive contains excluded traccar_sources.base_url data")
-    if table in {"traccar-react-api/telemetry_profile_revisions.jsonl", "traccar-react-api/telemetry_source_mapping_revisions.jsonl"} and "changed_by" in result:
+    if table in {"traccar-scope-api/telemetry_profile_revisions.jsonl", "traccar-scope-api/telemetry_source_mapping_revisions.jsonl"} and "changed_by" in result:
         fail(f"Archive contains excluded changed_by data in {table}")
     device_columns = {"deviceid"} if table.startswith("traccar/") else {"traccar_device_id"}
     for key in device_columns:
@@ -377,7 +377,7 @@ def copy_archive_to_psql(archive_path: Path, traccar_service: str, app_service: 
     # Keep Traccar and app imports in separate transactions. Backups are the
     # rollback boundary if the second database fails after the first commits.
     restore_database(traccar_service, [("traccar/positions.jsonl", "tc_positions"), ("traccar/events.jsonl", "tc_events")])
-    app_items = [(f"traccar-react-api/{table}.jsonl", table) for table in APP_TABLE_ORDER if table in included_tables]
+    app_items = [(f"traccar-scope-api/{table}.jsonl", table) for table in APP_TABLE_ORDER if table in included_tables]
     restore_database(app_service, app_items)
 
 
@@ -406,7 +406,7 @@ def main() -> int:
     parser.add_argument("--validate-only", action="store_true", help="Validate package and print record counts; do not contact servers or write data")
     parser.add_argument("--target-traccar-url", help="Destination Traccar base URL, e.g. http://127.0.0.1:8082")
     parser.add_argument("--traccar-service", help="pg_service.conf alias for target Traccar PostgreSQL")
-    parser.add_argument("--traccar-react-api-service", help="pg_service.conf alias for target Traccar React API PostgreSQL")
+    parser.add_argument("--traccar-scope-api-service", help="pg_service.conf alias for target Traccar Scope API PostgreSQL")
     parser.add_argument("--device-map", type=Path, help="JSON object mapping source Traccar device IDs to destination IDs")
     parser.add_argument("--confirm-empty-target", action="store_true", help="Confirm both destination databases are disposable and transfer tables are empty")
     parser.add_argument("--execute", action="store_true", help="Perform writes after all preflight checks; requires --confirm-empty-target")
@@ -433,8 +433,8 @@ def main() -> int:
             print("Validation only: no target connection or database writes were attempted.")
             return 0
 
-        if not all((args.target_traccar_url, args.traccar_service, args.traccar_react_api_service, args.device_map)):
-            fail("Restore requires --target-traccar-url, --traccar-service, --traccar-react-api-service, and --device-map (or use --validate-only).")
+        if not all((args.target_traccar_url, args.traccar_service, args.traccar_scope_api_service, args.device_map)):
+            fail("Restore requires --target-traccar-url, --traccar-service, --traccar-scope-api-service, and --device-map (or use --validate-only).")
         if args.execute and not args.confirm_empty_target:
             fail("--execute requires --confirm-empty-target")
         if args.confirm_empty_target:
@@ -460,20 +460,20 @@ def main() -> int:
             source_name = source_by_id[source_id].get("name", "(unnamed)")
             target_name = target_by_id[target_id].get("name", "(unnamed)")
             print(f"Device mapping: {source_id} {source_name!r} -> {target_id} {target_name!r}")
-        included = manifest["includedTraccarReactApiTables"]
-        preflight_databases(args.traccar_service, args.traccar_react_api_service, included)
+        included = manifest["includedTraccarScopeApiTables"]
+        preflight_databases(args.traccar_service, args.traccar_scope_api_service, included)
         print("Preflight passed: exact Traccar version, mapped devices, supported PostgreSQL tables, and empty target transfer/history tables.")
         if not args.execute:
             print("No writes were made. Add --execute --confirm-empty-target after reviewing the mappings and taking target backups.")
             return 0
-        print("Importing Traccar history (positions, then events) and Traccar React API rows in dependency order.")
-        copy_archive_to_psql(args.archive, args.traccar_service, args.traccar_react_api_service, included, mapping)
+        print("Importing Traccar history (positions, then events) and Traccar Scope API rows in dependency order.")
+        copy_archive_to_psql(args.archive, args.traccar_service, args.traccar_scope_api_service, included, mapping)
         psql(args.traccar_service, "\n".join(
             f"select setval(pg_get_serial_sequence('public.{table}', 'id'), coalesce(max(id), 1), max(id) is not null) from public.{table};"
             for table in ("tc_positions", "tc_events")
         ) + "\n")
-        psql(args.traccar_react_api_service, write_app_sequence_sql(included))
-        print("Import completed. Compare manifest counts with both databases before starting Traccar React API or Traccar services.")
+        psql(args.traccar_scope_api_service, write_app_sequence_sql(included))
+        print("Import completed. Compare manifest counts with both databases before starting Traccar Scope API or Traccar services.")
         return 0
     except RestoreError as exc:
         print(f"Restore refused: {exc}", file=sys.stderr)

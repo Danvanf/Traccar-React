@@ -13,7 +13,7 @@ public static class TripRecalculationEndpoints
         Guid tripId,
         RecalculateTripRequest request,
         NpgsqlDataSource dataSource,
-        TraccarReactApiAuthOptions authOptions, HttpContext context,
+        TraccarScopeApiAuthOptions authOptions, HttpContext context,
         CancellationToken cancellationToken)
     {
         if (!await VehicleAccess.CanReadTripAsync(tripId, dataSource, authOptions, context, cancellationToken)) return TypedResults.Forbid();

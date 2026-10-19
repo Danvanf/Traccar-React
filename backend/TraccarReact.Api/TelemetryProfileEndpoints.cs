@@ -18,7 +18,7 @@ public static class TelemetryProfileEndpoints
 
     private static async Task<IResult> ListSharedHistoryAsync(
         NpgsqlDataSource dataSource,
-        TraccarReactApiAuthOptions authOptions,
+        TraccarScopeApiAuthOptions authOptions,
         HttpContext context,
         CancellationToken cancellationToken)
     {
@@ -51,7 +51,7 @@ public static class TelemetryProfileEndpoints
 
     private static async Task<IResult> ListAsync(
         NpgsqlDataSource dataSource,
-        TraccarReactApiAuthOptions authOptions,
+        TraccarScopeApiAuthOptions authOptions,
         HttpContext context,
         CancellationToken cancellationToken)
     {
@@ -83,7 +83,7 @@ public static class TelemetryProfileEndpoints
     private static async Task<IResult> ListRevisionsAsync(
         string profileKey,
         NpgsqlDataSource dataSource,
-        TraccarReactApiAuthOptions authOptions,
+        TraccarScopeApiAuthOptions authOptions,
         HttpContext context,
         CancellationToken cancellationToken)
     {
@@ -120,7 +120,7 @@ public static class TelemetryProfileEndpoints
         string profileKey,
         TelemetryProfileUpsertRequest request,
         NpgsqlDataSource dataSource,
-        TraccarReactApiAuthOptions authOptions,
+        TraccarScopeApiAuthOptions authOptions,
         HttpContext context,
         CancellationToken cancellationToken)
     {
@@ -219,7 +219,7 @@ public static class TelemetryProfileEndpoints
     private static async Task<IResult> DeleteAsync(
         string profileKey,
         NpgsqlDataSource dataSource,
-        TraccarReactApiAuthOptions authOptions,
+        TraccarScopeApiAuthOptions authOptions,
         HttpContext context,
         CancellationToken cancellationToken)
     {
@@ -284,7 +284,7 @@ public static class TelemetryProfileEndpoints
 
     private static async Task<IResult?> AuthorizeAsync(
         NpgsqlDataSource dataSource,
-        TraccarReactApiAuthOptions options,
+        TraccarScopeApiAuthOptions options,
         HttpContext context,
         bool requireAdmin,
         CancellationToken cancellationToken)

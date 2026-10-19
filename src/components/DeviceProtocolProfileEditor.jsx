@@ -4,7 +4,7 @@ import { getProfileFieldGroups } from '../lib/profileFieldGroups'
 import { compatibleTelemetryUnits, getTelemetryUnit, getTelemetryUnitGroups, TELEMETRY_QUANTITY_OPTIONS } from '../lib/telemetryUnits'
 import { restoreProfileField } from '../lib/profileHistory'
 import TelemetryProfileSubmissionDialog from './TelemetryProfileSubmissionDialog'
-import { fetchTelemetryFieldInventory, retryTelemetryFieldInventoryScan } from '../lib/traccarReactApi'
+import { fetchTelemetryFieldInventory, retryTelemetryFieldInventoryScan } from '../lib/traccarScopeApi'
 import { mergeTelemetryFieldInventory } from '../lib/telemetryFieldInventory'
 
 const EMPTY_ATTRIBUTE_MAP = Object.freeze({})

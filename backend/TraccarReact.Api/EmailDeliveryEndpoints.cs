@@ -26,7 +26,7 @@ public static class EmailDeliveryEndpoints
             var sender = request.SenderUserId?.Trim() ?? string.Empty;
             if (!ValidSender(sender)) return Results.BadRequest(new { error = "Enter a valid sender mailbox address, or leave it blank to clear the default." });
             await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-            await using var command = new NpgsqlCommand("update traccar_react_api_email_settings set default_sender_user_id = @sender, updated_at = now() where id = 1", connection);
+            await using var command = new NpgsqlCommand("update traccar_scope_api_email_settings set default_sender_user_id = @sender, updated_at = now() where id = 1", connection);
             command.Parameters.AddWithValue("sender", sender);
             await command.ExecuteNonQueryAsync(cancellationToken);
             return Results.Ok(new { saved = true, defaultSenderUserId = sender });
@@ -161,8 +161,8 @@ public static class EmailDeliveryEndpoints
                 || !MailAddress.TryCreate(recipient, out var parsed) || parsed.Address != recipient)
                 return Results.BadRequest(new { error = "A valid recipient email address is required." });
 
-            var subject = string.IsNullOrWhiteSpace(request.Subject) ? "Traccar React API email test" : request.Subject.Trim();
-            var body = string.IsNullOrWhiteSpace(request.Body) ? "This is a test message from Traccar React API." : request.Body.Trim();
+            var subject = string.IsNullOrWhiteSpace(request.Subject) ? "Traccar Scope API email test" : request.Subject.Trim();
+            var body = string.IsNullOrWhiteSpace(request.Body) ? "This is a test message from Traccar Scope API." : request.Body.Trim();
             if (subject.Length > 200 || body.Length > 4000)
                 return Results.BadRequest(new { error = "Subject or body is too long." });
 
@@ -191,7 +191,7 @@ public static class EmailDeliveryEndpoints
     private static async Task<string?> GetDefaultSenderAsync(NpgsqlDataSource dataSource, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand("select default_sender_user_id from traccar_react_api_email_settings where id = 1", connection);
+        await using var command = new NpgsqlCommand("select default_sender_user_id from traccar_scope_api_email_settings where id = 1", connection);
         return (await command.ExecuteScalarAsync(cancellationToken) as string)?.Trim();
     }
 

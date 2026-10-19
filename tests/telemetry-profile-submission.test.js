@@ -34,7 +34,7 @@ const base = {
 test('submission includes every telemetry field by default and states its use', () => {
   const draft = buildTelemetryProfileSubmissionDraft(base)
 
-  assert.match(draft.subject, /^Traccar React:/)
+  assert.match(draft.subject, /^Traccar Scope:/)
   assert.equal(draft.to, 'support@rvthinker.com')
   assert.equal(draft.request.excludedPositionFields.length, 0)
   assert.equal(draft.request.positions[0].latitude, 40.1)

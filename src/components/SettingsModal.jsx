@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { DEFAULT_SPEED_BANDS } from '../lib/speedBands'
 import { DEFAULT_MAP_POPUP_FIELDS, DEFAULT_STATUS_CARD_FIELDS, getStatusCardFieldOptions, normalizeStatusCardFields } from '../lib/statusCardFields'
-import { fetchTelemetryFieldInventory, fetchVehicleEmailSender, fetchVehicleSpeedBands, saveVehicleEmailSender, saveVehicleSpeedBands as persistVehicleSpeedBands } from '../lib/traccarReactApi'
+import { fetchTelemetryFieldInventory, fetchVehicleEmailSender, fetchVehicleSpeedBands, saveVehicleEmailSender, saveVehicleSpeedBands as persistVehicleSpeedBands } from '../lib/traccarScopeApi'
 import AdminAccessPanel from './AdminAccessPanel'
 import EmailAlertsSettings from './EmailAlertsSettings'
 import SmsTestSettings from './SmsTestSettings'
@@ -153,7 +153,7 @@ function SettingsModal({
   continueBouncieImport,
   forgetBouncieCredentials,
   restoreBouncieConnection,
-  traccarReactApiBaseUrl,
+  traccarScopeApiBaseUrl,
   vehicleAuth,
 }) {
   const modalRef = useRef(null)
@@ -301,11 +301,11 @@ function SettingsModal({
       const saved = JSON.parse(localStorage.getItem('traccarVehicleSpeedBands') || '{}')
       setSpeedBands(saved[speedBandVehicleId] || DEFAULT_SPEED_BANDS)
     } catch { setSpeedBands(DEFAULT_SPEED_BANDS) }
-    if (traccarReactApiBaseUrl) fetchVehicleSpeedBands(traccarReactApiBaseUrl, speedBandVehicleId).then((payload) => {
+    if (traccarScopeApiBaseUrl) fetchVehicleSpeedBands(traccarScopeApiBaseUrl, speedBandVehicleId).then((payload) => {
       if (active && payload?.bands) setSpeedBands(payload.bands)
     }).catch(() => {})
     return () => { active = false }
-  }, [speedBandVehicleId, traccarReactApiBaseUrl])
+  }, [speedBandVehicleId, traccarScopeApiBaseUrl])
   useEffect(() => {
       setCardFields(normalizeStatusCardFields(statusCardFieldsByVehicle?.[vehicleEditId] || DEFAULT_STATUS_CARD_FIELDS))
     setCardFieldsStatus('')
@@ -314,7 +314,7 @@ function SettingsModal({
     setMapPopupFields(normalizeStatusCardFields(mapPopupFieldsByVehicle?.[vehicleEditId] || DEFAULT_MAP_POPUP_FIELDS))
   }, [mapPopupFieldsByVehicle, vehicleEditId])
   useEffect(() => {
-    if (!vehicleDeviceId || !traccarReactApiBaseUrl) {
+    if (!vehicleDeviceId || !traccarScopeApiBaseUrl) {
       setStatusCardInventory(null)
       setStatusCardInventoryError('')
       return undefined
@@ -323,19 +323,19 @@ function SettingsModal({
     setStatusCardInventory(null)
     setStatusCardInventoryError('')
     setStatusCardInventoryLoading(true)
-    fetchTelemetryFieldInventory(traccarReactApiBaseUrl, vehicleDeviceId)
+    fetchTelemetryFieldInventory(traccarScopeApiBaseUrl, vehicleDeviceId)
       .then((inventory) => { if (active) setStatusCardInventory(inventory) })
       .catch((error) => { if (active) setStatusCardInventoryError(error instanceof Error ? error.message : 'Could not load fields observed on this vehicle.') })
       .finally(() => { if (active) setStatusCardInventoryLoading(false) })
     return () => { active = false }
-  }, [traccarReactApiBaseUrl, vehicleDeviceId])
+  }, [traccarScopeApiBaseUrl, vehicleDeviceId])
   useEffect(() => {
-    if (!vehicleDeviceId || !traccarReactApiBaseUrl || !['queued', 'scanning'].includes(statusCardInventory?.status)) return undefined
+    if (!vehicleDeviceId || !traccarScopeApiBaseUrl || !['queued', 'scanning'].includes(statusCardInventory?.status)) return undefined
     let active = true
     let timer = null
     const poll = async () => {
       try {
-        const inventory = await fetchTelemetryFieldInventory(traccarReactApiBaseUrl, vehicleDeviceId)
+        const inventory = await fetchTelemetryFieldInventory(traccarScopeApiBaseUrl, vehicleDeviceId)
         if (!active) return
         setStatusCardInventory(inventory)
         if (['queued', 'scanning'].includes(inventory.status)) timer = window.setTimeout(poll, 3000)
@@ -348,23 +348,23 @@ function SettingsModal({
     }
     timer = window.setTimeout(poll, 3000)
     return () => { active = false; if (timer) window.clearTimeout(timer) }
-  }, [statusCardInventory?.status, traccarReactApiBaseUrl, vehicleDeviceId])
+  }, [statusCardInventory?.status, traccarScopeApiBaseUrl, vehicleDeviceId])
   useEffect(() => {
     setVehicleEmailSender('')
     setVehicleEmailSenderStatus('')
-    if (vehicleAuth?.role !== 'admin' || !vehicleEditId || !traccarReactApiBaseUrl) return undefined
+    if (vehicleAuth?.role !== 'admin' || !vehicleEditId || !traccarScopeApiBaseUrl) return undefined
     let active = true
-    fetchVehicleEmailSender(traccarReactApiBaseUrl, vehicleEditId)
+    fetchVehicleEmailSender(traccarScopeApiBaseUrl, vehicleEditId)
       .then((value) => { if (active) setVehicleEmailSender(value.senderUserId || '') })
       .catch((error) => { if (active) setVehicleEmailSenderStatus(error.message) })
     return () => { active = false }
-  }, [vehicleAuth?.role, traccarReactApiBaseUrl, vehicleEditId])
+  }, [vehicleAuth?.role, traccarScopeApiBaseUrl, vehicleEditId])
   const saveSpeedBands = async () => {
     if (!speedBandVehicleId) return
     try {
       const saved = JSON.parse(localStorage.getItem('traccarVehicleSpeedBands') || '{}')
       localStorage.setItem('traccarVehicleSpeedBands', JSON.stringify({ ...saved, [speedBandVehicleId]: speedBands }))
-      if (traccarReactApiBaseUrl) await persistVehicleSpeedBands(traccarReactApiBaseUrl, speedBandVehicleId, speedBands)
+      if (traccarScopeApiBaseUrl) await persistVehicleSpeedBands(traccarScopeApiBaseUrl, speedBandVehicleId, speedBands)
       window.dispatchEvent(new CustomEvent('vehicle-speed-bands-updated', { detail: { vehicleId: speedBandVehicleId, bands: speedBands } }))
       setSpeedBandStatus('Speed bands saved for this vehicle.')
     } catch (error) {
@@ -377,8 +377,8 @@ function SettingsModal({
     if (!source || !window.confirm(`Copy speed bands from ${source.displayName}? The current editor values will be replaced; save to keep the copy.`)) return
     try {
       let copied = null
-      if (traccarReactApiBaseUrl) {
-        const payload = await fetchVehicleSpeedBands(traccarReactApiBaseUrl, speedBandCopySourceId)
+      if (traccarScopeApiBaseUrl) {
+        const payload = await fetchVehicleSpeedBands(traccarScopeApiBaseUrl, speedBandCopySourceId)
         copied = payload?.bands || null
       }
       if (!copied) {
@@ -416,9 +416,9 @@ function SettingsModal({
     }
   }
   const saveVehicleEmailSenderSetting = async () => {
-    if (!vehicleEditId || !traccarReactApiBaseUrl) return
+    if (!vehicleEditId || !traccarScopeApiBaseUrl) return
     try {
-      const result = await saveVehicleEmailSender(traccarReactApiBaseUrl, vehicleEditId, vehicleEmailSender.trim())
+      const result = await saveVehicleEmailSender(traccarScopeApiBaseUrl, vehicleEditId, vehicleEmailSender.trim())
       setVehicleEmailSender(result.senderUserId || '')
       setVehicleEmailSenderStatus(result.senderUserId ? 'Vehicle sender mailbox saved.' : 'Vehicle override cleared; the default sender will be used.')
     } catch (error) {
@@ -473,7 +473,7 @@ function SettingsModal({
         if (heading) heading.parentElement.classList.toggle('settings-panel-collapsed')
       }}>
         <h3>Settings</h3>
-        <AdminAccessPanel baseUrl={traccarReactApiBaseUrl} isAdmin={vehicleAuth?.role === 'admin'} vehicles={bindingVehicles} devices={bindingDevices} />
+        <AdminAccessPanel baseUrl={traccarScopeApiBaseUrl} isAdmin={vehicleAuth?.role === 'admin'} vehicles={bindingVehicles} devices={bindingDevices} />
         {importRecovery && (
           <div className="settings-conflict-banner" role="status" aria-live="polite">
             <div className="settings-conflict-banner-header">
@@ -529,12 +529,12 @@ function SettingsModal({
           />
         </label>
         <label>
-          Traccar React API Base URL
+          Traccar Scope API Base URL
           <input
             type="text"
-            value={settings.traccarReactApiBaseUrl || '/traccar-react-api'}
-            onChange={(event) => updateSetting('traccarReactApiBaseUrl', event.target.value)}
-            placeholder="/traccar-react-api or http://localhost:5124"
+            value={settings.traccarScopeApiBaseUrl || '/traccar-scope-api'}
+            onChange={(event) => updateSetting('traccarScopeApiBaseUrl', event.target.value)}
+            placeholder="/traccar-scope-api or http://localhost:5124"
             disabled={!canEditGeneralSettings}
           />
         </label>
@@ -617,7 +617,7 @@ function SettingsModal({
               disabled={!canEditGeneralSettings}
             >
               <option value="traccar">Traccar /devices (default)</option>
-              <option value="backend">Traccar React API /api/vehicles</option>
+              <option value="backend">Traccar Scope API /api/vehicles</option>
             </select>
           </label>
         </div>
@@ -630,10 +630,10 @@ function SettingsModal({
         </div>
         <hr className="settings-divider" />
 
-        <EmailAlertsSettings baseUrl={traccarReactApiBaseUrl} vehicleAuth={vehicleAuth} vehicles={bindingVehicles} />
-        <SmsAlertsSettings baseUrl={traccarReactApiBaseUrl} vehicleAuth={vehicleAuth} vehicles={bindingVehicles} />
-        {vehicleAuth?.role === 'admin' && <SmsTestSettings baseUrl={traccarReactApiBaseUrl} vehicles={bindingVehicles} />}
-        {vehicleAuth?.role === 'admin' && <DeploymentTestTransferPanel baseUrl={traccarReactApiBaseUrl} isAdmin />}
+        <EmailAlertsSettings baseUrl={traccarScopeApiBaseUrl} vehicleAuth={vehicleAuth} vehicles={bindingVehicles} />
+        <SmsAlertsSettings baseUrl={traccarScopeApiBaseUrl} vehicleAuth={vehicleAuth} vehicles={bindingVehicles} />
+        {vehicleAuth?.role === 'admin' && <SmsTestSettings baseUrl={traccarScopeApiBaseUrl} vehicles={bindingVehicles} />}
+        {vehicleAuth?.role === 'admin' && <DeploymentTestTransferPanel baseUrl={traccarScopeApiBaseUrl} isAdmin />}
         <hr className="settings-divider" />
 
         <div className="profile-editor">

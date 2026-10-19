@@ -3,7 +3,7 @@ using Npgsql;
 
 public sealed record GlobalGeneralSettings(
     string ApiBaseUrl,
-    string TraccarReactApiBaseUrl,
+    string TraccarScopeApiBaseUrl,
     bool UseBackendVehicleCatalog,
     string Username,
     string Password,
@@ -15,12 +15,12 @@ public sealed record GlobalGeneralSettings(
     bool HasTraccarPassword = false)
 {
     public static GlobalGeneralSettings Defaults { get; } = new(
-        "/api", "/traccar-react-api", false, string.Empty, string.Empty, 5000, 3, 20, "imperial", "auto");
+        "/api", "/traccar-scope-api", false, string.Empty, string.Empty, 5000, 3, 20, "imperial", "auto");
 }
 
 public sealed record SaveGlobalGeneralSettingsRequest(
     string? ApiBaseUrl,
-    string? TraccarReactApiBaseUrl,
+    string? TraccarScopeApiBaseUrl,
     bool UseBackendVehicleCatalog,
     string? Username,
     string? Password,
@@ -130,8 +130,8 @@ public static class GlobalGeneralSettingsEndpoints
         {
             if (string.IsNullOrWhiteSpace(request.ApiBaseUrl) || request.ApiBaseUrl.Length > 500)
                 return Results.BadRequest("API Base URL is required and must be 500 characters or fewer.");
-            if (string.IsNullOrWhiteSpace(request.TraccarReactApiBaseUrl) || request.TraccarReactApiBaseUrl.Length > 500)
-                return Results.BadRequest("Traccar React API Base URL is required and must be 500 characters or fewer.");
+            if (string.IsNullOrWhiteSpace(request.TraccarScopeApiBaseUrl) || request.TraccarScopeApiBaseUrl.Length > 500)
+                return Results.BadRequest("Traccar Scope API Base URL is required and must be 500 characters or fewer.");
             if (request.Username?.Length > 200 || request.Password?.Length > 2000)
                 return Results.BadRequest("Traccar credentials exceed the allowed length.");
             if (request.PollIntervalMs is < 1000 or > 120000)
@@ -149,7 +149,7 @@ public static class GlobalGeneralSettingsEndpoints
                 return Results.Problem("Credential encryption is not configured. The shared Traccar password was not saved.", statusCode: StatusCodes.Status503ServiceUnavailable);
 
             var settings = new GlobalGeneralSettings(
-                request.ApiBaseUrl.Trim(), request.TraccarReactApiBaseUrl.Trim(), request.UseBackendVehicleCatalog,
+                request.ApiBaseUrl.Trim(), request.TraccarScopeApiBaseUrl.Trim(), request.UseBackendVehicleCatalog,
                 request.Username?.Trim() ?? string.Empty, string.Empty, request.PollIntervalMs,
                 request.RealtimeHours, request.MovementThresholdM, request.DisplayUnits!, request.Theme!);
             try

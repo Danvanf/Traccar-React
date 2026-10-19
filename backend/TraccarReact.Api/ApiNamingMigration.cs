@@ -6,13 +6,13 @@ public static class ApiNamingMigration
     {
         var settings = JsonNode.Parse(json)?.AsObject();
         if (settings is null) return json;
-        if (!settings.ContainsKey("traccarReactApiBaseUrl") && settings.TryGetPropertyValue("vehicleApiBaseUrl", out var legacy))
-            settings["traccarReactApiBaseUrl"] = legacy?.DeepClone();
+        if (!settings.ContainsKey("traccarScopeApiBaseUrl") && settings.TryGetPropertyValue("vehicleApiBaseUrl", out var legacy))
+            settings["traccarScopeApiBaseUrl"] = legacy?.DeepClone();
         settings.Remove("vehicleApiBaseUrl");
-        var url = settings["traccarReactApiBaseUrl"]?.GetValue<string>();
-        settings["traccarReactApiBaseUrl"] = string.IsNullOrWhiteSpace(url)
-            ? "/traccar-react-api"
-            : System.Text.RegularExpressions.Regex.Replace(url.Trim(), @"/vehicle-api/?$", "/traccar-react-api", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        var url = settings["traccarScopeApiBaseUrl"]?.GetValue<string>();
+        settings["traccarScopeApiBaseUrl"] = string.IsNullOrWhiteSpace(url)
+            ? "/traccar-scope-api"
+            : System.Text.RegularExpressions.Regex.Replace(url.Trim(), @"/vehicle-api/?$", "/traccar-scope-api", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         return settings.ToJsonString();
     }
 }

@@ -3,7 +3,7 @@ import { defineConfig } from 'vite'
 
 // https://vite.dev/config/
 const traccarTarget = process.env.VITE_TRACCAR_TARGET || 'http://192.168.16.16:8082'
-const traccarReactApiTarget = process.env.VITE_TRACCAR_REACT_API_TARGET || 'http://localhost:5124'
+const traccarScopeApiTarget = process.env.VITE_TRACCAR_SCOPE_API_TARGET || 'http://localhost:5124'
 
 export default defineConfig({
   plugins: [react()],
@@ -14,11 +14,11 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
-      '/traccar-react-api': {
-        target: traccarReactApiTarget,
+      '/traccar-scope-api': {
+        target: traccarScopeApiTarget,
         changeOrigin: true,
         secure: false,
-        rewrite: (path) => path.replace(/^\/traccar-react-api/, ''),
+        rewrite: (path) => path.replace(/^\/traccar-scope-api/, ''),
       },
     },
   },

@@ -13,7 +13,7 @@ public static class TelemetrySourceMappingEndpoints
         app.MapPut("/api/telemetry-source-mappings/{deviceId:int}/{fieldKey}", SaveAsync);
     }
 
-    private static async Task<IResult> ListAsync(int deviceId, NpgsqlDataSource dataSource, TraccarReactApiAuthOptions options, HttpContext context, CancellationToken cancellationToken)
+    private static async Task<IResult> ListAsync(int deviceId, NpgsqlDataSource dataSource, TraccarScopeApiAuthOptions options, HttpContext context, CancellationToken cancellationToken)
     {
         var failure = await AuthorizeAsync(dataSource, options, context, requireAdmin: false, cancellationToken);
         if (failure is not null) return failure;
@@ -44,7 +44,7 @@ public static class TelemetrySourceMappingEndpoints
         }
     }
 
-    private static async Task<IResult> SaveAsync(int deviceId, string fieldKey, TelemetrySourceMappingSaveRequest request, NpgsqlDataSource dataSource, TraccarReactApiAuthOptions options, HttpContext context, CancellationToken cancellationToken)
+    private static async Task<IResult> SaveAsync(int deviceId, string fieldKey, TelemetrySourceMappingSaveRequest request, NpgsqlDataSource dataSource, TraccarScopeApiAuthOptions options, HttpContext context, CancellationToken cancellationToken)
     {
         var failure = await AuthorizeAsync(dataSource, options, context, requireAdmin: true, cancellationToken);
         if (failure is not null) return failure;
@@ -99,7 +99,7 @@ public static class TelemetrySourceMappingEndpoints
         }
     }
 
-    private static async Task<IResult?> AuthorizeAsync(NpgsqlDataSource dataSource, TraccarReactApiAuthOptions options, HttpContext context, bool requireAdmin, CancellationToken cancellationToken)
+    private static async Task<IResult?> AuthorizeAsync(NpgsqlDataSource dataSource, TraccarScopeApiAuthOptions options, HttpContext context, bool requireAdmin, CancellationToken cancellationToken)
     {
         if (!options.Enabled) return null;
         var username = context.User.Identity?.Name;

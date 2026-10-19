@@ -1,5 +1,5 @@
 -- Adds optimistic concurrency and immutable snapshots for shared telemetry profiles.
--- Safe to re-run after the Traccar React API schema and profile schema are installed.
+-- Safe to re-run after the Traccar Scope API schema and profile schema are installed.
 ALTER TABLE IF EXISTS telemetry_profiles
   ADD COLUMN IF NOT EXISTS revision bigint NOT NULL DEFAULT 1;
 

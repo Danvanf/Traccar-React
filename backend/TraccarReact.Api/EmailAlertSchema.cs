@@ -32,12 +32,12 @@ public static class EmailAlertSchema
                 alter table email_alert_preferences add constraint email_alert_preferences_quiet_delivery_mode_check check (quiet_delivery_mode in ('suppress', 'digest'));
                 alter table email_alert_preferences add column if not exists time_zone_id text not null default 'UTC';
 
-                create table if not exists traccar_react_api_email_settings (
+                create table if not exists traccar_scope_api_email_settings (
                     id smallint primary key default 1 check (id = 1),
                     default_sender_user_id text not null default '',
                     updated_at timestamptz not null default now()
                 );
-                insert into traccar_react_api_email_settings (id) values (1) on conflict (id) do nothing;
+                insert into traccar_scope_api_email_settings (id) values (1) on conflict (id) do nothing;
 
                 create table if not exists vehicle_email_senders (
                     vehicle_id uuid primary key references vehicles(id) on delete cascade,
@@ -149,7 +149,7 @@ public static class EmailAlertSchema
                            coalesce(nullif(vs.sender_user_id, ''), nullif(es.default_sender_user_id, ''), '')
                     from email_alert_preferences p
                     join app_users u on u.id = p.user_id
-                    cross join traccar_react_api_email_settings es
+                    cross join traccar_scope_api_email_settings es
                     left join vehicle_email_senders vs on vs.vehicle_id = new.vehicle_id
                     where p.enabled and p.verified_at is not null and u.active
                       and new.event_type = any(p.event_types)

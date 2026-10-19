@@ -354,7 +354,7 @@ function Get-ObdHintStats {
 }
 
 Write-Host "Phase 5 DTC Traccar ingest" -ForegroundColor Green
-Write-Host "Traccar React API: $ApiBaseUrl"
+Write-Host "Traccar Scope API: $ApiBaseUrl"
 Write-Host "Traccar API: $TraccarBaseUrl"
 Write-Host "Traccar device ID: $TraccarDeviceId"
 Write-Host ("Source: {0}, Window UTC: {1} -> {2}" -f $Source, $FromUtc.ToString("o"), $ToUtc.ToString("o"))

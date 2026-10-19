@@ -1,16 +1,16 @@
 # Deployment test data transfer
 
-Design and implementation plan for reproducing the developer system's user experience on a fresh Traccar + Traccar React installation without redirecting physical trackers.
+Design and implementation plan for reproducing the developer system's user experience on a fresh Traccar + Traccar Scope installation without redirecting physical trackers.
 
 Implementation progress (2026-10-16): the source status/export endpoints and admin-only download panel are implemented using the existing development API bypass. The export passed a runtime check against the live source: Traccar 6.14.5, four devices, 172,491 positions, 739 events, and 240,105 total records across 24 JSONL data files. All manifest record counts and SHA-256 checksums matched. The temporary 23,023,092-byte archive was inspected by manifest and entry metadata only, then deleted; no copy was retained. The offline restore utility is implemented at `scripts/restore_deployment_test.py`. It validates the package, checks target Traccar version/devices and database emptiness, requires an explicit device-ID map, refuses Timescale hypertables, streams inserts through PostgreSQL `COPY` staging, restores IDs and app rows in dependency order, and resets sequences. Six synthetic package/mapping/preflight tests pass, including a full mocked dry-run through the preflight stop with the import function verified not to run. No deployment export ZIP, local `psql` client, or target server was available for a live preflight; a real PostgreSQL target test remains outstanding.
 
 ## Goal
 
-Create a portable, administrator-controlled snapshot of a selected period of real historical data (initial default: the previous three months). Restore it into a fresh test installation so that maps, trips, telemetry graphs, shared profile interpretations, and profile editing can be exercised immediately. Keep the destination's normal Traccar and Traccar React API databases; the export is a transfer package, not a replacement for configuration or a full server backup.
+Create a portable, administrator-controlled snapshot of a selected period of real historical data (initial default: the previous three months). Restore it into a fresh test installation so that maps, trips, telemetry graphs, shared profile interpretations, and profile editing can be exercised immediately. Keep the destination's normal Traccar and Traccar Scope API databases; the export is a transfer package, not a replacement for configuration or a full server backup.
 
 ## Decisions
 
-- The source export reuses the existing development API bypass; it has no separate server-role variable. It is available only when the API is running with `ASPNETCORE_ENVIRONMENT=Development`, `TraccarReactApi:Auth:AllowUnauthenticatedDevelopment=true`, and the request is loopback, matching `TraccarReactApiAuthOptions.IsDevelopmentBypass`. Authenticated callers still need an active admin account. The destination must not run with this bypass enabled.
+- The source export reuses the existing development API bypass; it has no separate server-role variable. It is available only when the API is running with `ASPNETCORE_ENVIRONMENT=Development`, `TraccarScopeApi:Auth:AllowUnauthenticatedDevelopment=true`, and the request is loopback, matching `TraccarScopeApiAuthOptions.IsDevelopmentBypass`. Authenticated callers still need an active admin account. The destination must not run with this bypass enabled.
 - Every export route also requires an authenticated app administrator. The feature is absent/disabled on ordinary and destination installations, even if the caller is an administrator there.
 - The initial period defaults to the previous three calendar months, represented as explicit UTC instants in the archive manifest. The administrator can choose a bounded date range. Data is selected by event/position time, not database creation time.
 - Traccar versions must match for the first restore. The manifest records the source Traccar version and the importer refuses a mismatch unless a later, explicitly tested compatibility mode is added.
@@ -23,10 +23,10 @@ Create a portable, administrator-controlled snapshot of a selected period of rea
 Use a ZIP containing a versioned manifest and UTF-8 JSONL data files. JSONL supports streaming large histories and gives each record a clean boundary. The archive should include:
 
 - `manifest.json`: package format version, generated time, inclusive/exclusive UTC range, app schema/build version, source Traccar version, per-file row counts and SHA-256 digests, and a source-device inventory sufficient to map old numeric IDs to destination devices.
-- `traccar/devices.jsonl`: only devices represented in the selected Traccar React API fleet/history, with IDs, names, protocol, and a private matching key needed to associate destination devices. Avoid exposing that key in UI/logs; protect the archive as sensitive data.
+- `traccar/devices.jsonl`: only devices represented in the selected Traccar Scope API fleet/history, with IDs, names, protocol, and a private matching key needed to associate destination devices. Avoid exposing that key in UI/logs; protect the archive as sensitive data.
 - `traccar/positions.jsonl`: all Traccar positions for those devices in range, including coordinates and raw attributes. Position IDs are retained so app trip/event references can be restored exactly into a clean target.
 - `traccar/events.jsonl`: Traccar event records for the same devices and interval, retrieved from the reports/events API and retaining event and position IDs for app references.
-- `traccar-react-api/vehicles.jsonl` and supporting rows for trips, route points, tags and tag links, trip events, event thresholds, speed bands, status-card preferences, named places, fuel/maintenance entries, telemetry profiles, profile assignment history, profile revisions, and source-field mapping revisions. Include rows needed as references even when their own creation time falls outside the selected period; apply the date range to time-series/activity rows.
+- `traccar-scope-api/vehicles.jsonl` and supporting rows for trips, route points, tags and tag links, trip events, event thresholds, speed bands, status-card preferences, named places, fuel/maintenance entries, telemetry profiles, profile assignment history, profile revisions, and source-field mapping revisions. Include rows needed as references even when their own creation time falls outside the selected period; apply the date range to time-series/activity rows.
 - A checksum file is redundant with the manifest and is not needed.
 
 Do not include `app_users`, groups, user/group access tables, password hashes, general settings, provider accounts/secrets, email/SMS preferences, Bouncie credentials, database connection settings, migrations unrelated to format validation, or Traccar server configuration. The destination keeps its own admin account, URL, credentials, and service settings.
@@ -36,11 +36,11 @@ Vehicle profile mapping revisions are keyed by Traccar device ID; the archive mu
 ## Source export flow
 
 1. Admin selects a start/end date (pre-filled to the last three months). The first export UI does not run a separate count-preview request; exact per-file counts are written into the completed archive manifest.
-2. API validates the existing development-bypass gate, maximum range, and date order. It reads Traccar's version, devices, positions, and events through the existing configured Traccar API credentials and reads only an allowlisted set of Traccar React API tables.
+2. API validates the existing development-bypass gate, maximum range, and date order. It reads Traccar's version, devices, positions, and events through the existing configured Traccar API credentials and reads only an allowlisted set of Traccar Scope API tables.
 3. API produces the ZIP as a streamed response or a short-lived temporary file. It does not persist an archive indefinitely. Audit only the admin, timestamp, range, counts, result, and request ID; never log device matching keys, coordinates, or archive content.
 4. UI states that the export contains sensitive location/history data and should be stored securely. The package is not automatically emailed or uploaded.
 
-The current API routes are `GET /api/admin/deployment-transfer/status` and `GET /api/admin/deployment-transfer/export?from=<UTC>&to=<UTC>`. Both return 404 unless the existing development bypass is active for the loopback request. A development-bypass identity is treated as the existing local development admin; authenticated callers are checked against active `app_users` role data. The date range is half-open, defaults to three months, and is capped at 184 days. The UI uses UTC calendar dates and explains that the archive contains precise locations. The API streams Traccar positions, events, and minimized device identity records plus a fixed allowlist of Traccar React API tables; it omits `traccar_sources.base_url` and profile-editor `changed_by` fields, and never includes users or credentials.
+The current API routes are `GET /api/admin/deployment-transfer/status` and `GET /api/admin/deployment-transfer/export?from=<UTC>&to=<UTC>`. Both return 404 unless the existing development bypass is active for the loopback request. A development-bypass identity is treated as the existing local development admin; authenticated callers are checked against active `app_users` role data. The date range is half-open, defaults to three months, and is capped at 184 days. The UI uses UTC calendar dates and explains that the archive contains precise locations. The API streams Traccar positions, events, and minimized device identity records plus a fixed allowlist of Traccar Scope API tables; it omits `traccar_sources.base_url` and profile-editor `changed_by` fields, and never includes users or credentials.
 
 The source UI needs no additional setting. Start the local API with its existing Development launch profile so the already configured `AllowUnauthenticatedDevelopment` bypass applies to loopback requests. Do not enable that bypass on the fresh destination or a public installation.
 
@@ -52,9 +52,9 @@ The restore should be a separate, explicit admin operation on the fresh test ins
 
 1. Validate archive format, safe ZIP entry paths, file checksums/counts, range, and source/target Traccar version.
 2. Show a preview of source devices and require an explicit mapping to destination Traccar devices. Use unique ID as a match hint, with a clear manual choice when it differs or collides. Never silently overwrite a different device.
-3. Require an empty or explicitly selected target Traccar React API dataset, then take/require a restorable target backup.
+3. Require an empty or explicitly selected target Traccar Scope API dataset, then take/require a restorable target backup.
 4. Import Traccar positions into the target using a version-pinned importer, while Traccar is stopped or while using a tested maintenance procedure. The public Traccar REST API is read-oriented for position history, so restoring historical positions requires a controlled database import or a protocol replay; use database import for exact records and verify the target schema/version first.
-5. Build source-to-target device and position ID maps, import Traccar React API rows in FK dependency order, and rewrite all soft Traccar ID references and profile mapping device keys. Commit each database atomically where practical and fail with a clear rollback path.
+5. Build source-to-target device and position ID maps, import Traccar Scope API rows in FK dependency order, and rewrite all soft Traccar ID references and profile mapping device keys. Commit each database atomically where practical and fail with a clear rollback path.
 6. Verify counts, time bounds, trip/route associations, telemetry assignment resolution at historical times, and representative graph/map rendering before declaring restore complete.
 
 Do not copy or restore `traccar.xml`, app environment files, source base URLs, encryption keys, or source account records. Changing display names at the destination remains safe because association uses IDs/mapping, not names.
@@ -69,7 +69,7 @@ Do not copy or restore `traccar.xml`, app environment files, source base URLs, e
 
 ## Delivery sequence
 
-1. **Inventory and contract**: finalize the allowlisted app tables and required references against the live Traccar React API schema; record exact source Traccar release and confirm historical positions are obtainable through the configured API.
+1. **Inventory and contract**: finalize the allowlisted app tables and required references against the live Traccar Scope API schema; record exact source Traccar release and confirm historical positions are obtainable through the configured API.
 2. **Export**: complete. The existing development API bypass gates the admin-only status/export endpoints and Settings panel. The ZIP manifest, JSONL checksums/counts, date validation, audit logging, and live-source package integrity have been verified.
 3. **Restore prototype**: implemented as an offline Python 3 utility for a disposable Linux target. It requires separate PostgreSQL libpq service aliases, exact Traccar 6.14.5, pre-created destination devices, explicit ID mapping, empty history/allowlisted app tables, and operator confirmation. Back up the target and verify rollback before using the real export.
 4. **End-to-end test**: export three months from Limestone, restore to the new server, compare record counts and IDs through the translation maps, and walk through a regular user's login, map, history, graph, status cards, and profile editor.
@@ -78,13 +78,13 @@ Do not copy or restore `traccar.xml`, app environment files, source base URLs, e
 ## Open implementation checks
 
 - Record the target Traccar release and confirm it matches package version 6.14.5. The utility enforces the exact version.
-- Confirm the target Traccar React API schema is migrated and compatible. The utility checks included table presence and emptiness, and PostgreSQL rejects incompatible columns/constraints transactionally; a real schema/import test remains outstanding.
+- Confirm the target Traccar Scope API schema is migrated and compatible. The utility checks included table presence and emptiness, and PostgreSQL rejects incompatible columns/constraints transactionally; a real schema/import test remains outstanding.
 - Run the importer against the disposable Linux host, validate counts and application behavior, and confirm restore/rollback before using it for the first deployment test.
 - Confirm archive storage/encryption before copying it to another host. The test archive was deleted after validation; future retained packages contain precise GPS and raw telemetry and should be protected like a database backup.
 
 ## Offline restore utility
 
-The utility is separate from the API and supports only format version 1 and Traccar 6.14.5. It does not create destination devices or application users, copy server configuration, or replace a target database. It translates the API's camelCase fields into Traccar's database columns, including the `eventTime` to `eventtime` rename in the Traccar schema, and serializes API JSON objects for the database's text columns. First migrate both target databases using the normal Traccar/TraccarReactApi startup procedure, create the destination Traccar devices, and use a dedicated disposable target Traccar React API database. Stop Traccar and Traccar React API before the import. Take restorable backups of both target databases and protect the export ZIP as sensitive location data. The field mapping follows the pinned [Traccar v6.14.5 source](https://github.com/traccar/traccar/tree/v6.14.5).
+The utility is separate from the API and supports only format version 2 and Traccar 6.14.5. It does not create destination devices or application users, copy server configuration, or replace a target database. It translates the API's camelCase fields into Traccar's database columns, including the `eventTime` to `eventtime` rename in the Traccar schema, and serializes API JSON objects for the database's text columns. First migrate both target databases using the normal Traccar/TraccarScopeApi startup procedure, create the destination Traccar devices, and use a dedicated disposable target Traccar Scope API database. Stop Traccar and Traccar Scope API before the import. Take restorable backups of both target databases and protect the export ZIP as sensitive location data. The field mapping follows the pinned [Traccar v6.14.5 source](https://github.com/traccar/traccar/tree/v6.14.5).
 
 Install Python 3 and the PostgreSQL client on the Linux host. Configure two aliases in the restore user's `~/.pg_service.conf` (mode 0600), one for each database. Put passwords in `~/.pgpass` (mode 0600) or use another libpq-supported secret mechanism; do not put passwords in shell history or command-line arguments. For example:
 
@@ -97,11 +97,11 @@ port=5432
 dbname=traccar
 user=traccar_restore
 
-[traccar_react_api_restore]
+[traccar_scope_api_restore]
 host=127.0.0.1
 port=5432
-dbname=traccar_react_api
-user=traccar_react_api_restore
+dbname=traccar_scope_api
+user=traccar_scope_api_restore
 ```
 
 The device map is a JSON object from source numeric Traccar IDs to destination IDs. Create the target devices first, then confirm each mapping by device name in the preview. For example:
@@ -125,7 +125,7 @@ Run target checks without writing. The Traccar API URL is its origin, such as `h
 python3 scripts/restore_deployment_test.py deployment-export.zip \
   --target-traccar-url http://127.0.0.1:8082 \
   --traccar-service traccar_restore \
-  --traccar-react-api-service traccar_react_api_restore \
+  --traccar-scope-api-service traccar_scope_api_restore \
   --device-map device-map.json \
   --confirm-empty-target
 ```
@@ -136,9 +136,9 @@ After reviewing the mapping, exact version, and empty-target checks, perform the
 python3 scripts/restore_deployment_test.py deployment-export.zip \
   --target-traccar-url http://127.0.0.1:8082 \
   --traccar-service traccar_restore \
-  --traccar-react-api-service traccar_react_api_restore \
+  --traccar-scope-api-service traccar_scope_api_restore \
   --device-map device-map.json \
   --confirm-empty-target --execute
 ```
 
-The utility asks the operator to type `RESTORE`. It commits Traccar history first and Traccar React API data second; PostgreSQL transactions protect each database individually, but there is no cross-database atomic transaction. If the app import fails after Traccar commits, restore both target databases from pre-import backups before retrying. Start services only after the importer completes. Compare database row counts with the archive manifest and check device visibility, map/history, trips, telemetry graphs, status cards, and profile editing. Do not use the utility on an installation with real data: it refuses nonempty history and allowlisted app tables and does not merge datasets.
+The utility asks the operator to type `RESTORE`. It commits Traccar history first and Traccar Scope API data second; PostgreSQL transactions protect each database individually, but there is no cross-database atomic transaction. If the app import fails after Traccar commits, restore both target databases from pre-import backups before retrying. Start services only after the importer completes. Compare database row counts with the archive manifest and check device visibility, map/history, trips, telemetry graphs, status cards, and profile editing. Do not use the utility on an installation with real data: it refuses nonempty history and allowlisted app tables and does not merge datasets.

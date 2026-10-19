@@ -1,5 +1,5 @@
 -- Phase 9: encrypted Bouncie OAuth credential envelope.
--- The API encrypts credentials with the shared TraccarReactApi:CredentialEncryption key ring.
+-- The API encrypts credentials with the shared TraccarScopeApi:CredentialEncryption key ring.
 -- Never put the encryption key, client secret, refresh token, or authorization
 -- code in this file or in source control.
 

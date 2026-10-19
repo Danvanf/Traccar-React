@@ -2,12 +2,12 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-REPO_URL="https://github.com/Danvanf/Traccar-React.git"
+REPO_URL="https://github.com/Danvanf/Traccar-Scope.git"
 REPO_BRANCH="master"
 DEFAULT_TRACCAR_VERSION="6.16.0"
 WIKI_URL="https://en.wikipedia.org/api/rest_v1/page/summary/Solar_System"
 INSTALL_ROOT="${INSTALL_ROOT:-$HOME/docker/vehicle}"
-SOURCE_DIR="$INSTALL_ROOT/traccar-react"
+SOURCE_DIR="$INSTALL_ROOT/traccar-scope"
 DEPLOY_DIR="$INSTALL_ROOT/deploy"
 ENV_FILE="$DEPLOY_DIR/.env"
 TEMPLATE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/installer-templates"
@@ -43,9 +43,9 @@ else
   git clone --branch "$REPO_BRANCH" --single-branch "$REPO_URL" "$SOURCE_DIR"
 fi
 
-[[ -f "$SOURCE_DIR/backend/TraccarReact.Api/TraccarReact.Api.csproj" ]] \
-  || die 'The checkout does not contain backend/TraccarReact.Api/TraccarReact.Api.csproj. Update the published source before installing.'
-[[ -f "$SOURCE_DIR/scripts/docker_init_traccar_react_api_db.sh" ]] \
+[[ -f "$SOURCE_DIR/backend/TraccarScope.Api/TraccarScope.Api.csproj" ]] \
+  || die 'The checkout does not contain backend/TraccarScope.Api/TraccarScope.Api.csproj. Update the published source before installing.'
+[[ -f "$SOURCE_DIR/scripts/docker_init_traccar_scope_api_db.sh" ]] \
   || die 'The database initializer is missing from the source checkout.'
 [[ -f "$TEMPLATE_DIR/compose.yaml" ]] || die "Installer templates are missing: $TEMPLATE_DIR"
 
@@ -80,7 +80,7 @@ if [[ ! -e "$ENV_FILE" ]]; then
   admin_username="FirstUser${username_suffix}"
 
   admin_password="$(curl -fsSL --retry 2 --connect-timeout 10 \
-    -A 'TraccarReactFirstTestInstaller/1.0 (local WSL deployment)' "$WIKI_URL" |
+    -A 'TraccarScopeFirstTestInstaller/1.0 (local WSL deployment)' "$WIKI_URL" |
     python3 -c 'import json,re,secrets,sys
 data=json.load(sys.stdin)
 words=[]
@@ -102,10 +102,10 @@ print(picked[0].capitalize()+"."+picked[1]+"."+picked[2])')" \
   cat > "$tmp_env" <<EOF
 TRACCAR_VERSION=$version
 TRACCAR_DB_PASSWORD=$traccar_db_password
-TRACCAR_REACT_API_DB_PASSWORD=$api_db_password
+TRACCAR_SCOPE_API_DB_PASSWORD=$api_db_password
 APP_ADMIN_USERNAME=$admin_username
 APP_ADMIN_PASSWORD=$admin_password
-TRACCAR_REACT_API_CREDENTIAL_KEY=$api_credential_key
+TRACCAR_SCOPE_API_CREDENTIAL_KEY=$api_credential_key
 EOF
   chmod 0600 "$tmp_env"
   [[ ! -e "$ENV_FILE" ]] || die "$ENV_FILE appeared while credentials were being generated; refusing to overwrite it."
@@ -120,8 +120,8 @@ env_value() {
   awk -F= -v key="$name" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' "$ENV_FILE"
 }
 
-for name in TRACCAR_VERSION TRACCAR_DB_PASSWORD TRACCAR_REACT_API_DB_PASSWORD \
-            APP_ADMIN_USERNAME APP_ADMIN_PASSWORD TRACCAR_REACT_API_CREDENTIAL_KEY; do
+for name in TRACCAR_VERSION TRACCAR_DB_PASSWORD TRACCAR_SCOPE_API_DB_PASSWORD \
+            APP_ADMIN_USERNAME APP_ADMIN_PASSWORD TRACCAR_SCOPE_API_CREDENTIAL_KEY; do
   [[ -n "$(env_value "$name")" ]] || die "$ENV_FILE is missing $name. Existing files are preserved; fill the missing value and rerun."
 done
 chmod 0600 "$ENV_FILE"
@@ -148,9 +148,9 @@ done
 sudo docker compose --env-file .env exec -T database \
   sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' <<'SQL'
 \getenv traccar_password POSTGRES_PASSWORD
-\getenv api_password TRACCAR_REACT_API_DB_PASSWORD
+\getenv api_password TRACCAR_SCOPE_API_DB_PASSWORD
 ALTER ROLE traccar PASSWORD :'traccar_password';
-ALTER ROLE traccar_react_api PASSWORD :'api_password';
+ALTER ROLE traccar_scope_api PASSWORD :'api_password';
 SQL
 
 sudo docker compose --env-file .env up -d --build
@@ -168,27 +168,27 @@ wait_for_url() {
 }
 
 note 'Waiting for both browser-facing HTTP services'
-wait_for_url 'http://127.0.0.1:8089/traccar-react-api/health' \
-  || die 'Traccar React API did not become ready. Inspect with: sudo docker compose --env-file .env logs --tail 100 database traccar traccar-react-api-api web'
+wait_for_url 'http://127.0.0.1:8089/traccar-scope-api/health' \
+  || die 'Traccar Scope API did not become ready. Inspect with: sudo docker compose --env-file .env logs --tail 100 database traccar traccar-scope-api web'
 wait_for_url 'http://127.0.0.1:8092/api/health' \
-  || die 'Traccar did not become ready. Inspect with: sudo docker compose --env-file .env logs --tail 100 database traccar traccar-react-api-api web'
+  || die 'Traccar did not become ready. Inspect with: sudo docker compose --env-file .env logs --tail 100 database traccar traccar-scope-api web'
 
 admin_username="$(env_value APP_ADMIN_USERNAME)"
 admin_password="$(env_value APP_ADMIN_PASSWORD)"
 traccar_db_password="$(env_value TRACCAR_DB_PASSWORD)"
-api_db_password="$(env_value TRACCAR_REACT_API_DB_PASSWORD)"
-api_credential_key="$(env_value TRACCAR_REACT_API_CREDENTIAL_KEY)"
+api_db_password="$(env_value TRACCAR_SCOPE_API_DB_PASSWORD)"
+api_credential_key="$(env_value TRACCAR_SCOPE_API_CREDENTIAL_KEY)"
 
 printf '\nInstallation is ready.\n'
-printf 'Traccar React: http://localhost:8089\n'
+printf 'Traccar Scope: http://localhost:8089\n'
 printf 'Traccar:       http://localhost:8092\n'
-printf 'Traccar React initial admin username: %s\n' "$admin_username"
-printf 'Traccar React initial admin password: %s\n' "$admin_password"
+printf 'Traccar Scope initial admin username: %s\n' "$admin_username"
+printf 'Traccar Scope initial admin password: %s\n' "$admin_password"
 printf 'Traccar database password: %s\n' "$traccar_db_password"
-printf 'Traccar React API database password: %s\n' "$api_db_password"
-printf 'Traccar React API credential key ID: first-test\n'
-printf 'Traccar React API credential key: %s\n' "$api_credential_key"
+printf 'Traccar Scope API database password: %s\n' "$api_db_password"
+printf 'Traccar Scope API credential key ID: first-test\n'
+printf 'Traccar Scope API credential key: %s\n' "$api_credential_key"
 printf 'Credentials are also stored in %s (permissions 600). Back up that file securely.\n' "$ENV_FILE"
-printf 'Traccar has a separate first-run registration; the Traccar React admin login does not sign in to Traccar.\n'
+printf 'Traccar has a separate first-run registration; the Traccar Scope admin login does not sign in to Traccar.\n'
 printf 'On reruns, existing credentials and database volumes are preserved; bootstrap admin values do not reset an existing account password.\n\n'
 sudo docker compose --env-file .env ps

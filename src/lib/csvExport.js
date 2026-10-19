@@ -304,7 +304,7 @@ export function buildTrackTimingCsv({ timing, deviceName, sessionStart }) {
  * buildTrackTimingCsv and the graph export route; track and telemetry exports
  * intentionally use different data subsets but share session and GPS context.
  */
-export function buildTelemetryCsv({ sessionStart, deviceName, points, carProfile, vehicleId, deviceId, vehicleVin, deviceVin, channelKeys, appVersion = 'traccar-react' }) {
+export function buildTelemetryCsv({ sessionStart, deviceName, points, carProfile, vehicleId, deviceId, vehicleVin, deviceVin, channelKeys, appVersion = 'traccar-scope' }) {
   const orderedPoints = [...points].sort((a, b) => a.timestamp - b.timestamp)
   const availableKeys = [...new Set(orderedPoints.flatMap((point) => Object.keys(point.attributes || {})))]
   const attributeKeys = (channelKeys ? channelKeys.filter((key) => availableKeys.includes(key)) : availableKeys).sort((a, b) => a.localeCompare(b))
@@ -326,7 +326,7 @@ export function buildTelemetryCsv({ sessionStart, deviceName, points, carProfile
   return { headers, rows, fileName, metadata }
 }
 
-export function buildTelemetryMetadata({ sessionStart, deviceName, points, carProfile, vehicleId, deviceId, vehicleVin, deviceVin, channelKeys, appVersion = 'traccar-react' }) {
+export function buildTelemetryMetadata({ sessionStart, deviceName, points, carProfile, vehicleId, deviceId, vehicleVin, deviceVin, channelKeys, appVersion = 'traccar-scope' }) {
   const orderedPoints = [...points].sort((a, b) => a.timestamp - b.timestamp)
   const start = sessionStart || orderedPoints[0]?.timestamp || new Date()
   const availableKeys = [...new Set(orderedPoints.flatMap((point) => Object.keys(point.attributes || {})))]
@@ -374,9 +374,9 @@ export function buildTelemetryMetadata({ sessionStart, deviceName, points, carPr
     },
     vehicle: { id: vehicleId ?? null, name: deviceName || null, vin: deviceVin || vehicleVin || null },
     device: { id: deviceId ?? null, name: deviceName || null, vin: deviceVin || null },
-    application: { name: 'Traccar React API', version: appVersion },
+    application: { name: 'Traccar Scope API', version: appVersion },
     channels,
-    placeMarkers: { source: 'Traccar React API named places', eventValues: 'enter or exit with place role and name; repeated track_start_finish or track_split entries can be used as lap/run boundaries' },
+    placeMarkers: { source: 'Traccar Scope API named places', eventValues: 'enter or exit with place role and name; repeated track_start_finish or track_split entries can be used as lap/run boundaries' },
     trackTiming,
     quality: { missingValues: 'blank cell plus quality_json status', invalidValues: 'blank cell plus quality_json status', unsupportedValues: 'channel omitted when not measured' },
     telemetryValues: 'CSV attribute cells contain profile-decoded values; profile sourceUnit and conversion metadata describe the mapping when present. Unmapped attributes retain their raw values.',
@@ -448,7 +448,7 @@ export function parseAppPositionCsv(text, deviceId) {
   const imperial = ['speedMph', 'accuracyFt', 'altitudeFt'].every((header) => headerSet.has(header))
   const metric = ['speedKph', 'accuracyM', 'altitudeM'].every((header) => headerSet.has(header))
   if (!required.every((header) => headerSet.has(header)) || (!imperial && !metric)) {
-    return { rows: [], format: 'unknown', error: 'This file is not a Traccar React position export.' }
+    return { rows: [], format: 'unknown', error: 'This file is not a Traccar Scope position export.' }
   }
   const gpsHeaders = new Set([...required, 'timestampLocal', 'speedMph', 'speedKph', 'accuracyFt', 'accuracyM', 'altitudeFt', 'altitudeM'])
 
@@ -488,5 +488,5 @@ export function parseAppPositionCsv(text, deviceId) {
     }
   }).filter(Boolean).sort((a, b) => a.timestamp - b.timestamp)
 
-  return { rows, format: 'traccar-react-positions-v1' }
+  return { rows, format: 'traccar-scope-positions-v1' }
 }

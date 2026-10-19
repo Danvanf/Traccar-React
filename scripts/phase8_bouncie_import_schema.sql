@@ -1,5 +1,5 @@
 -- Phase 8: durable identities for Bouncie trip-summary imports.
--- Run against traccar_react_api. Safe to rerun.
+-- Run against traccar_scope_api. Safe to rerun.
 
 create table if not exists trip_external_identities (
   source_system text not null,

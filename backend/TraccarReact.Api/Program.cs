@@ -10,11 +10,11 @@ using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var authUsername = builder.Configuration["TraccarReactApi:Auth:Username"];
-var authPassword = builder.Configuration["TraccarReactApi:Auth:Password"];
+var authUsername = builder.Configuration["TraccarScopeApi:Auth:Username"];
+var authPassword = builder.Configuration["TraccarScopeApi:Auth:Password"];
 var allowUnauthenticatedDevelopment = builder.Environment.IsDevelopment()
-    && builder.Configuration.GetValue<bool>("TraccarReactApi:Auth:AllowUnauthenticatedDevelopment");
-var authOptions = new TraccarReactApiAuthOptions(authUsername, authPassword, allowUnauthenticatedDevelopment);
+    && builder.Configuration.GetValue<bool>("TraccarScopeApi:Auth:AllowUnauthenticatedDevelopment");
+var authOptions = new TraccarScopeApiAuthOptions(authUsername, authPassword, allowUnauthenticatedDevelopment);
 
 builder.Services.AddProblemDetails(options =>
 {
@@ -69,7 +69,7 @@ builder.Services.AddHostedService<SmsAlertWorker>();
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
-        options.Cookie.Name = "traccar_react_api_session";
+        options.Cookie.Name = "traccar_scope_api_session";
         options.Cookie.HttpOnly = true;
         options.Cookie.SameSite = SameSiteMode.Lax;
         options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
@@ -144,10 +144,10 @@ builder.Services.AddRateLimiter(options =>
         }));
 });
 
-var connectionString = builder.Configuration.GetConnectionString("TraccarReactApi");
+var connectionString = builder.Configuration.GetConnectionString("TraccarScopeApi");
 if (string.IsNullOrWhiteSpace(connectionString))
 {
-    throw new InvalidOperationException("Connection string 'ConnectionStrings:TraccarReactApi' is required.");
+    throw new InvalidOperationException("Connection string 'ConnectionStrings:TraccarScopeApi' is required.");
 }
 
 builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(connectionString));
@@ -264,7 +264,7 @@ app.Use(async (context, next) =>
         && !(context.User.Identity?.IsAuthenticated ?? false))
     {
         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-        await context.Response.WriteAsJsonAsync(new { title = "Authentication required", detail = "Sign in before using the Traccar React API." });
+        await context.Response.WriteAsJsonAsync(new { title = "Authentication required", detail = "Sign in before using the Traccar Scope API." });
         return;
     }
 
@@ -297,7 +297,7 @@ app.Use(async (context, next) =>
     }
     await next();
 });
-app.MapTraccarReactApiAuthEndpoints();
+app.MapTraccarScopeApiAuthEndpoints();
 app.MapUserAccessEndpoints();
 app.MapUserPreferenceEndpoints();
 app.MapGlobalGeneralSettingsEndpoints();
@@ -354,9 +354,9 @@ app.MapGet("/health", async Task<IResult> (NpgsqlDataSource dataSource, Cancella
 })
 .WithName("Health")
 .WithSummary("Checks API and PostgreSQL connectivity.")
-.WithDescription("Returns 200 when the API can open a connection to traccar_react_api.");
+.WithDescription("Returns 200 when the API can open a connection to traccar_scope_api.");
 
-app.MapGet("/api/vehicles", async Task<IResult> (NpgsqlDataSource dataSource, TraccarReactApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken) =>
+app.MapGet("/api/vehicles", async Task<IResult> (NpgsqlDataSource dataSource, TraccarScopeApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken) =>
 {
     try
     {
@@ -435,7 +435,7 @@ app.MapGet("/api/vehicles", async Task<IResult> (NpgsqlDataSource dataSource, Tr
     catch (PostgresException ex) when (ex.SqlState == "42P01")
     {
         return TypedResults.Problem(
-            title: "traccar_react_api schema is missing",
+            title: "traccar_scope_api schema is missing",
             detail: "The vehicles table was not found. Apply Phase 3 DDL before using this endpoint.",
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
@@ -456,11 +456,11 @@ app.MapGet("/api/vehicles", async Task<IResult> (NpgsqlDataSource dataSource, Tr
 })
 .WithName("GetVehicles")
 .WithSummary("Returns app vehicles.")
-.WithDescription("Reads from traccar_react_api.vehicles.");
+.WithDescription("Reads from traccar_scope_api.vehicles.");
 
 app.MapGet("/api/vehicle-profile-assignments/history", async Task<IResult> (
     NpgsqlDataSource dataSource,
-    TraccarReactApiAuthOptions authOptions,
+    TraccarScopeApiAuthOptions authOptions,
     HttpContext context,
     CancellationToken cancellationToken) =>
 {
@@ -671,7 +671,7 @@ app.MapGet("/api/device-bindings", async Task<IResult> (NpgsqlDataSource dataSou
     catch (PostgresException ex) when (ex.SqlState == "42P01")
     {
         return TypedResults.Problem(
-            title: "traccar_react_api schema is missing",
+            title: "traccar_scope_api schema is missing",
             detail: "Required binding table(s) were not found. Apply Phase 3 DDL before using this endpoint.",
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
@@ -692,7 +692,7 @@ app.MapGet("/api/device-bindings", async Task<IResult> (NpgsqlDataSource dataSou
 })
 .WithName("GetActiveDeviceBindings")
 .WithSummary("Returns active device-to-vehicle bindings.")
-.WithDescription("Reads active rows from traccar_react_api.vehicle_device_bindings joined to vehicles.");
+.WithDescription("Reads active rows from traccar_scope_api.vehicle_device_bindings joined to vehicles.");
 
 app.MapGet("/api/device-bindings/history", async Task<IResult> (
     NpgsqlDataSource dataSource,
@@ -735,7 +735,7 @@ app.MapGet("/api/device-bindings/history", async Task<IResult> (
     catch (PostgresException ex) when (ex.SqlState == "42P01")
     {
         return TypedResults.Problem(
-            title: "traccar_react_api schema is missing",
+            title: "traccar_scope_api schema is missing",
             detail: "Required binding table(s) were not found. Apply Phase 3 DDL before using this endpoint.",
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
@@ -1031,7 +1031,7 @@ app.MapPost("/api/device-bindings/upsert", async Task<IResult> (
     catch (PostgresException ex) when (ex.SqlState == "42P01")
     {
         return TypedResults.Problem(
-            title: "traccar_react_api schema is missing",
+            title: "traccar_scope_api schema is missing",
             detail: "Required binding table(s) were not found. Apply Phase 3 DDL before using this endpoint.",
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
@@ -1089,7 +1089,7 @@ app.MapDelete("/api/device-bindings/{bindingId:guid}", async Task<IResult> (
     catch (PostgresException ex) when (ex.SqlState == "42P01")
     {
         return TypedResults.Problem(
-            title: "traccar_react_api schema is missing",
+            title: "traccar_scope_api schema is missing",
             detail: "Required binding table(s) were not found. Apply Phase 3 DDL before using this endpoint.",
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
@@ -1164,14 +1164,14 @@ app.MapGet("/api/trips", async Task<IResult> (
     catch (PostgresException ex) when (ex.SqlState == "42P01")
     {
         return TypedResults.Problem(
-            title: "traccar_react_api schema is missing",
+            title: "traccar_scope_api schema is missing",
             detail: "The trips table was not found. Apply Phase 3 DDL before using this endpoint.",
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 })
 .WithName("GetTrips")
 .WithSummary("Returns derived trips for a vehicle.")
-.WithDescription("Reads from traccar_react_api.trips filtered by vehicle and date range.");
+.WithDescription("Reads from traccar_scope_api.trips filtered by vehicle and date range.");
 
 app.MapGet("/api/trips/day-summaries", async Task<IResult> (
     Guid vehicleId,
@@ -1226,14 +1226,14 @@ app.MapGet("/api/trips/day-summaries", async Task<IResult> (
     catch (PostgresException ex) when (ex.SqlState == "42P01")
     {
         return TypedResults.Problem(
-            title: "traccar_react_api schema is missing",
+            title: "traccar_scope_api schema is missing",
             detail: "The trips table was not found. Apply Phase 3 DDL before using this endpoint.",
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 })
 .WithName("GetTripDaySummaries")
 .WithSummary("Returns day-level trip summaries for a vehicle.")
-.WithDescription("Aggregates traccar_react_api.trips by UTC day for dashboard and timeline summaries.");
+.WithDescription("Aggregates traccar_scope_api.trips by UTC day for dashboard and timeline summaries.");
 
 app.MapTripImportEndpoints();
 app.MapBouncieImportEndpoints();
@@ -1281,14 +1281,14 @@ app.MapGet("/api/named-places", async Task<IResult> (
     catch (PostgresException ex) when (ex.SqlState == "42P01")
     {
         return TypedResults.Problem(
-            title: "traccar_react_api schema is missing",
+            title: "traccar_scope_api schema is missing",
             detail: "named_places table was not found. Apply Phase 3 DDL before using this endpoint.",
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 })
 .WithName("GetNamedPlaces")
 .WithSummary("Returns named places.")
-.WithDescription("Reads named places from traccar_react_api.named_places.");
+.WithDescription("Reads named places from traccar_scope_api.named_places.");
 
 app.MapPost("/api/named-places/upsert", async Task<IResult> (
     UpsertNamedPlaceRequest request,
@@ -1368,14 +1368,14 @@ app.MapPost("/api/named-places/upsert", async Task<IResult> (
     catch (PostgresException ex) when (ex.SqlState == "42P01")
     {
         return TypedResults.Problem(
-            title: "traccar_react_api schema is missing",
+            title: "traccar_scope_api schema is missing",
             detail: "named_places table was not found. Apply Phase 3 DDL before using this endpoint.",
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 })
 .WithName("UpsertNamedPlace")
 .WithSummary("Creates or updates a named place.")
-.WithDescription("Upserts named places in traccar_react_api.named_places.");
+.WithDescription("Upserts named places in traccar_scope_api.named_places.");
 
 app.MapDelete("/api/named-places/{placeId:guid}", async Task<IResult> (
     Guid placeId,
@@ -1398,14 +1398,14 @@ app.MapDelete("/api/named-places/{placeId:guid}", async Task<IResult> (
     catch (PostgresException ex) when (ex.SqlState == "42P01")
     {
         return TypedResults.Problem(
-            title: "traccar_react_api schema is missing",
+            title: "traccar_scope_api schema is missing",
             detail: "named_places table was not found. Apply Phase 3 DDL before using this endpoint.",
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 })
 .WithName("DeleteNamedPlace")
 .WithSummary("Deletes a named place.")
-.WithDescription("Deletes by id from traccar_react_api.named_places.");
+.WithDescription("Deletes by id from traccar_scope_api.named_places.");
 
 app.MapGet("/api/trip-tags", async Task<IResult> (
     Guid? vehicleId,
@@ -1442,14 +1442,14 @@ app.MapGet("/api/trip-tags", async Task<IResult> (
     catch (PostgresException ex) when (ex.SqlState == "42P01")
     {
         return TypedResults.Problem(
-            title: "traccar_react_api schema is missing",
+            title: "traccar_scope_api schema is missing",
             detail: "trip_tags table was not found. Apply Phase 3 DDL before using this endpoint.",
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 })
 .WithName("GetTripTags")
 .WithSummary("Returns trip tags.")
-.WithDescription("Reads tags from traccar_react_api.trip_tags.");
+.WithDescription("Reads tags from traccar_scope_api.trip_tags.");
 
 app.MapPost("/api/trip-tags/upsert", async Task<IResult> (
     UpsertTripTagRequest request,
@@ -1504,14 +1504,14 @@ app.MapPost("/api/trip-tags/upsert", async Task<IResult> (
     catch (PostgresException ex) when (ex.SqlState == "42P01")
     {
         return TypedResults.Problem(
-            title: "traccar_react_api schema is missing",
+            title: "traccar_scope_api schema is missing",
             detail: "trip_tags table was not found. Apply Phase 3 DDL before using this endpoint.",
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 })
 .WithName("UpsertTripTag")
 .WithSummary("Creates or updates a trip tag.")
-.WithDescription("Upserts trip tags in traccar_react_api.trip_tags.");
+.WithDescription("Upserts trip tags in traccar_scope_api.trip_tags.");
 
 app.MapDelete("/api/trip-tags/{tagId:guid}", async Task<IResult> (
     Guid tagId,
@@ -1528,7 +1528,7 @@ app.MapDelete("/api/trip-tags/{tagId:guid}", async Task<IResult> (
     }
     catch (PostgresException ex) when (ex.SqlState == "42P01")
     {
-        return TypedResults.Problem(title: "traccar_react_api schema is missing", detail: "trip_tags table was not found.", statusCode: 503);
+        return TypedResults.Problem(title: "traccar_scope_api schema is missing", detail: "trip_tags table was not found.", statusCode: 503);
     }
 })
 .WithName("DeleteTripTag")
@@ -1569,14 +1569,14 @@ app.MapGet("/api/trips/{tripId:guid}/tags", async Task<IResult> (
     catch (PostgresException ex) when (ex.SqlState == "42P01")
     {
         return TypedResults.Problem(
-            title: "traccar_react_api schema is missing",
+            title: "traccar_scope_api schema is missing",
             detail: "trip_tag_map/trip_tags table(s) were not found. Apply Phase 3 DDL before using this endpoint.",
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 })
 .WithName("GetTripTagsForTrip")
 .WithSummary("Returns tags applied to a trip.")
-.WithDescription("Reads mapped tags from traccar_react_api.trip_tag_map.");
+.WithDescription("Reads mapped tags from traccar_scope_api.trip_tag_map.");
 
 app.MapPost("/api/trips/{tripId:guid}/tags/{tagId:guid}", async Task<IResult> (
     Guid tripId,
@@ -1602,7 +1602,7 @@ app.MapPost("/api/trips/{tripId:guid}/tags/{tagId:guid}", async Task<IResult> (
     catch (PostgresException ex) when (ex.SqlState == "42P01")
     {
         return TypedResults.Problem(
-            title: "traccar_react_api schema is missing",
+            title: "traccar_scope_api schema is missing",
             detail: "trip_tag_map table was not found. Apply Phase 3 DDL before using this endpoint.",
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
@@ -1613,7 +1613,7 @@ app.MapPost("/api/trips/{tripId:guid}/tags/{tagId:guid}", async Task<IResult> (
 })
 .WithName("AddTagToTrip")
 .WithSummary("Adds a tag to a trip.")
-.WithDescription("Inserts mapping row into traccar_react_api.trip_tag_map.");
+.WithDescription("Inserts mapping row into traccar_scope_api.trip_tag_map.");
 
 app.MapDelete("/api/trips/{tripId:guid}/tags/{tagId:guid}", async Task<IResult> (
     Guid tripId,
@@ -1639,14 +1639,14 @@ app.MapDelete("/api/trips/{tripId:guid}/tags/{tagId:guid}", async Task<IResult> 
     catch (PostgresException ex) when (ex.SqlState == "42P01")
     {
         return TypedResults.Problem(
-            title: "traccar_react_api schema is missing",
+            title: "traccar_scope_api schema is missing",
             detail: "trip_tag_map table was not found. Apply Phase 3 DDL before using this endpoint.",
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 })
 .WithName("RemoveTagFromTrip")
 .WithSummary("Removes a tag from a trip.")
-.WithDescription("Deletes mapping row from traccar_react_api.trip_tag_map.");
+.WithDescription("Deletes mapping row from traccar_scope_api.trip_tag_map.");
 
 app.MapPost("/api/trips/{tripId:guid}/notes", async Task<IResult> (
     Guid tripId,
@@ -1681,14 +1681,14 @@ app.MapPost("/api/trips/{tripId:guid}/notes", async Task<IResult> (
     catch (PostgresException ex) when (ex.SqlState == "42P01")
     {
         return TypedResults.Problem(
-            title: "traccar_react_api schema is missing",
+            title: "traccar_scope_api schema is missing",
             detail: "trips table was not found. Apply Phase 3 DDL before using this endpoint.",
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 })
 .WithName("UpdateTripNotes")
 .WithSummary("Updates notes for a trip.")
-.WithDescription("Writes notes to traccar_react_api.trips.notes.");
+.WithDescription("Writes notes to traccar_scope_api.trips.notes.");
 
 app.MapGet("/api/dtc/catalog", async Task<IResult> (NpgsqlDataSource dataSource, CancellationToken cancellationToken) =>
 {
@@ -1721,14 +1721,14 @@ app.MapGet("/api/dtc/catalog", async Task<IResult> (NpgsqlDataSource dataSource,
     catch (PostgresException ex) when (ex.SqlState == "42P01")
     {
         return TypedResults.Problem(
-            title: "traccar_react_api schema is missing",
+            title: "traccar_scope_api schema is missing",
             detail: "DTC table(s) were not found. Apply phase5_dtc_enrichment_schema.sql before using this endpoint.",
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 })
 .WithName("GetDtcCatalog")
 .WithSummary("Returns known DTC catalog entries.")
-.WithDescription("Reads DTC code metadata from traccar_react_api.dtc_catalog.");
+.WithDescription("Reads DTC code metadata from traccar_scope_api.dtc_catalog.");
 
 app.MapPost("/api/dtc/catalog/upsert", async Task<IResult> (
     UpsertDtcCatalogItemRequest request,
@@ -1781,14 +1781,14 @@ app.MapPost("/api/dtc/catalog/upsert", async Task<IResult> (
     catch (PostgresException ex) when (ex.SqlState == "42P01")
     {
         return TypedResults.Problem(
-            title: "traccar_react_api schema is missing",
+            title: "traccar_scope_api schema is missing",
             detail: "DTC table(s) were not found. Apply phase5_dtc_enrichment_schema.sql before using this endpoint.",
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 })
 .WithName("UpsertDtcCatalogItem")
 .WithSummary("Creates or updates DTC metadata.")
-.WithDescription("Upserts DTC metadata into traccar_react_api.dtc_catalog.");
+.WithDescription("Upserts DTC metadata into traccar_scope_api.dtc_catalog.");
 
 app.MapGet("/api/dtc/events", async Task<IResult> (
     Guid vehicleId,
@@ -1866,14 +1866,14 @@ app.MapGet("/api/dtc/events", async Task<IResult> (
     catch (PostgresException ex) when (ex.SqlState == "42P01")
     {
         return TypedResults.Problem(
-            title: "traccar_react_api schema is missing",
+            title: "traccar_scope_api schema is missing",
             detail: "DTC table(s) were not found. Apply phase5_dtc_enrichment_schema.sql before using this endpoint.",
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 })
 .WithName("GetDtcEvents")
 .WithSummary("Returns DTC events for a vehicle in a time range.")
-.WithDescription("Reads DTC events enriched with catalog metadata from traccar_react_api.");
+.WithDescription("Reads DTC events enriched with catalog metadata from traccar_scope_api.");
 
 app.MapPost("/api/dtc/events/import-by-device", async Task<IResult> (
     ImportDtcEventsByDeviceRequest request,
@@ -1883,8 +1883,8 @@ app.MapPost("/api/dtc/events/import-by-device", async Task<IResult> (
     return await ImportDtcEventsByDeviceCoreAsync(request, dataSource, cancellationToken);
 })
 .WithName("ImportDtcEventsByDevice")
-.WithSummary("Persists DTC events for a Traccar device into traccar_react_api.")
-.WithDescription("Accepts decoded DTC events and inserts missing rows into traccar_react_api.dtc_events using active device binding.");
+.WithSummary("Persists DTC events for a Traccar device into traccar_scope_api.")
+.WithDescription("Accepts decoded DTC events and inserts missing rows into traccar_scope_api.dtc_events using active device binding.");
 
 app.MapPost("/api/dtc/events/import-from-traccar", async Task<IResult> (
     ImportDtcEventsFromTraccarRequest request,
@@ -1991,10 +1991,10 @@ app.MapPost("/api/dtc/events/import-from-traccar", async Task<IResult> (
 })
 .WithName("ImportDtcEventsFromTraccar")
 .WithSummary("Decodes raw Traccar payload records and imports extracted DTC events.")
-.WithDescription("Extracts DTC codes from common Traccar attribute patterns (dtc/dtcCodes/faultCodes) and persists decoded events into traccar_react_api.dtc_events.");
+.WithDescription("Extracts DTC codes from common Traccar attribute patterns (dtc/dtcCodes/faultCodes) and persists decoded events into traccar_scope_api.dtc_events.");
 
 IResult BuildSchemaMissingDtcProblem() => TypedResults.Problem(
-    title: "traccar_react_api schema is missing",
+    title: "traccar_scope_api schema is missing",
     detail: "DTC table(s) were not found. Apply phase5_dtc_enrichment_schema.sql before using this endpoint.",
     statusCode: StatusCodes.Status503ServiceUnavailable);
 
@@ -2672,7 +2672,7 @@ static async Task EnsureEnrichmentSchemaAsync(IServiceProvider services)
         }
 }
 
-static async Task EnsureInitialAdminAsync(IServiceProvider services, TraccarReactApiAuthOptions authOptions)
+static async Task EnsureInitialAdminAsync(IServiceProvider services, TraccarScopeApiAuthOptions authOptions)
 {
     if (string.IsNullOrWhiteSpace(authOptions.Username) || string.IsNullOrWhiteSpace(authOptions.Password))
     {
@@ -2697,7 +2697,7 @@ static async Task EnsureInitialAdminAsync(IServiceProvider services, TraccarReac
 /// <summary>API and database liveness status.</summary>
 public sealed record HealthResponse(string Status, DateTimeOffset CheckedAtUtc);
 
-/// <summary>Vehicle metadata managed by traccar_react_api.</summary>
+/// <summary>Vehicle metadata managed by traccar_scope_api.</summary>
 public sealed record VehicleResponse(
     Guid Id,
     string DisplayName,
@@ -2765,7 +2765,7 @@ public sealed record RepairMissingDeviceBindingResponse(
     DateTimeOffset StartsAt,
     DateTimeOffset? EndsAt);
 
-/// <summary>Derived trip summary from traccar_react_api.</summary>
+/// <summary>Derived trip summary from traccar_scope_api.</summary>
 public sealed record TripResponse(
     Guid Id,
     Guid VehicleId,

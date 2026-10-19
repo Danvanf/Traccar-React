@@ -475,7 +475,7 @@ public sealed class TelemetryFieldInventoryService(
 
     private static string SafeErrorMessage(Exception exception) => exception switch
     {
-        HttpRequestException => "The Traccar React API could not reach Traccar. Check its API URL and network connection, then retry.",
+        HttpRequestException => "The Traccar Scope API could not reach Traccar. Check its API URL and network connection, then retry.",
         JsonException => "Traccar returned position data that could not be read. Retry the scan.",
         CredentialProtectionException => "The saved Traccar password could not be decrypted. Check the API credential encryption key.",
         _ => exception.Message.Length <= 500 ? exception.Message : exception.Message[..500],
@@ -522,7 +522,7 @@ public static class TelemetryFieldInventoryEndpoints
     public static void MapTelemetryFieldInventoryEndpoints(this WebApplication app)
     {
         app.MapGet("/api/telemetry-field-inventory/{deviceId:int}", async (
-            int deviceId, TelemetryFieldInventoryService service, NpgsqlDataSource dataSource, TraccarReactApiAuthOptions options, HttpContext context, CancellationToken cancellationToken) =>
+            int deviceId, TelemetryFieldInventoryService service, NpgsqlDataSource dataSource, TraccarScopeApiAuthOptions options, HttpContext context, CancellationToken cancellationToken) =>
         {
             if (deviceId <= 0) return Results.BadRequest("Traccar device id must be a positive integer.");
             if (!await VehicleAccess.CanReadDeviceAsync(deviceId, dataSource, options, context, cancellationToken)) return Results.NotFound();
@@ -533,7 +533,7 @@ public static class TelemetryFieldInventoryEndpoints
         .RequireAuthorization();
 
         app.MapPost("/api/telemetry-field-inventory/{deviceId:int}/retry", async (
-            int deviceId, TelemetryFieldInventoryService service, NpgsqlDataSource dataSource, TraccarReactApiAuthOptions options, HttpContext context, CancellationToken cancellationToken) =>
+            int deviceId, TelemetryFieldInventoryService service, NpgsqlDataSource dataSource, TraccarScopeApiAuthOptions options, HttpContext context, CancellationToken cancellationToken) =>
         {
             if (deviceId <= 0) return Results.BadRequest("Traccar device id must be a positive integer.");
             if (!await VehicleAccess.CanReadDeviceAsync(deviceId, dataSource, options, context, cancellationToken)) return Results.NotFound();

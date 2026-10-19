@@ -7,7 +7,7 @@ public static class BouncieImportEndpoints
     {
         app.MapPost("/api/trips/import-bouncie", ImportAsync)
             .WithName("ImportBouncieTrips")
-            .WithSummary("Imports Bouncie trip summaries into Traccar React API with durable deduplication.");
+            .WithSummary("Imports Bouncie trip summaries into Traccar Scope API with durable deduplication.");
     }
 
     private static async Task<IResult> ImportAsync(BouncieImportRequest request, NpgsqlDataSource dataSource, CancellationToken cancellationToken)

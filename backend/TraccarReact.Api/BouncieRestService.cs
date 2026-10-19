@@ -315,7 +315,7 @@ public sealed class BouncieRestService
     {
         if (!credentialProtection.CanProtect)
             throw new InvalidOperationException(credentialProtection.ConfigurationError
-                ?? "Set the shared TraccarReactApi:CredentialEncryption key ring before saving credentials.");
+                ?? "Set the shared TraccarScopeApi:CredentialEncryption key ring before saving credentials.");
     }
 
     private static string FormatDetail(string? detail) => string.IsNullOrWhiteSpace(detail) ? "." : $" Bouncie response: {detail}.";

@@ -5,7 +5,7 @@ import {
   requestSmsAlertVerification,
   saveSmsAlertPreferences,
   verifySmsAlertCode,
-} from '../lib/traccarReactApi'
+} from '../lib/traccarScopeApi'
 
 const EVENTS = {
   maximum_speed: 'Maximum speed',
@@ -111,7 +111,7 @@ export default function SmsAlertsSettings({ baseUrl, vehicleAuth, vehicles }) {
         <input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })} />
         I agree to receive recurring automated vehicle event alert texts at this number. Message frequency varies; message and data rates may apply. Reply STOP to opt out.
       </label>
-      {stopped && <p className="profile-editor-help">This number opted out by texting STOP. Text START to the configured Traccar React API number before enabling alerts again.</p>}
+      {stopped && <p className="profile-editor-help">This number opted out by texting STOP. Text START to the configured Traccar Scope API number before enabling alerts again.</p>}
       <h5>Events to text</h5>
       {Object.entries(EVENTS).map(([eventType, label]) => <label className="checkbox-row" key={eventType}>
         <input type="checkbox" checked={draft.eventTypes.includes(eventType)} onChange={() => toggle('eventTypes', eventType)} />{label}

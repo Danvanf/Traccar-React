@@ -1,4 +1,4 @@
--- Phase 6 read-only growth report for traccar_react_api.
+-- Phase 6 read-only growth report for traccar_scope_api.
 with table_sizes as (
   select c.relname as table_name, pg_total_relation_size(c.oid) as total_bytes,
          n_live_tup::bigint as estimated_rows
@@ -14,11 +14,11 @@ from table_sizes order by total_bytes desc;
 
 select pg_size_pretty(pg_database_size(current_database())) as database_total_size,
        pg_database_size(current_database()) as database_total_bytes,
-       pg_size_pretty(sum(pg_total_relation_size(c.oid))) as traccar_react_api_tables_size,
+       pg_size_pretty(sum(pg_total_relation_size(c.oid))) as traccar_scope_api_tables_size,
        sum(coalesce(s.n_live_tup, 0))::bigint as estimated_rows,
        case when pg_database_size(current_database()) >= 50 * 1024 * 1024 * 1024 then 'REVIEW: database >= 50 GB'
             when pg_database_size(current_database()) >= 10 * 1024 * 1024 * 1024 then 'WATCH: database >= 10 GB'
             else 'OK' end as schema_status
 from pg_class c join pg_namespace n on n.oid = c.relnamespace
 left join pg_stat_user_tables s on s.relid = c.oid
-where n.nspname = 'traccar_react_api' and c.relkind = 'r';
+where n.nspname = 'traccar_scope_api' and c.relkind = 'r';

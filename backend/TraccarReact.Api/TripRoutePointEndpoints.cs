@@ -9,7 +9,7 @@ public static class TripRoutePointEndpoints
             .WithSummary("Returns persisted route geometry for an imported trip.");
     }
 
-    private static async Task<IResult> GetAsync(Guid tripId, NpgsqlDataSource dataSource, TraccarReactApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken)
+    private static async Task<IResult> GetAsync(Guid tripId, NpgsqlDataSource dataSource, TraccarScopeApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken)
     {
         if (!await VehicleAccess.CanReadTripAsync(tripId, dataSource, authOptions, context, cancellationToken)) return TypedResults.Forbid();
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);

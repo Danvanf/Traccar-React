@@ -30,7 +30,7 @@ def make_archive(path: Path, *, tamper: bool = False, unsafe: bool = False) -> N
         "traccar/positions.jsonl": b"",
         "traccar/events.jsonl": b"",
     }
-    prefix = "traccar-react-api"
+    prefix = "traccar-scope-api"
     entries.update({f"{prefix}/{table}.jsonl": b"" for table in TABLES})
     summaries = [
         {
@@ -43,14 +43,14 @@ def make_archive(path: Path, *, tamper: bool = False, unsafe: bool = False) -> N
     if tamper:
         entries["traccar/devices.jsonl"] = b'{"id":8,"name":"Changed"}\n'
     manifest = {
-        "formatVersion": 1,
+        "formatVersion": 2,
         "source": {"traccarVersion": "6.14.5"},
         "range": {
             "fromInclusiveUtc": "2026-10-01T00:00:00Z",
             "toExclusiveUtc": "2026-10-02T00:00:00Z",
         },
         "deviceCount": 1,
-        "includedTraccarReactApiTables": TABLES,
+        "includedTraccarScopeApiTables": TABLES,
         "files": summaries,
     }
     with zipfile.ZipFile(path, "w") as archive:
@@ -137,7 +137,7 @@ class RestorePackageTests(unittest.TestCase):
                 "restore_deployment_test.py", str(archive_path),
                 "--target-traccar-url", "http://127.0.0.1:8082",
                 "--traccar-service", "traccar_restore",
-                "--traccar-react-api-service", "traccar_react_api_restore",
+                "--traccar-scope-api-service", "traccar_scope_api_restore",
                 "--device-map", str(device_map_path),
                 "--confirm-empty-target",
             ]

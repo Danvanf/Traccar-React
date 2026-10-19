@@ -5,7 +5,7 @@ using System.Text.Json;
 
 public sealed class SmsDeliveryService(IHttpClientFactory httpClientFactory, IConfiguration configuration, ProviderAccountStore providerAccounts)
 {
-    private const string Section = "TraccarReactApi:Sms";
+    private const string Section = "TraccarScopeApi:Sms";
 
     public int GetDailyLimit() => int.TryParse(configuration[$"{Section}:DailyLimit"], out var limit)
         ? Math.Clamp(limit, 1, 50)
@@ -177,7 +177,7 @@ public sealed class SmsDeliveryService(IHttpClientFactory httpClientFactory, ICo
             {
                 ["To"] = to,
                 ["From"] = from,
-                ["Body"] = "Traccar React API Twilio magic-number API test.",
+                ["Body"] = "Traccar Scope API Twilio magic-number API test.",
             }),
         };
         var credentials = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{testAccountSid}:{testAuthToken}"));

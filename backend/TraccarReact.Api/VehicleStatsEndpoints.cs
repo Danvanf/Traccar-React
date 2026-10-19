@@ -4,7 +4,7 @@ public static class VehicleStatsEndpoints
 {
     public static void MapVehicleStatsEndpoints(this WebApplication app)
     {
-        app.MapGet("/api/vehicles/{vehicleId:guid}/stats", async (Guid vehicleId, DateTimeOffset? from, DateTimeOffset? to, string? groupBy, Guid? tagId, NpgsqlDataSource dataSource, TraccarReactApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken) =>
+        app.MapGet("/api/vehicles/{vehicleId:guid}/stats", async (Guid vehicleId, DateTimeOffset? from, DateTimeOffset? to, string? groupBy, Guid? tagId, NpgsqlDataSource dataSource, TraccarScopeApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken) =>
         {
             var start = from ?? DateTimeOffset.UtcNow.AddDays(-30);
             var end = to ?? DateTimeOffset.UtcNow;

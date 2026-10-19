@@ -168,12 +168,12 @@ public static class EmailAlertEndpoints
             string? senderUserId = null;
             if ((await sender.GetStatusAsync(cancellationToken)).Provider.Equals("Graph", StringComparison.OrdinalIgnoreCase))
             {
-                await using var senderQuery = new NpgsqlCommand("select default_sender_user_id from traccar_react_api_email_settings where id = 1", connection);
+                await using var senderQuery = new NpgsqlCommand("select default_sender_user_id from traccar_scope_api_email_settings where id = 1", connection);
                 senderUserId = await senderQuery.ExecuteScalarAsync(cancellationToken) as string;
                 if (string.IsNullOrWhiteSpace(senderUserId))
                     return Results.Problem("Set the default Graph sender mailbox in Settings > Email Alerts.", statusCode: StatusCodes.Status503ServiceUnavailable);
             }
-            var result = await sender.SendAsync(email, "Traccar React API email verification", $"Your Traccar React API email alert verification code is {code}. It expires in 15 minutes.", cancellationToken, senderUserId: senderUserId);
+            var result = await sender.SendAsync(email, "Traccar Scope API email verification", $"Your Traccar Scope API email alert verification code is {code}. It expires in 15 minutes.", cancellationToken, senderUserId: senderUserId);
             if (!result.Accepted)
                 return Results.Problem(result.Error, statusCode: StatusCodes.Status502BadGateway);
             return Results.Ok(new { accepted = true, expiresInMinutes = 15 });

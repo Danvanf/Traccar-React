@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { toHistoryPosition } from '../src/lib/geo.js'
 import { buildTripsForDevice } from '../src/lib/trips.js'
-import { resolveTrip, importTripsByDevice, recalculateTrip } from '../src/lib/traccarReactApi.js'
+import { resolveTrip, importTripsByDevice, recalculateTrip } from '../src/lib/traccarScopeApi.js'
 import { createRequestGate } from '../src/lib/requestGate.js'
 
 const start = new Date('2026-01-15T12:00:00Z')
@@ -67,7 +67,7 @@ test('separate journeys retain their own source endpoints', () => {
 test('resolver requests exact device, timestamps, and source IDs', async (t) => {
   t.mock.method(globalThis, 'fetch', async (url) => {
     const parsed = new URL(url, 'http://localhost')
-    assert.equal(parsed.pathname, '/traccar-react-api/api/trips/resolve')
+    assert.equal(parsed.pathname, '/traccar-scope-api/api/trips/resolve')
     assert.equal(parsed.searchParams.get('traccarDeviceId'), '5')
     assert.equal(parsed.searchParams.get('startedAt'), trip.start.toISOString())
     assert.equal(parsed.searchParams.get('endedAt'), trip.end.toISOString())
@@ -76,7 +76,7 @@ test('resolver requests exact device, timestamps, and source IDs', async (t) => 
     assert.equal(parsed.searchParams.has('vehicleId'), false)
     return Response.json({ id: 'persisted-id', vehicleId: 'historical-vehicle', notes: 'Saved note' })
   })
-  assert.equal((await resolveTrip('/traccar-react-api', trip)).id, 'persisted-id')
+  assert.equal((await resolveTrip('/traccar-scope-api', trip)).id, 'persisted-id')
 })
 
 for (const status of [404, 409, 503]) {
@@ -86,7 +86,7 @@ for (const status of [404, 409, 503]) {
       calls++
       return Response.json({ title: 'Editing disabled', detail: 'No unique identity' }, { status })
     })
-    await assert.rejects(resolveTrip('/traccar-react-api', trip), /Editing disabled.*No unique identity/)
+    await assert.rejects(resolveTrip('/traccar-scope-api', trip), /Editing disabled.*No unique identity/)
     assert.equal(calls, 1)
   })
 }
@@ -96,7 +96,7 @@ test('legacy points without source IDs omit optional query fields', async (t) =>
     assert.equal(new URL(url, 'http://localhost').searchParams.has('startTraccarPositionId'), false)
     return Response.json({ id: 'legacy-id' })
   })
-  await resolveTrip('/traccar-react-api', { ...trip, startTraccarPositionId: null, endTraccarPositionId: null })
+  await resolveTrip('/traccar-scope-api', { ...trip, startTraccarPositionId: null, endTraccarPositionId: null })
 })
 
 test('late selection responses and old write completions cannot replace the current selection', async () => {
@@ -131,7 +131,7 @@ test('import conflict preserves server details and exposes a structured status t
       detail: 'No trips in this batch were saved.', code: 'trip_import_conflict',
     }, { status: 409 })
   })
-  await assert.rejects(importTripsByDevice('/traccar-react-api', { traccarDeviceId: 5, trips: [] }), error => {
+  await assert.rejects(importTripsByDevice('/traccar-scope-api', { traccarDeviceId: 5, trips: [] }), error => {
     assert.equal(error.status, 409)
     assert.equal(error.code, 'trip_import_conflict')
     assert.equal(error.problem?.code, 'trip_import_conflict')
@@ -145,7 +145,7 @@ test('import conflict preserves server details and exposes a structured status t
 
 test('recalculation targets a saved UUID and does not send annotation fields', async (t) => {
   t.mock.method(globalThis, 'fetch', async (url, options) => {
-    assert.equal(new URL(url, 'http://localhost').pathname, '/traccar-react-api/api/trips/saved-id/recalculate')
+    assert.equal(new URL(url, 'http://localhost').pathname, '/traccar-scope-api/api/trips/saved-id/recalculate')
     const body = JSON.parse(options.body)
     assert.equal(body.derivationVersion, 'trip-v2')
     assert.equal(body.distanceMeters, 222)
@@ -153,7 +153,7 @@ test('recalculation targets a saved UUID and does not send annotation fields', a
     assert.equal('vehicleId' in body, false)
     return Response.json({ id: 'saved-id', notes: 'keep this', derivationVersion: 'trip-v2' })
   })
-  const result = await recalculateTrip('/traccar-react-api', 'saved-id', {
+  const result = await recalculateTrip('/traccar-scope-api', 'saved-id', {
     durationSeconds: 42, distanceMeters: 222, derivationVersion: 'trip-v2',
   })
   assert.equal(result.notes, 'keep this')

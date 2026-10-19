@@ -26,7 +26,7 @@ public static class TelemetryShareEndpoints
             .WithName("TelemetryShareStorageSummary");
     }
 
-    private static async Task<IResult> StorageSummaryAsync(NpgsqlDataSource dataSource, TraccarReactApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken)
+    private static async Task<IResult> StorageSummaryAsync(NpgsqlDataSource dataSource, TraccarScopeApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken)
     {
         var actor = await FindActorAsync(dataSource, authOptions, context, cancellationToken);
         if (actor is null) return Results.Unauthorized();
@@ -56,7 +56,7 @@ public static class TelemetryShareEndpoints
         TelemetryShareCreateRequest request,
         NpgsqlDataSource dataSource,
         TelemetryShareTokenService tokenService,
-        TraccarReactApiAuthOptions authOptions,
+        TraccarScopeApiAuthOptions authOptions,
         HttpContext context,
         CancellationToken cancellationToken)
     {
@@ -223,7 +223,7 @@ public static class TelemetryShareEndpoints
 
     private static async Task<IResult> ListAsync(
         NpgsqlDataSource dataSource,
-        TraccarReactApiAuthOptions authOptions,
+        TraccarScopeApiAuthOptions authOptions,
         HttpContext context,
         CancellationToken cancellationToken)
     {
@@ -265,7 +265,7 @@ public static class TelemetryShareEndpoints
         Guid shareId,
         NpgsqlDataSource dataSource,
         TelemetryShareTokenService tokenService,
-        TraccarReactApiAuthOptions authOptions,
+        TraccarScopeApiAuthOptions authOptions,
         HttpContext context,
         CancellationToken cancellationToken)
     {
@@ -295,7 +295,7 @@ public static class TelemetryShareEndpoints
     private static async Task<IResult> RevokeAsync(
         Guid shareId,
         NpgsqlDataSource dataSource,
-        TraccarReactApiAuthOptions authOptions,
+        TraccarScopeApiAuthOptions authOptions,
         HttpContext context,
         CancellationToken cancellationToken)
     {
@@ -323,7 +323,7 @@ public static class TelemetryShareEndpoints
     private static async Task<IResult> EnableAsync(
         Guid shareId,
         NpgsqlDataSource dataSource,
-        TraccarReactApiAuthOptions authOptions,
+        TraccarScopeApiAuthOptions authOptions,
         HttpContext context,
         CancellationToken cancellationToken)
     {
@@ -352,7 +352,7 @@ public static class TelemetryShareEndpoints
         Guid shareId,
         TelemetryShareExpirationRequest request,
         NpgsqlDataSource dataSource,
-        TraccarReactApiAuthOptions authOptions,
+        TraccarScopeApiAuthOptions authOptions,
         HttpContext context,
         CancellationToken cancellationToken)
     {
@@ -417,7 +417,7 @@ public static class TelemetryShareEndpoints
         return rows;
     }
 
-    private static async Task<Actor?> FindActorAsync(NpgsqlDataSource dataSource, TraccarReactApiAuthOptions options, HttpContext context, CancellationToken cancellationToken)
+    private static async Task<Actor?> FindActorAsync(NpgsqlDataSource dataSource, TraccarScopeApiAuthOptions options, HttpContext context, CancellationToken cancellationToken)
     {
         if (!options.Enabled) return null;
         var username = context.User.Identity?.Name;

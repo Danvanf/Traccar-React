@@ -4,7 +4,7 @@ public static class TripEventEndpoints
 {
     public static void MapTripEventEndpoints(this WebApplication app)
     {
-        app.MapPost("/api/trips/{tripId:guid}/events", async (Guid tripId, TripEventBatchRequest request, NpgsqlDataSource dataSource, TraccarReactApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken) =>
+        app.MapPost("/api/trips/{tripId:guid}/events", async (Guid tripId, TripEventBatchRequest request, NpgsqlDataSource dataSource, TraccarScopeApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken) =>
         {
             if (!await VehicleAccess.CanReadTripAsync(tripId, dataSource, authOptions, context, cancellationToken)) return Results.Forbid();
             if (request.Events is null || request.Events.Count > 5000) return Results.BadRequest("events must contain at most 5000 items.");
@@ -36,7 +36,7 @@ public static class TripEventEndpoints
             return Results.Ok(new { tripId, saved = request.Events.Count });
         });
 
-        app.MapGet("/api/trips/{tripId:guid}/events", async (Guid tripId, NpgsqlDataSource dataSource, TraccarReactApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken) =>
+        app.MapGet("/api/trips/{tripId:guid}/events", async (Guid tripId, NpgsqlDataSource dataSource, TraccarScopeApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken) =>
         {
             if (!await VehicleAccess.CanReadTripAsync(tripId, dataSource, authOptions, context, cancellationToken)) return Results.Forbid();
             try
@@ -56,7 +56,7 @@ public static class TripEventEndpoints
             }
         });
 
-        app.MapGet("/api/trip-events/notifications", async (DateTimeOffset? from, DateTimeOffset? to, Guid? vehicleId, NpgsqlDataSource dataSource, TraccarReactApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken) =>
+        app.MapGet("/api/trip-events/notifications", async (DateTimeOffset? from, DateTimeOffset? to, Guid? vehicleId, NpgsqlDataSource dataSource, TraccarScopeApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken) =>
         {
             await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
             await using var command = new NpgsqlCommand("""
@@ -100,7 +100,7 @@ public static class TripEventEndpoints
             return Results.Ok(notifications);
         }).WithName("GetTripEventNotifications");
 
-        app.MapDelete("/api/trips/{tripId:guid}/events", async (Guid tripId, NpgsqlDataSource dataSource, TraccarReactApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken) =>
+        app.MapDelete("/api/trips/{tripId:guid}/events", async (Guid tripId, NpgsqlDataSource dataSource, TraccarScopeApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken) =>
         {
             if (!await VehicleAccess.CanReadTripAsync(tripId, dataSource, authOptions, context, cancellationToken)) return Results.Forbid();
             await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);

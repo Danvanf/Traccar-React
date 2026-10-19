@@ -109,7 +109,7 @@ public static class BouncieRestEndpoints
             try
             {
                 await service.CompleteAuthorizationAsync(state ?? "", code ?? "", cancellationToken);
-                return Page("Bouncie connected", "You can close this window and return to Traccar React.", close: true, connected: true);
+                return Page("Bouncie connected", "You can close this window and return to Traccar Scope.", close: true, connected: true);
             }
             catch (Exception ex)
             {

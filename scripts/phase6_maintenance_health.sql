@@ -1,4 +1,4 @@
--- Phase 6 read-only maintenance report for traccar_react_api.
+-- Phase 6 read-only maintenance report for traccar_scope_api.
 select schemaname, relname as table_name, n_live_tup::bigint as estimated_rows,
        n_dead_tup::bigint as estimated_dead_rows, last_analyze, last_autoanalyze,
        last_vacuum, last_autovacuum,
@@ -7,5 +7,5 @@ select schemaname, relname as table_name, n_live_tup::bigint as estimated_rows,
             when coalesce(last_analyze, last_autoanalyze) < now() - interval '14 days' then 'WATCH: analyze older than 14 days'
             else 'OK' end as maintenance_status
 from pg_stat_user_tables
-where schemaname = 'traccar_react_api'
+where schemaname = 'traccar_scope_api'
 order by n_dead_tup desc, relname;

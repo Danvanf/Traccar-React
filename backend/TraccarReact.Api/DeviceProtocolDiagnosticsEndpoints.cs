@@ -43,7 +43,7 @@ public static class DeviceProtocolDiagnosticsEndpoints
         if (!options.Configured)
             return Results.Problem(
                 title: "Traccar diagnostics are not configured",
-                detail: "Configure Traccar:BaseUrl, Traccar:Username, and Traccar:Password on the Traccar React API server.",
+                detail: "Configure Traccar:BaseUrl, Traccar:Username, and Traccar:Password on the Traccar Scope API server.",
                 statusCode: StatusCodes.Status503ServiceUnavailable);
         context.Response.Headers.CacheControl = "no-store";
         context.Response.Headers.Vary = "Authorization";
@@ -125,7 +125,7 @@ public static class DeviceProtocolDiagnosticsEndpoints
         }
         catch (HttpRequestException)
         {
-            return Results.Problem(title: "Traccar is unreachable", detail: "The Traccar React API could not connect to the configured Traccar server.", statusCode: StatusCodes.Status502BadGateway);
+            return Results.Problem(title: "Traccar is unreachable", detail: "The Traccar Scope API could not connect to the configured Traccar server.", statusCode: StatusCodes.Status502BadGateway);
         }
         catch (JsonException)
         {

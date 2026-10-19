@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { checkTwilioProviderAccount, fetchProviderAccounts, fetchSmsProviderStatus, fetchVehicleSmsProviderAssignments, saveProviderAccount, saveVehicleSmsProviderAssignment, sendSmsTest } from '../lib/traccarReactApi'
+import { checkTwilioProviderAccount, fetchProviderAccounts, fetchSmsProviderStatus, fetchVehicleSmsProviderAssignments, saveProviderAccount, saveVehicleSmsProviderAssignment, sendSmsTest } from '../lib/traccarScopeApi'
 
 const fromTwilioAccount = (account) => {
   const setting = (name) => account.settings?.[name] || account.settings?.[name[0].toLowerCase() + name.slice(1)] || ''

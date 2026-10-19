@@ -7,11 +7,11 @@ using Npgsql;
 // Existing app tables are unreachable through this test connection's search_path.
 var root = Directory.GetCurrentDirectory();
 var config = new ConfigurationBuilder().SetBasePath(root)
-    .AddJsonFile("backend/TraccarReact.Api/appsettings.json")
-    .AddJsonFile("backend/TraccarReact.Api/appsettings.Development.json", optional: true)
+    .AddJsonFile("backend/TraccarScope.Api/appsettings.json")
+    .AddJsonFile("backend/TraccarScope.Api/appsettings.Development.json", optional: true)
     .AddEnvironmentVariables().Build();
 var connectionString = Environment.GetEnvironmentVariable("TRIP_IMPORT_TEST_CONNECTION")
-    ?? config.GetConnectionString("TraccarReactApi") ?? throw new Exception("Missing test connection.");
+    ?? config.GetConnectionString("TraccarScopeApi") ?? throw new Exception("Missing test connection.");
 var connectionBuilder = new NpgsqlConnectionStringBuilder(connectionString);
 var hostOverride = Environment.GetEnvironmentVariable("TRIP_IMPORT_TEST_HOST");
 if (!string.IsNullOrWhiteSpace(hostOverride)) connectionBuilder.Host = hostOverride;
@@ -52,7 +52,7 @@ try
 {
     await using (var create = admin.CreateCommand($"create schema {schema}")) await create.ExecuteNonQueryAsync();
     created = true;
-    var ddl = await File.ReadAllTextAsync(Path.Combine(root, "scripts/phase3_traccar_react_api_schema.sql"));
+    var ddl = await File.ReadAllTextAsync(Path.Combine(root, "scripts/phase3_traccar_scope_api_schema.sql"));
     ddl = ddl[(ddl.IndexOf("-- Optional source registry", StringComparison.Ordinal))..];
     await Sql(ddl);
     var derivationSchema = await File.ReadAllTextAsync(Path.Combine(root, "scripts/phase5_trip_derivation_schema.sql"));

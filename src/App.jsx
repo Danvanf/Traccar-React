@@ -91,9 +91,9 @@ import {
   fetchVehicleSpeedBands,
   fetchStatusCardFields,
   saveStatusCardFields as persistStatusCardFields,
-  loginTraccarReactApi,
-  logoutTraccarReactApi,
-} from './lib/traccarReactApi'
+  loginTraccarScopeApi,
+  logoutTraccarScopeApi,
+} from './lib/traccarScopeApi'
 
 const MAX_INT32 = 2147483647
 const METERS_PER_YARD = 0.9144
@@ -468,7 +468,7 @@ function describeTripImportConflict(error, fallbackDeviceId = null) {
 
 function App() {
   const [settings, setSettings] = useState(readSettings)
-  const [globalSettingsApiBaseUrl, setGlobalSettingsApiBaseUrl] = useState(() => readSettings().traccarReactApiBaseUrl)
+  const [globalSettingsApiBaseUrl, setGlobalSettingsApiBaseUrl] = useState(() => readSettings().traccarScopeApiBaseUrl)
   const [vehicleAuth, setVehicleAuth] = useState({ checking: true, enabled: false, authenticated: false, username: null, role: null })
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
   const [isUserProfileOpen, setIsUserProfileOpen] = useState(false)
@@ -480,7 +480,7 @@ function App() {
   const [vehicleLoginError, setVehicleLoginError] = useState('')
   // Bouncie client credentials are transient in the browser and are sent only
   // to the API to begin OAuth. The API encrypts them after a successful flow.
-  const [bouncieClientId, setBouncieClientId] = useState('traccar-react')
+  const [bouncieClientId, setBouncieClientId] = useState('traccar-scope')
   const [bouncieClientSecret, setBouncieClientSecret] = useState('')
   const [bouncieRedirectUri, setBouncieRedirectUri] = useState('http://localhost:5124/signin-bouncie')
   const [bouncieAuthorizationUrl, setBouncieAuthorizationUrl] = useState('')
@@ -669,13 +669,13 @@ function App() {
   const runOperationsReport = useCallback(async (report) => {
     setOperationsReportBusy(true)
     try {
-      setOperationsReport(await fetchOperationsReport(settings.traccarReactApiBaseUrl, report))
+      setOperationsReport(await fetchOperationsReport(settings.traccarScopeApiBaseUrl, report))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Operations report failed')
     } finally {
       setOperationsReportBusy(false)
     }
-  }, [settings.traccarReactApiBaseUrl])
+  }, [settings.traccarScopeApiBaseUrl])
 
   const downloadOperationsReport = useCallback(() => {
     if (!operationsReport) return
@@ -683,7 +683,7 @@ function App() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `traccar-react-api-${operationsReport.report}-report.json`
+    link.download = `traccar-scope-api-${operationsReport.report}-report.json`
     link.click()
     URL.revokeObjectURL(url)
   }, [operationsReport])
@@ -748,13 +748,13 @@ function App() {
   const bouncieHistoryRefreshRef = useRef(null)
 
   const updateSetting = useCallback((key, value) => {
-    if (key === 'traccarReactApiBaseUrl') {
+    if (key === 'traccarScopeApiBaseUrl') {
       tripSelectionGate.current.begin()
       setSelectedBackendTripId(null)
       setTripEditorTags([])
       setTripNoteDraft('')
       setTripEditorLoading(false)
-      setTripEditorStatus('Traccar React API changed. Select the trip again to load its metadata.')
+      setTripEditorStatus('Traccar Scope API changed. Select the trip again to load its metadata.')
     }
     setSettings((prev) => ({
       ...prev,
@@ -771,21 +771,21 @@ function App() {
 
   const refreshBouncieStatus = useCallback(async () => {
     try {
-      const status = await fetchBouncieStatus(settings.traccarReactApiBaseUrl)
+      const status = await fetchBouncieStatus(settings.traccarScopeApiBaseUrl)
       setBouncieStatus(status)
-      setBouncieCoverage(await fetchBouncieBackfillCoverage(settings.traccarReactApiBaseUrl))
+      setBouncieCoverage(await fetchBouncieBackfillCoverage(settings.traccarScopeApiBaseUrl))
     } catch (err) {
       if (err?.status !== 401) setBouncieStatus((current) => ({ ...current, import: { ...current.import, message: err instanceof Error ? err.message : 'Unable to read Bouncie status.' } }))
     }
-  }, [settings.traccarReactApiBaseUrl])
+  }, [settings.traccarScopeApiBaseUrl])
 
   const connectBouncieAccount = useCallback(async () => {
     const popup = window.open('', 'bouncie-oauth', 'popup,width=640,height=760')
     setBouncieBusy(true)
     try {
       const authorization = bouncieStatus?.storedCredentials && !bouncieClientSecret
-        ? await beginStoredBouncieAuthorization(settings.traccarReactApiBaseUrl)
-        : await beginBouncieAuthorization(settings.traccarReactApiBaseUrl, {
+        ? await beginStoredBouncieAuthorization(settings.traccarScopeApiBaseUrl)
+        : await beginBouncieAuthorization(settings.traccarScopeApiBaseUrl, {
           clientId: bouncieClientId,
           clientSecret: bouncieClientSecret,
           redirectUri: bouncieRedirectUri,
@@ -800,7 +800,7 @@ function App() {
     } finally {
       setBouncieBusy(false)
     }
-  }, [bouncieClientId, bouncieClientSecret, bouncieRedirectUri, bouncieStatus?.storedCredentials, settings.traccarReactApiBaseUrl])
+  }, [bouncieClientId, bouncieClientSecret, bouncieRedirectUri, bouncieStatus?.storedCredentials, settings.traccarScopeApiBaseUrl])
 
   useEffect(() => {
     const handleBouncieAuthorizationComplete = (event) => {
@@ -830,46 +830,46 @@ function App() {
       const from = new Date(`${bouncieImportFrom}T00:00:00`)
       const through = new Date(`${bouncieImportThrough}T23:59:59.999`)
       if (Number.isNaN(from.getTime()) || Number.isNaN(through.getTime()) || from > through) throw new Error('Choose a valid Bouncie From and Through date.')
-      await startBouncieImport(settings.traccarReactApiBaseUrl, { from, through })
+      await startBouncieImport(settings.traccarScopeApiBaseUrl, { from, through })
       await refreshBouncieStatus()
     } catch (err) {
       setBouncieStatus((current) => ({ ...current, import: { ...current.import, state: 'failed', message: err instanceof Error ? err.message : 'Bouncie import failed to start.' } }))
     } finally {
       setBouncieBusy(false)
     }
-  }, [bouncieImportFrom, bouncieImportThrough, refreshBouncieStatus, settings.traccarReactApiBaseUrl])
+  }, [bouncieImportFrom, bouncieImportThrough, refreshBouncieStatus, settings.traccarScopeApiBaseUrl])
 
   const cancelBouncieSync = useCallback(async () => {
     setBouncieBusy(true)
-    try { setBouncieStatus(await cancelBouncieImport(settings.traccarReactApiBaseUrl)) } catch (err) {
+    try { setBouncieStatus(await cancelBouncieImport(settings.traccarScopeApiBaseUrl)) } catch (err) {
       setBouncieStatus((current) => ({ ...current, import: { ...current.import, message: err instanceof Error ? err.message : 'Unable to cancel Bouncie import.' } }))
     } finally { setBouncieBusy(false) }
-  }, [settings.traccarReactApiBaseUrl])
+  }, [settings.traccarScopeApiBaseUrl])
 
   const continueBouncieSync = useCallback(async () => {
     setBouncieBusy(true)
-    try { setBouncieStatus(await continueBouncieImport(settings.traccarReactApiBaseUrl)) } catch (err) {
+    try { setBouncieStatus(await continueBouncieImport(settings.traccarScopeApiBaseUrl)) } catch (err) {
       setBouncieStatus((current) => ({ ...current, import: { ...current.import, message: err instanceof Error ? err.message : 'Unable to continue Bouncie import.' } }))
     } finally { setBouncieBusy(false) }
-  }, [settings.traccarReactApiBaseUrl])
+  }, [settings.traccarScopeApiBaseUrl])
 
   const forgetBouncieConnection = useCallback(async () => {
     setBouncieBusy(true)
     try {
-      setBouncieStatus(await forgetBouncieCredentials(settings.traccarReactApiBaseUrl))
+      setBouncieStatus(await forgetBouncieCredentials(settings.traccarScopeApiBaseUrl))
     } catch (err) {
       setBouncieStatus((current) => ({ ...current, import: { ...current.import, message: err instanceof Error ? err.message : 'Unable to forget Bouncie credentials.' } }))
     } finally { setBouncieBusy(false) }
-  }, [settings.traccarReactApiBaseUrl])
+  }, [settings.traccarScopeApiBaseUrl])
 
   const restoreBouncieStoredConnection = useCallback(async () => {
     setBouncieBusy(true)
     try {
-      setBouncieStatus(await restoreBouncieConnection(settings.traccarReactApiBaseUrl))
+      setBouncieStatus(await restoreBouncieConnection(settings.traccarScopeApiBaseUrl))
     } catch (err) {
       setBouncieStatus((current) => ({ ...current, import: { ...current.import, state: 'failed', message: err instanceof Error ? err.message : 'Unable to restore the stored Bouncie connection.' } }))
     } finally { setBouncieBusy(false) }
-  }, [settings.traccarReactApiBaseUrl])
+  }, [settings.traccarScopeApiBaseUrl])
 
   const selectStatusPoint = useCallback((deviceId, point) => {
     const candidates = historyByDevice[deviceId] || []
@@ -936,7 +936,7 @@ function App() {
         return
       }
       try {
-        const rows = await fetchTelemetryProfiles(settings.traccarReactApiBaseUrl)
+        const rows = await fetchTelemetryProfiles(settings.traccarScopeApiBaseUrl)
         if (!active) return
         const serverRevisions = Object.fromEntries(rows.filter((profile) => profile?.id).map((profile) => [profile.id, Number(profile.revision || 0)]))
         const local = profileDefinitionsRef.current
@@ -963,7 +963,7 @@ function App() {
             localStorage.setItem('traccarProfileDefinitions:pre-shared-backup', JSON.stringify({ savedAt: new Date().toISOString(), definitions: local }))
             status = `Shared profiles were loaded. A local backup was saved because ${conflicts.length} browser profile(s) differed from the shared copy.`
           } else {
-            status = 'Shared device profiles loaded from the Traccar React API database.'
+            status = 'Shared device profiles loaded from the Traccar Scope API database.'
           }
           next = { ...local, ...remote }
           profilesToUpload = Object.values(next).filter((profile) => !remote[profile.id] || JSON.stringify(rows.find((row) => row.id === profile.id)) !== JSON.stringify(profile))
@@ -976,12 +976,12 @@ function App() {
           status += ' A copy of the previous shared definitions was saved in this browser before synchronization.'
         }
         await Promise.all(profilesToUpload.map(async (profile) => {
-          const result = await upsertTelemetryProfile(settings.traccarReactApiBaseUrl, profile, serverRevisions[profile.id] ?? 0, 'migration')
+          const result = await upsertTelemetryProfile(settings.traccarScopeApiBaseUrl, profile, serverRevisions[profile.id] ?? 0, 'migration')
           serverRevisions[profile.id] = result.revision
         }))
         let sharedHistory = []
         try {
-          sharedHistory = await fetchTelemetryProfileHistory(settings.traccarReactApiBaseUrl)
+          sharedHistory = await fetchTelemetryProfileHistory(settings.traccarScopeApiBaseUrl)
         } catch (historyError) {
           status = [status, `Historical shared-profile snapshots are unavailable. Apply the telemetry profile history schema before relying on past conversion values. ${historyError instanceof Error ? historyError.message : ''}`.trim()].filter(Boolean).join(' ')
         }
@@ -992,7 +992,7 @@ function App() {
         lastSyncedProfileDefinitionsRef.current = next
         setProfileServerAvailable(true)
         setProfileServerReady(true)
-        setProfileSyncStatus(status || 'Device profiles are synchronized with the Traccar React API database.')
+        setProfileSyncStatus(status || 'Device profiles are synchronized with the Traccar Scope API database.')
       } catch (error) {
         if (!active) return
         setProfileServerAvailable(false)
@@ -1001,7 +1001,7 @@ function App() {
     }
     loadSharedProfiles()
     return () => { active = false }
-  }, [profileStorageState.canSave, settings.traccarReactApiBaseUrl, vehicleAuth.authenticated, vehicleAuth.checking, vehicleAuth.enabled])
+  }, [profileStorageState.canSave, settings.traccarScopeApiBaseUrl, vehicleAuth.authenticated, vehicleAuth.checking, vehicleAuth.enabled])
 
   useEffect(() => {
     if (!profileStorageState.canSave) return
@@ -1015,32 +1015,32 @@ function App() {
     const sync = profileSyncQueueRef.current.catch(() => {}).then(async () => {
       const previous = lastSyncedProfileDefinitionsRef.current || {}
       if (JSON.stringify(previous) === JSON.stringify(desired)) return
-      setProfileSyncStatus('Synchronizing device profiles with the Traccar React API database…')
+      setProfileSyncStatus('Synchronizing device profiles with the Traccar Scope API database…')
       for (const id of Object.keys(previous).filter((profileId) => !desired[profileId])) {
-        await deleteTelemetryProfile(settings.traccarReactApiBaseUrl, id, profileServerRevisionsRef.current[id])
+        await deleteTelemetryProfile(settings.traccarScopeApiBaseUrl, id, profileServerRevisionsRef.current[id])
         const revisions = { ...profileServerRevisionsRef.current }
         delete revisions[id]
         profileServerRevisionsRef.current = revisions
       }
       for (const profile of Object.values(desired).filter((item) => JSON.stringify(previous[item.id]) !== JSON.stringify(item))) {
         const changeKind = profileChangeKindsRef.current[profile.id] || 'manual'
-        const result = await upsertTelemetryProfile(settings.traccarReactApiBaseUrl, profile, profileServerRevisionsRef.current[profile.id] ?? 0, changeKind)
+        const result = await upsertTelemetryProfile(settings.traccarScopeApiBaseUrl, profile, profileServerRevisionsRef.current[profile.id] ?? 0, changeKind)
         profileServerRevisionsRef.current = { ...profileServerRevisionsRef.current, [profile.id]: result.revision }
         delete profileChangeKindsRef.current[profile.id]
       }
-      const history = await fetchTelemetryProfileHistory(settings.traccarReactApiBaseUrl)
+      const history = await fetchTelemetryProfileHistory(settings.traccarScopeApiBaseUrl)
       if (!active) return
       setProfileDefinitionHistory(history)
       lastSyncedProfileDefinitionsRef.current = desired
     })
     profileSyncQueueRef.current = sync
     sync.then(() => {
-      if (active) setProfileSyncStatus('Device profiles synchronized with the Traccar React API database.')
+      if (active) setProfileSyncStatus('Device profiles synchronized with the Traccar Scope API database.')
     }).catch((error) => {
       if (active) setProfileSyncStatus(`Profile changes are saved in this browser but could not be synchronized. ${error instanceof Error ? error.message : ''}`.trim())
     })
     return () => { active = false }
-  }, [profileDefinitions, profileServerAvailable, profileServerReady, settings.traccarReactApiBaseUrl])
+  }, [profileDefinitions, profileServerAvailable, profileServerReady, settings.traccarScopeApiBaseUrl])
 
   const profileMap = useMemo(() => buildProfileMap(profileDefinitions, settings.displayUnits), [profileDefinitions, settings.displayUnits])
   const profileDefinitionHistoryById = useMemo(() => profileDefinitionHistory.reduce((result, revision) => {
@@ -1088,7 +1088,7 @@ function App() {
     }
     Promise.all(deviceIds.map(async (deviceId) => {
       try {
-        return [deviceId, await fetchTelemetrySourceMappings(settings.traccarReactApiBaseUrl, deviceId)]
+        return [deviceId, await fetchTelemetrySourceMappings(settings.traccarScopeApiBaseUrl, deviceId)]
       } catch {
         return [deviceId, []]
       }
@@ -1096,7 +1096,7 @@ function App() {
       if (active) setSourceMappingRevisionsByDevice(Object.fromEntries(entries))
     })
     return () => { active = false }
-  }, [devices, settings.traccarReactApiBaseUrl, vehicleAuth.authenticated, vehicleAuth.enabled])
+  }, [devices, settings.traccarScopeApiBaseUrl, vehicleAuth.authenticated, vehicleAuth.enabled])
 
   useEffect(() => {
     if (!profileOptions.length) {
@@ -1586,7 +1586,7 @@ function App() {
       return selectedDays.includes(key)
     })
     Promise.all(rows.map(async (row) => {
-      const route = await fetchTripRoutePoints(settings.traccarReactApiBaseUrl, row.id).catch(() => [])
+      const route = await fetchTripRoutePoints(settings.traccarScopeApiBaseUrl, row.id).catch(() => [])
       return route.map((point) => ({
         latitude: Number(point.latitude),
         longitude: Number(point.longitude),
@@ -1600,7 +1600,7 @@ function App() {
       if (!cancelled) setHistoryRoutePoints(routes.flat())
     })
     return () => { cancelled = true }
-  }, [historyDayRows, selectedDayKey, selectedDayKeys, settings.traccarReactApiBaseUrl])
+  }, [historyDayRows, selectedDayKey, selectedDayKeys, settings.traccarScopeApiBaseUrl])
 
   useEffect(() => {
     const placeLayer = namedPlaceLayerRef.current
@@ -1665,17 +1665,17 @@ function App() {
     let active = true
     apiFetch('/server')
       .then((server) => {
-        if (active) setTraccarServer({ baseUrl: settings.traccarReactApiBaseUrl, version: String(server?.version || '').trim() })
+        if (active) setTraccarServer({ baseUrl: settings.traccarScopeApiBaseUrl, version: String(server?.version || '').trim() })
       })
       .catch(() => {
-        if (active) setTraccarServer({ baseUrl: settings.traccarReactApiBaseUrl, version: '' })
+        if (active) setTraccarServer({ baseUrl: settings.traccarScopeApiBaseUrl, version: '' })
       })
     return () => { active = false }
-  }, [apiFetch, devices.length, settings.traccarReactApiBaseUrl])
+  }, [apiFetch, devices.length, settings.traccarScopeApiBaseUrl])
 
   useEffect(() => {
     let active = true
-    const settingsBaseUrl = settings.traccarReactApiBaseUrl
+    const settingsBaseUrl = settings.traccarScopeApiBaseUrl
     fetchVehicleAuthStatus(settingsBaseUrl)
       .then(async (result) => {
         let sharedSettings = null
@@ -1695,14 +1695,14 @@ function App() {
       })
       .catch(() => { if (active) setVehicleAuth({ checking: false, enabled: false, authenticated: false, username: null, role: null }) })
     return () => { active = false }
-  }, [settings.traccarReactApiBaseUrl])
+  }, [settings.traccarScopeApiBaseUrl])
 
   const tripFlyoutPreferenceKey = useMemo(() => {
     if (vehicleAuth.checking) return null
     const userKey = vehicleAuth.authenticated && vehicleAuth.username
       ? vehicleAuth.username.trim().toLowerCase()
       : 'local'
-    return `traccarReactApi:tripFlyoutPosition:${userKey}`
+    return `traccarScopeApi:tripFlyoutPosition:${userKey}`
   }, [vehicleAuth.authenticated, vehicleAuth.checking, vehicleAuth.username])
 
   useEffect(() => {
@@ -1724,12 +1724,12 @@ function App() {
     }
 
     if (vehicleAuth.authenticated) {
-      fetchUserPreference(settings.traccarReactApiBaseUrl, 'trips-panel-position')
+      fetchUserPreference(settings.traccarScopeApiBaseUrl, 'trips-panel-position')
         .then((saved) => { if (saved) applyPosition(saved) })
         .catch(() => {})
     }
     return () => { active = false }
-  }, [settings.traccarReactApiBaseUrl, tripFlyoutPreferenceKey, vehicleAuth.authenticated])
+  }, [settings.traccarScopeApiBaseUrl, tripFlyoutPreferenceKey, vehicleAuth.authenticated])
 
   const persistTripFlyoutPosition = useCallback((position) => {
     setTripFlyoutPosition(position)
@@ -1737,9 +1737,9 @@ function App() {
       localStorage.setItem(tripFlyoutPreferenceKey, JSON.stringify(position))
     }
     if (vehicleAuth.authenticated) {
-      saveUserPreference(settings.traccarReactApiBaseUrl, 'trips-panel-position', position).catch(() => {})
+      saveUserPreference(settings.traccarScopeApiBaseUrl, 'trips-panel-position', position).catch(() => {})
     }
-  }, [settings.traccarReactApiBaseUrl, tripFlyoutPreferenceKey, vehicleAuth.authenticated])
+  }, [settings.traccarScopeApiBaseUrl, tripFlyoutPreferenceKey, vehicleAuth.authenticated])
 
   useEffect(() => {
     if (!graphGroups || !showTripsPanel) {
@@ -1763,7 +1763,7 @@ function App() {
     const userKey = vehicleAuth.authenticated && vehicleAuth.username
       ? vehicleAuth.username.trim().toLowerCase()
       : 'local'
-    return `traccarReactApi:vehicleStatusPosition:${userKey}`
+    return `traccarScopeApi:vehicleStatusPosition:${userKey}`
   }, [vehicleAuth.authenticated, vehicleAuth.checking, vehicleAuth.username])
 
   const deviceVisibilityPreferenceKey = useMemo(() => {
@@ -1771,7 +1771,7 @@ function App() {
     const userKey = vehicleAuth.authenticated && vehicleAuth.username
       ? vehicleAuth.username.trim().toLowerCase()
       : 'local'
-    return `traccarReactApi:deviceVisibility:${userKey}`
+    return `traccarScopeApi:deviceVisibility:${userKey}`
   }, [vehicleAuth.authenticated, vehicleAuth.checking, vehicleAuth.username])
 
   useEffect(() => {
@@ -1795,12 +1795,12 @@ function App() {
       applyPosition(null)
     }
     if (vehicleAuth.authenticated) {
-      fetchUserPreference(settings.traccarReactApiBaseUrl, 'vehicle-status-position')
+      fetchUserPreference(settings.traccarScopeApiBaseUrl, 'vehicle-status-position')
         .then((saved) => { if (saved) applyPosition(saved) })
         .catch(() => {})
     }
     return () => { active = false }
-  }, [settings.traccarReactApiBaseUrl, vehicleAuth.authenticated, vehicleStatusPreferenceKey])
+  }, [settings.traccarScopeApiBaseUrl, vehicleAuth.authenticated, vehicleStatusPreferenceKey])
 
   const persistVehicleStatusPosition = useCallback((position) => {
     setVehicleStatusPosition(position)
@@ -1808,9 +1808,9 @@ function App() {
       localStorage.setItem(vehicleStatusPreferenceKey, JSON.stringify(position))
     }
     if (vehicleAuth.authenticated) {
-      saveUserPreference(settings.traccarReactApiBaseUrl, 'vehicle-status-position', position).catch(() => {})
+      saveUserPreference(settings.traccarScopeApiBaseUrl, 'vehicle-status-position', position).catch(() => {})
     }
-  }, [settings.traccarReactApiBaseUrl, vehicleAuth.authenticated, vehicleStatusPreferenceKey])
+  }, [settings.traccarScopeApiBaseUrl, vehicleAuth.authenticated, vehicleStatusPreferenceKey])
 
   useEffect(() => {
     let active = true
@@ -1824,15 +1824,15 @@ function App() {
         apply(saved)
       } catch { /* use collapsed default */ }
     }
-    if (vehicleAuth.authenticated) fetchUserPreference(settings.traccarReactApiBaseUrl, 'vehicle-status-collapsed').then(apply).catch(() => {})
+    if (vehicleAuth.authenticated) fetchUserPreference(settings.traccarScopeApiBaseUrl, 'vehicle-status-collapsed').then(apply).catch(() => {})
     return () => { active = false }
-  }, [settings.traccarReactApiBaseUrl, vehicleAuth.authenticated, vehicleStatusPreferenceKey])
+  }, [settings.traccarScopeApiBaseUrl, vehicleAuth.authenticated, vehicleStatusPreferenceKey])
 
   const persistVehicleStatusCollapsed = useCallback((collapsed) => {
     setVehicleStatusCollapsed(collapsed)
     if (vehicleStatusPreferenceKey) localStorage.setItem(`${vehicleStatusPreferenceKey}:collapsed`, JSON.stringify(collapsed))
-    if (vehicleAuth.authenticated) saveUserPreference(settings.traccarReactApiBaseUrl, 'vehicle-status-collapsed', collapsed).catch(() => {})
-  }, [settings.traccarReactApiBaseUrl, vehicleAuth.authenticated, vehicleStatusPreferenceKey])
+    if (vehicleAuth.authenticated) saveUserPreference(settings.traccarScopeApiBaseUrl, 'vehicle-status-collapsed', collapsed).catch(() => {})
+  }, [settings.traccarScopeApiBaseUrl, vehicleAuth.authenticated, vehicleStatusPreferenceKey])
 
   useEffect(() => {
     let active = true
@@ -1843,15 +1843,15 @@ function App() {
     if (localKey) {
       try { apply(JSON.parse(localStorage.getItem(localKey) || 'null')) } catch { /* keep default */ }
     }
-    if (vehicleAuth.authenticated) fetchUserPreference(settings.traccarReactApiBaseUrl, 'devices-panel-expanded').then(apply).catch(() => {})
+    if (vehicleAuth.authenticated) fetchUserPreference(settings.traccarScopeApiBaseUrl, 'devices-panel-expanded').then(apply).catch(() => {})
     return () => { active = false }
-  }, [settings.traccarReactApiBaseUrl, vehicleAuth.authenticated, vehicleStatusPreferenceKey])
+  }, [settings.traccarScopeApiBaseUrl, vehicleAuth.authenticated, vehicleStatusPreferenceKey])
 
   const persistDeviceListExpanded = useCallback((expanded) => {
     setDeviceListExpanded(expanded)
     if (vehicleStatusPreferenceKey) localStorage.setItem(`${vehicleStatusPreferenceKey}:devices-expanded`, JSON.stringify(expanded))
-    if (vehicleAuth.authenticated) saveUserPreference(settings.traccarReactApiBaseUrl, 'devices-panel-expanded', expanded).catch(() => {})
-  }, [settings.traccarReactApiBaseUrl, vehicleAuth.authenticated, vehicleStatusPreferenceKey])
+    if (vehicleAuth.authenticated) saveUserPreference(settings.traccarScopeApiBaseUrl, 'devices-panel-expanded', expanded).catch(() => {})
+  }, [settings.traccarScopeApiBaseUrl, vehicleAuth.authenticated, vehicleStatusPreferenceKey])
 
   useEffect(() => {
     let active = true
@@ -1865,10 +1865,10 @@ function App() {
       try { apply(JSON.parse(localStorage.getItem(deviceVisibilityPreferenceKey) || 'null')) } catch { /* use default visibility */ }
     }
     if (vehicleAuth.authenticated) {
-      fetchUserPreference(settings.traccarReactApiBaseUrl, 'devices-panel-visibility').then(apply).catch(() => {})
+      fetchUserPreference(settings.traccarScopeApiBaseUrl, 'devices-panel-visibility').then(apply).catch(() => {})
     }
     return () => { active = false }
-  }, [deviceVisibilityPreferenceKey, settings.traccarReactApiBaseUrl, vehicleAuth.authenticated])
+  }, [deviceVisibilityPreferenceKey, settings.traccarScopeApiBaseUrl, vehicleAuth.authenticated])
 
   const persistDeviceVisibility = useCallback((update) => {
     const next = typeof update === 'function' ? update(deviceVisibility) : update
@@ -1878,12 +1878,12 @@ function App() {
     if (deviceVisibilityPreferenceKey) {
       try { localStorage.setItem(deviceVisibilityPreferenceKey, JSON.stringify(next)) } catch { /* server preference still saves when available */ }
     }
-    if (vehicleAuth.authenticated) saveUserPreference(settings.traccarReactApiBaseUrl, 'devices-panel-visibility', next).catch(() => {})
-  }, [deviceVisibility, deviceVisibilityPreferenceKey, settings.traccarReactApiBaseUrl, vehicleAuth.authenticated])
+    if (vehicleAuth.authenticated) saveUserPreference(settings.traccarScopeApiBaseUrl, 'devices-panel-visibility', next).catch(() => {})
+  }, [deviceVisibility, deviceVisibilityPreferenceKey, settings.traccarScopeApiBaseUrl, vehicleAuth.authenticated])
 
   const mapKeyPreferenceKey = useCallback((name) => {
     const userKey = vehicleAuth.authenticated && vehicleAuth.username ? vehicleAuth.username.trim().toLowerCase() : 'local'
-    return `traccarReactApi:${name}:${userKey}`
+    return `traccarScopeApi:${name}:${userKey}`
   }, [vehicleAuth.authenticated, vehicleAuth.username])
 
   useEffect(() => {
@@ -1902,16 +1902,16 @@ function App() {
         if (saved) apply(setter, saved)
         else if (fallback) apply(setter, fallback)
       } catch { if (fallback) apply(setter, fallback) }
-      if (vehicleAuth.authenticated) fetchUserPreference(settings.traccarReactApiBaseUrl, preferenceName).then((value) => { if (value && active) apply(setter, value) }).catch(() => {})
+      if (vehicleAuth.authenticated) fetchUserPreference(settings.traccarScopeApiBaseUrl, preferenceName).then((value) => { if (value && active) apply(setter, value) }).catch(() => {})
     })
     return () => { active = false }
-  }, [mapKeyPreferenceKey, settings.traccarReactApiBaseUrl, vehicleAuth.authenticated])
+  }, [mapKeyPreferenceKey, settings.traccarScopeApiBaseUrl, vehicleAuth.authenticated])
 
   const persistMapKeyPosition = useCallback((storageName, preferenceName, position, setter) => {
     setter(position)
     localStorage.setItem(mapKeyPreferenceKey(storageName), JSON.stringify(position))
-    if (vehicleAuth.authenticated) saveUserPreference(settings.traccarReactApiBaseUrl, preferenceName, position).catch(() => {})
-  }, [mapKeyPreferenceKey, settings.traccarReactApiBaseUrl, vehicleAuth.authenticated])
+    if (vehicleAuth.authenticated) saveUserPreference(settings.traccarScopeApiBaseUrl, preferenceName, position).catch(() => {})
+  }, [mapKeyPreferenceKey, settings.traccarScopeApiBaseUrl, vehicleAuth.authenticated])
 
   const persistWindowPosition = useCallback((windowId, position) => {
     if (windowId === 'history') {
@@ -2046,7 +2046,7 @@ function App() {
     const vehicleStatusReset = getDefaultVehicleStatusPosition()
     setVehicleStatusPosition(vehicleStatusReset)
     if (vehicleStatusPreferenceKey) localStorage.setItem(vehicleStatusPreferenceKey, JSON.stringify(vehicleStatusReset))
-    if (vehicleAuth.authenticated) saveUserPreference(settings.traccarReactApiBaseUrl, 'vehicle-status-position', vehicleStatusReset).catch(() => {})
+    if (vehicleAuth.authenticated) saveUserPreference(settings.traccarScopeApiBaseUrl, 'vehicle-status-position', vehicleStatusReset).catch(() => {})
 
     ;[
       ['speedBandKeyPosition', 'speed-bands-key-position', setSpeedBandKeyPosition, speedBandKeyPosition?.height],
@@ -2055,13 +2055,13 @@ function App() {
       const marker = resetMarker(height)
       setter(null)
       localStorage.setItem(mapKeyPreferenceKey(storageName), JSON.stringify(marker))
-      if (vehicleAuth.authenticated) saveUserPreference(settings.traccarReactApiBaseUrl, preferenceName, marker).catch(() => {})
+      if (vehicleAuth.authenticated) saveUserPreference(settings.traccarScopeApiBaseUrl, preferenceName, marker).catch(() => {})
     })
   }, [
     mapKeyPreferenceKey,
     persistMapKeyPosition,
     persistTripFlyoutPosition,
-    settings.traccarReactApiBaseUrl,
+    settings.traccarScopeApiBaseUrl,
     speedBandKeyPosition,
     trackPlaceKeyPosition,
     vehicleAuth.authenticated,
@@ -2073,22 +2073,22 @@ function App() {
     event.preventDefault()
     setVehicleLoginError('')
     try {
-      await loginTraccarReactApi(settings.traccarReactApiBaseUrl, vehicleLoginUsername, vehicleLoginPassword)
+      await loginTraccarScopeApi(settings.traccarScopeApiBaseUrl, vehicleLoginUsername, vehicleLoginPassword)
       setVehicleLoginPassword('')
       // Start the normal data-loading effects with the new session cookie.
       window.location.reload()
     } catch (err) {
       setVehicleLoginError(err instanceof Error ? err.message : 'Login failed')
     }
-  }, [settings.traccarReactApiBaseUrl, vehicleLoginPassword, vehicleLoginUsername])
+  }, [settings.traccarScopeApiBaseUrl, vehicleLoginPassword, vehicleLoginUsername])
 
   const logoutVehicleSession = useCallback(async () => {
     try {
-      await logoutTraccarReactApi(settings.traccarReactApiBaseUrl)
+      await logoutTraccarScopeApi(settings.traccarScopeApiBaseUrl)
     } finally {
       window.location.reload()
     }
-  }, [settings.traccarReactApiBaseUrl])
+  }, [settings.traccarScopeApiBaseUrl])
 
   useEffect(() => {
     if (!isUserMenuOpen) return undefined
@@ -2280,7 +2280,7 @@ function App() {
       if (!hasSavedRowForTrip(trip)) return { skipped: true }
       let saved
       try {
-        saved = await resolveTrip(settings.traccarReactApiBaseUrl, trip)
+        saved = await resolveTrip(settings.traccarScopeApiBaseUrl, trip)
       } catch (error) {
         if (error?.status === 404) return { skipped: true }
         throw error
@@ -2294,15 +2294,15 @@ function App() {
       for (let index = 1; index < points.length; index += 1) {
         distanceMeters += metersBetween(points[index - 1][0], points[index - 1][1], points[index][0], points[index][1])
       }
-      await recalculateTrip(settings.traccarReactApiBaseUrl, saved.id, {
+      await recalculateTrip(settings.traccarScopeApiBaseUrl, saved.id, {
         durationSeconds: Math.max(1, Math.round((trip.end - trip.start) / 1000)),
         distanceMeters,
         maxSpeedMph: calculatedMaxSpeedMph,
         derivationVersion,
       })
-      await deleteCalculatedTripEvents(settings.traccarReactApiBaseUrl, saved.id)
+      await deleteCalculatedTripEvents(settings.traccarScopeApiBaseUrl, saved.id)
       const events = detectTripEvents(trip, resolveEventThresholds())
-      if (events.length > 0) await saveTripEvents(settings.traccarReactApiBaseUrl, saved.id, events)
+      if (events.length > 0) await saveTripEvents(settings.traccarScopeApiBaseUrl, saved.id, events)
       return { recalculated: true }
     }))
     return {
@@ -2310,12 +2310,12 @@ function App() {
       skipped: results.filter((result) => result.status === 'fulfilled' && result.value.skipped).length,
       failed: results.filter((result) => result.status === 'rejected').length,
     }
-  }, [historyDayRows, settings.movementThresholdM, settings.traccarReactApiBaseUrl])
+  }, [historyDayRows, settings.movementThresholdM, settings.traccarScopeApiBaseUrl])
 
   const refreshHistoryMetadata = useCallback(async () => {
     if (historyDayRows.length === 0) return
     try {
-      const rows = await fetchTripDaySummaries(settings.traccarReactApiBaseUrl, {
+      const rows = await fetchTripDaySummaries(settings.traccarScopeApiBaseUrl, {
         from: historyWindow.from,
         to: historyWindow.to,
       })
@@ -2325,7 +2325,7 @@ function App() {
     } catch {
       // The loaded trips remain usable if a metadata refresh is transiently unavailable.
     }
-  }, [historyDayRows.length, historyWindow.from, historyWindow.to, settings.traccarReactApiBaseUrl])
+  }, [historyDayRows.length, historyWindow.from, historyWindow.to, settings.traccarScopeApiBaseUrl])
 
   useEffect(() => {
     const readyTrips = visibleTrips.filter((trip) => Array.isArray(trip.points) && trip.points.length > 0)
@@ -2349,7 +2349,7 @@ function App() {
 
     if (settings.useBackendVehicleCatalog) {
       try {
-        const backendVehicles = await fetchVehicleCatalog(settings.traccarReactApiBaseUrl)
+        const backendVehicles = await fetchVehicleCatalog(settings.traccarScopeApiBaseUrl)
 
         normalized = backendVehicles
           .filter((vehicle) => Number.isFinite(vehicle.traccarDeviceId))
@@ -2363,7 +2363,7 @@ function App() {
           throw new Error('Backend vehicle catalog has no active Traccar device bindings.')
         }
       } catch (backendErr) {
-        const message = backendErr instanceof Error ? backendErr.message : 'Unknown backend Traccar React API error'
+        const message = backendErr instanceof Error ? backendErr.message : 'Unknown backend Traccar Scope API error'
         setStatus(`Backend vehicle catalog unavailable (${message}). Falling back to Traccar /devices.`)
       }
     }
@@ -2403,7 +2403,7 @@ function App() {
     })
 
     return normalized
-  }, [apiFetch, profileDefinitions, settings.useBackendVehicleCatalog, settings.traccarReactApiBaseUrl])
+  }, [apiFetch, profileDefinitions, settings.useBackendVehicleCatalog, settings.traccarScopeApiBaseUrl])
 
   useEffect(() => {
     if (deviceListSelectedId != null && devices.some((device) => device.id === deviceListSelectedId)) {
@@ -2421,8 +2421,8 @@ function App() {
 
     try {
       [vehicles, bindings] = await Promise.all([
-        fetchVehicleCatalog(settings.traccarReactApiBaseUrl),
-        fetchActiveDeviceBindings(settings.traccarReactApiBaseUrl),
+        fetchVehicleCatalog(settings.traccarScopeApiBaseUrl),
+        fetchActiveDeviceBindings(settings.traccarScopeApiBaseUrl),
       ])
 
       setBindingVehicles(vehicles)
@@ -2466,21 +2466,21 @@ function App() {
     }
 
     try {
-      setHistoricalDeviceBindings(await fetchDeviceBindingHistory(settings.traccarReactApiBaseUrl))
+      setHistoricalDeviceBindings(await fetchDeviceBindingHistory(settings.traccarScopeApiBaseUrl))
     } catch {
       setHistoricalDeviceBindings([])
     }
 
     try {
-      setHistoricalProfileAssignments(await fetchVehicleProfileAssignmentHistory(settings.traccarReactApiBaseUrl))
+      setHistoricalProfileAssignments(await fetchVehicleProfileAssignmentHistory(settings.traccarScopeApiBaseUrl))
     } catch {
       setHistoricalProfileAssignments([])
     }
 
     try {
       const [places, tags] = await Promise.all([
-        fetchNamedPlaces(settings.traccarReactApiBaseUrl),
-        fetchTripTags(settings.traccarReactApiBaseUrl),
+        fetchNamedPlaces(settings.traccarScopeApiBaseUrl),
+        fetchTripTags(settings.traccarScopeApiBaseUrl),
       ])
 
       setNamedPlaces(places)
@@ -2493,7 +2493,7 @@ function App() {
     } finally {
       setIsBindingBusy(false)
     }
-  }, [devices, importBindingHintDeviceId, settings.traccarReactApiBaseUrl])
+  }, [devices, importBindingHintDeviceId, settings.traccarScopeApiBaseUrl])
 
   useEffect(() => {
     const canSuggest = importRecovery?.code === 'trip_import_binding_missing'
@@ -2509,7 +2509,7 @@ function App() {
     let active = true
     setBindingRepairSuggestion(null)
     setBindingRepairStatus('Finding the nearest assignment for this device...')
-    fetchNearestDeviceBinding(settings.traccarReactApiBaseUrl, {
+    fetchNearestDeviceBinding(settings.traccarScopeApiBaseUrl, {
       traccarDeviceId: importRecovery.traccarDeviceId,
       startedAt: importRecovery.startedAt,
       endedAt: importRecovery.endedAt,
@@ -2521,11 +2521,11 @@ function App() {
       if (active) setBindingRepairStatus(error instanceof Error ? error.message : 'Unable to find a nearby assignment.')
     })
     return () => { active = false }
-  }, [importRecovery?.code, importRecovery?.endedAt, importRecovery?.startedAt, importRecovery?.traccarDeviceId, settings.traccarReactApiBaseUrl])
+  }, [importRecovery?.code, importRecovery?.endedAt, importRecovery?.startedAt, importRecovery?.traccarDeviceId, settings.traccarScopeApiBaseUrl])
 
   useEffect(() => {
     let active = true
-    if (!settings.traccarReactApiBaseUrl || bindingVehicles.length === 0) {
+    if (!settings.traccarScopeApiBaseUrl || bindingVehicles.length === 0) {
       setSpeedBandsByVehicle({})
       setStatusCardFieldsByVehicle({})
       setMapPopupFieldsByVehicle({})
@@ -2534,8 +2534,8 @@ function App() {
     Promise.all(bindingVehicles.map(async (vehicle) => {
       try {
         const [speedPayload, cardPayload] = await Promise.all([
-          fetchVehicleSpeedBands(settings.traccarReactApiBaseUrl, vehicle.id).catch(() => null),
-          fetchStatusCardFields(settings.traccarReactApiBaseUrl, vehicle.id).catch(() => null),
+          fetchVehicleSpeedBands(settings.traccarScopeApiBaseUrl, vehicle.id).catch(() => null),
+          fetchStatusCardFields(settings.traccarScopeApiBaseUrl, vehicle.id).catch(() => null),
         ])
         return {
           speed: speedPayload?.bands ? [vehicle.id, speedPayload.bands] : null,
@@ -2554,7 +2554,7 @@ function App() {
       setMapPopupFieldsByVehicle(Object.fromEntries(entries.filter(Boolean).map((entry) => entry.popup).filter(Boolean)))
     })
     return () => { active = false }
-  }, [bindingVehicles, settings.traccarReactApiBaseUrl])
+  }, [bindingVehicles, settings.traccarScopeApiBaseUrl])
 
   useEffect(() => {
     const handleSpeedBandsUpdated = (event) => {
@@ -2568,10 +2568,10 @@ function App() {
   }, [])
 
   const saveStatusCardFields = useCallback(async (vehicleId, fields, popupFields) => {
-    await persistStatusCardFields(settings.traccarReactApiBaseUrl, vehicleId, fields, popupFields)
+    await persistStatusCardFields(settings.traccarScopeApiBaseUrl, vehicleId, fields, popupFields)
     setStatusCardFieldsByVehicle((current) => ({ ...current, [vehicleId]: fields }))
     setMapPopupFieldsByVehicle((current) => ({ ...current, [vehicleId]: popupFields }))
-  }, [settings.traccarReactApiBaseUrl])
+  }, [settings.traccarScopeApiBaseUrl])
 
   const saveNamedPlace = useCallback(async () => {
     const latitude = Number(placeLatitude)
@@ -2596,7 +2596,7 @@ function App() {
     try {
       const radiusMeters = Math.max(1, Math.round(radiusYards * METERS_PER_YARD))
 
-      await upsertNamedPlace(settings.traccarReactApiBaseUrl, {
+      await upsertNamedPlace(settings.traccarScopeApiBaseUrl, {
         id: placeEditId,
         vehicleId: placeVehicleId || null,
         name: placeName.trim(),
@@ -2608,7 +2608,7 @@ function App() {
         notes: placeNotes.trim() || null,
       })
 
-      const places = await fetchNamedPlaces(settings.traccarReactApiBaseUrl)
+      const places = await fetchNamedPlaces(settings.traccarScopeApiBaseUrl)
       setNamedPlaces(places)
       const roundingNote = radiusYards * METERS_PER_YARD < 1 ? ' Radius values below 1 yard are saved as 1 meter.' : ''
       const actionLabel = placeEditId ? 'Updated' : 'Saved'
@@ -2625,7 +2625,7 @@ function App() {
     } catch (err) {
       setEnrichmentStatus(err instanceof Error ? err.message : 'Failed to save named place.')
     }
-  }, [placeEditId, placeLatitude, placeLongitude, placeName, placeNotes, placeRadiusYards, placeTrackName, placeType, placeVehicleId, settings.traccarReactApiBaseUrl])
+  }, [placeEditId, placeLatitude, placeLongitude, placeName, placeNotes, placeRadiusYards, placeTrackName, placeType, placeVehicleId, settings.traccarScopeApiBaseUrl])
 
   const beginEditNamedPlace = useCallback((place) => {
     if (!place?.id) {
@@ -2663,14 +2663,14 @@ function App() {
     }
 
     try {
-      await deleteNamedPlace(settings.traccarReactApiBaseUrl, placeId)
-      const places = await fetchNamedPlaces(settings.traccarReactApiBaseUrl)
+      await deleteNamedPlace(settings.traccarScopeApiBaseUrl, placeId)
+      const places = await fetchNamedPlaces(settings.traccarScopeApiBaseUrl)
       setNamedPlaces(places)
       setEnrichmentStatus('Deleted named place.')
     } catch (err) {
       setEnrichmentStatus(err instanceof Error ? err.message : 'Failed to delete named place.')
     }
-  }, [settings.traccarReactApiBaseUrl])
+  }, [settings.traccarScopeApiBaseUrl])
 
   const saveTripTag = useCallback(async () => {
     if (!tagName.trim()) {
@@ -2684,13 +2684,13 @@ function App() {
       const color = requestedColor && !usedColors.has(requestedColor)
         ? requestedColor
         : TAG_COLOR_PALETTE.find((candidate) => !usedColors.has(candidate)) || '#2563eb'
-      await upsertTripTag(settings.traccarReactApiBaseUrl, {
+      await upsertTripTag(settings.traccarScopeApiBaseUrl, {
         vehicleId: tagVehicleId || null,
         name: tagName.trim(),
         color,
       })
 
-      const tags = await fetchTripTags(settings.traccarReactApiBaseUrl)
+      const tags = await fetchTripTags(settings.traccarScopeApiBaseUrl)
       setTripTags(tags)
       setEnrichmentStatus(`Saved trip tag ${tagName.trim()}.`)
       setTagName('')
@@ -2699,18 +2699,18 @@ function App() {
     } catch (err) {
       setEnrichmentStatus(err instanceof Error ? err.message : 'Failed to save trip tag.')
     }
-  }, [settings.traccarReactApiBaseUrl, tagColor, tagName, tagVehicleId, tripTags])
+  }, [settings.traccarScopeApiBaseUrl, tagColor, tagName, tagVehicleId, tripTags])
 
   const deleteTripTagById = useCallback(async (tagId) => {
     if (!tagId) return
     try {
-      await deleteTripTag(settings.traccarReactApiBaseUrl, tagId)
-      setTripTags(await fetchTripTags(settings.traccarReactApiBaseUrl))
+      await deleteTripTag(settings.traccarScopeApiBaseUrl, tagId)
+      setTripTags(await fetchTripTags(settings.traccarScopeApiBaseUrl))
       setEnrichmentStatus('Deleted trip tag.')
     } catch (err) {
       setEnrichmentStatus(err instanceof Error ? err.message : 'Failed to delete trip tag.')
     }
-  }, [settings.traccarReactApiBaseUrl])
+  }, [settings.traccarScopeApiBaseUrl])
 
   const saveBinding = useCallback(async () => {
     const traccarDeviceId = toPositiveInt32(bindingDeviceId)
@@ -2725,7 +2725,7 @@ function App() {
     try {
       if (!bindingVehicleId) {
         const deviceBindings = activeBindings.filter((binding) => binding.traccarDeviceId === traccarDeviceId)
-        await Promise.all(deviceBindings.map((binding) => deleteDeviceBinding(settings.traccarReactApiBaseUrl, binding.id)))
+        await Promise.all(deviceBindings.map((binding) => deleteDeviceBinding(settings.traccarScopeApiBaseUrl, binding.id)))
         await refreshBindingData()
         setBindingStatus(deviceBindings.length
           ? `Device ${traccarDeviceId} is now unassigned; ${deviceBindings.length} binding record(s) removed.`
@@ -2734,7 +2734,7 @@ function App() {
         return true
       }
 
-      await upsertDeviceBinding(settings.traccarReactApiBaseUrl, {
+      await upsertDeviceBinding(settings.traccarScopeApiBaseUrl, {
         vehicleId: bindingVehicleId,
         traccarDeviceId,
         effectiveFrom: bindingEffectiveFrom ? new Date(bindingEffectiveFrom).toISOString() : undefined,
@@ -2753,7 +2753,7 @@ function App() {
     } finally {
       setIsBindingBusy(false)
     }
-  }, [activeBindings, bindingDeviceId, bindingEffectiveFrom, bindingVehicleId, refreshBindingData, settings.traccarReactApiBaseUrl])
+  }, [activeBindings, bindingDeviceId, bindingEffectiveFrom, bindingVehicleId, refreshBindingData, settings.traccarScopeApiBaseUrl])
 
   const selectVehicleForEdit = useCallback((vehicleId) => {
     const vehicle = bindingVehicles.find((item) => item.id === vehicleId)
@@ -2820,7 +2820,7 @@ function App() {
         const confirmed = window.confirm(`${deviceName} is currently assigned to ${oldVehicleNames}. Saving this vehicle will remove it from ${oldVehicleNames} and assign it to ${vehicleName.trim()}. Do you want to continue?`)
         if (!confirmed) { setVehicleEditorStatus('Vehicle save canceled; the existing device assignment was unchanged.'); return }
       }
-      const result = await upsertVehicle(settings.traccarReactApiBaseUrl, {
+      const result = await upsertVehicle(settings.traccarScopeApiBaseUrl, {
         id: vehicleEditId || undefined,
         displayName: vehicleName.trim(), vin: vehicleVin.trim() || null,
         year: vehicleYear ? Number(vehicleYear) : null,
@@ -2828,15 +2828,15 @@ function App() {
         notes: vehicleNotes.trim() || null, profileId: vehicleProfileId || null, active: true,
         profileEffectiveFrom: vehicleProfileEffectiveFrom ? new Date(vehicleProfileEffectiveFrom).toISOString() : new Date().toISOString(),
       })
-      const vehicles = await fetchVehicleCatalog(settings.traccarReactApiBaseUrl)
+      const vehicles = await fetchVehicleCatalog(settings.traccarScopeApiBaseUrl)
       setBindingVehicles(vehicles)
       const id = result?.id || vehicleEditId
       const desiredEffectiveFrom = vehicleEffectiveFrom ? new Date(vehicleEffectiveFrom).toISOString() : new Date().toISOString()
       const effectiveDateChanged = sameVehicleBinding && Math.abs(new Date(sameVehicleBinding.startsAt).getTime() - new Date(desiredEffectiveFrom).getTime()) > 1000
       if (selectedDeviceId && id && (!alreadyAssignedToVehicle || effectiveDateChanged)) {
-        if (sameVehicleBinding) await deleteDeviceBinding(settings.traccarReactApiBaseUrl, sameVehicleBinding.id)
-        await Promise.all(existingDeviceBindings.map((binding) => deleteDeviceBinding(settings.traccarReactApiBaseUrl, binding.id)))
-        await upsertDeviceBinding(settings.traccarReactApiBaseUrl, {
+        if (sameVehicleBinding) await deleteDeviceBinding(settings.traccarScopeApiBaseUrl, sameVehicleBinding.id)
+        await Promise.all(existingDeviceBindings.map((binding) => deleteDeviceBinding(settings.traccarScopeApiBaseUrl, binding.id)))
+        await upsertDeviceBinding(settings.traccarScopeApiBaseUrl, {
           vehicleId: id,
           traccarDeviceId: selectedDeviceId,
           effectiveFrom: desiredEffectiveFrom,
@@ -2847,7 +2847,7 @@ function App() {
       setVehicleEditorStatus(`Saved vehicle ${vehicleName.trim()}.`)
       if (!vehicleEditId && id) selectVehicleForEdit(id)
     } catch (err) { setVehicleEditorStatus(err instanceof Error ? err.message : 'Failed to save vehicle.') }
-  }, [activeBindings, deleteDeviceBinding, devices, fetchVehicleCatalog, refreshBindingData, selectVehicleForEdit, settings.traccarReactApiBaseUrl, upsertDeviceBinding, vehicleDeviceId, vehicleEditId, vehicleEffectiveFrom, vehicleMake, vehicleModel, vehicleName, vehicleNotes, vehicleProfileEffectiveFrom, vehicleProfileId, vehicleVin, vehicleYear])
+  }, [activeBindings, deleteDeviceBinding, devices, fetchVehicleCatalog, refreshBindingData, selectVehicleForEdit, settings.traccarScopeApiBaseUrl, upsertDeviceBinding, vehicleDeviceId, vehicleEditId, vehicleEffectiveFrom, vehicleMake, vehicleModel, vehicleName, vehicleNotes, vehicleProfileEffectiveFrom, vehicleProfileId, vehicleVin, vehicleYear])
 
   const deleteBindingById = useCallback(async (bindingId) => {
     if (!bindingId) {
@@ -2858,7 +2858,7 @@ function App() {
     setBindingStatus('Deleting binding...')
 
     try {
-      await deleteDeviceBinding(settings.traccarReactApiBaseUrl, bindingId)
+      await deleteDeviceBinding(settings.traccarScopeApiBaseUrl, bindingId)
       await refreshBindingData()
       setBindingStatus('Binding deleted and lists refreshed.')
     } catch (err) {
@@ -2866,7 +2866,7 @@ function App() {
     } finally {
       setIsBindingBusy(false)
     }
-  }, [refreshBindingData, settings.traccarReactApiBaseUrl])
+  }, [refreshBindingData, settings.traccarScopeApiBaseUrl])
 
   useEffect(() => {
     // Load enrichment data for the map on startup as well as when Settings is
@@ -2881,7 +2881,7 @@ function App() {
   const loadHistorySummaries = useCallback(async (fromDate, toDate, label, { merge = false, selectFirstDay = false } = {}) => {
     setError('')
     setStatus(`Loading ${label} summary...`)
-    const rows = await fetchTripDaySummaries(settings.traccarReactApiBaseUrl, { from: fromDate, to: toDate })
+    const rows = await fetchTripDaySummaries(settings.traccarScopeApiBaseUrl, { from: fromDate, to: toDate })
     const mergedRows = merge ? mergeHistoryRows(historyDayRowsRef.current, rows) : rows
     const nextSummaries = summarizeSavedTrips(mergedRows)
     historyDayRowsRef.current = mergedRows
@@ -2898,7 +2898,7 @@ function App() {
     }
     setStatus(`Loaded history summary for ${nextSummaries.length} active day${nextSummaries.length === 1 ? '' : 's'}`)
     return { rows, summaries: nextSummaries }
-  }, [settings.traccarReactApiBaseUrl])
+  }, [settings.traccarScopeApiBaseUrl])
 
   useEffect(() => {
     const selectedDays = notificationSelectedDays
@@ -2913,7 +2913,7 @@ function App() {
     }
     let active = true
     setNotificationsLoading(true)
-    fetchTripEventNotifications(settings.traccarReactApiBaseUrl, { from, to })
+    fetchTripEventNotifications(settings.traccarScopeApiBaseUrl, { from, to })
       .then((rows) => {
         if (!active) return
         const result = Array.isArray(rows) ? rows : []
@@ -2932,7 +2932,7 @@ function App() {
       .catch(() => { if (active) setNotifications([]) })
       .finally(() => { if (active) setNotificationsLoading(false) })
     return () => { active = false }
-  }, [notificationSelectedDays, notificationsRefreshNonce, settings.traccarReactApiBaseUrl])
+  }, [notificationSelectedDays, notificationsRefreshNonce, settings.traccarScopeApiBaseUrl])
 
   const loadHistoryMonth = useCallback(async (monthKey, { force = false, selectFirstDay = false } = {}) => {
     if (!/^\d{4}-\d{2}$/.test(monthKey)) return
@@ -2961,12 +2961,12 @@ function App() {
     if (!from || !through || Number.isNaN(from.getTime()) || Number.isNaN(through.getTime())) return
     bouncieHistoryRefreshRef.current = imported.jobId
     try {
-      const existing = JSON.parse(localStorage.getItem('traccarReactApi:lastBouncieImportRange') || 'null')
+      const existing = JSON.parse(localStorage.getItem('traccarScopeApi:lastBouncieImportRange') || 'null')
       const existingFrom = existing?.from ? new Date(existing.from) : null
       const existingThrough = existing?.through ? new Date(existing.through) : null
       const savedFrom = existingFrom && !Number.isNaN(existingFrom.getTime()) ? new Date(Math.min(existingFrom.getTime(), from.getTime())) : from
       const savedThrough = existingThrough && !Number.isNaN(existingThrough.getTime()) ? new Date(Math.max(existingThrough.getTime(), through.getTime())) : through
-      localStorage.setItem('traccarReactApi:lastBouncieImportRange', JSON.stringify({ from: savedFrom.toISOString(), through: savedThrough.toISOString() }))
+      localStorage.setItem('traccarScopeApi:lastBouncieImportRange', JSON.stringify({ from: savedFrom.toISOString(), through: savedThrough.toISOString() }))
     } catch {
       // Local storage may be unavailable in private or restricted browser contexts.
     }
@@ -3035,7 +3035,7 @@ function App() {
       if (!merge && !pointOnly && loadedDayKeys.length > 0) setSelectedDayKey([...new Set(loadedDayKeys)].sort().at(-1))
       setStatus(`Loaded ${workingDevices.length} devices and ${pointCount} points; syncing trips...`)
 
-      // Keep the normal day view synchronized with TraccarReactApi. The import API
+      // Keep the normal day view synchronized with TraccarScopeApi. The import API
       // is idempotent, so revisiting a range only skips existing identities.
       let imported = 0
       let skipped = 0
@@ -3060,7 +3060,7 @@ function App() {
         }))
         if (!tripsPayload.length) continue
         try {
-          const result = await importTripsByDevice(settings.traccarReactApiBaseUrl, {
+          const result = await importTripsByDevice(settings.traccarScopeApiBaseUrl, {
             traccarDeviceId,
             derivationVersion: `trip-v5-ignition-first-movement-${settings.movementThresholdM}`,
             treatOverlappingAsExisting: true,
@@ -3103,7 +3103,7 @@ function App() {
       loadDevices,
       namedPlaces,
       settings.movementThresholdM,
-      settings.traccarReactApiBaseUrl,
+      settings.traccarScopeApiBaseUrl,
     ],
   )
 
@@ -3170,8 +3170,8 @@ function App() {
     try {
       setStatus('Loading history index...')
       const [span, monthSummaries] = await Promise.all([
-        fetchTripHistorySpan(settings.traccarReactApiBaseUrl),
-        fetchTripHistoryMonthSummaries(settings.traccarReactApiBaseUrl),
+        fetchTripHistorySpan(settings.traccarScopeApiBaseUrl),
+        fetchTripHistoryMonthSummaries(settings.traccarScopeApiBaseUrl),
       ])
       setHistorySpan(span)
       setHistoryMonthSummaryByKey(Object.fromEntries(monthSummaries
@@ -3197,7 +3197,7 @@ function App() {
       setError(err instanceof Error ? err.message : 'Unknown history load error')
       setStatus('History load failed')
     }
-  }, [loadHistoryMonth, settings.traccarReactApiBaseUrl])
+  }, [loadHistoryMonth, settings.traccarScopeApiBaseUrl])
 
   useEffect(() => {
     if (startupLoadRef.current || vehicleAuth.checking) return
@@ -3325,7 +3325,7 @@ function App() {
         savedTrip = { id: trip.savedTripId, vehicleId: trip.vehicleId, maxSpeedMph: trip.maxSpeedMph, notes: trip.notes, derivationVersion: trip.derivationVersion }
       } else {
         try {
-          savedTrip = await resolveTrip(settings.traccarReactApiBaseUrl, trip)
+          savedTrip = await resolveTrip(settings.traccarScopeApiBaseUrl, trip)
         } catch (resolveError) {
           if (resolveError?.status !== 404) throw resolveError
 
@@ -3340,7 +3340,7 @@ function App() {
           }
 
           setTripEditorStatus('Trip is not synchronized yet. Importing this trip…')
-          await importTripsByDevice(settings.traccarReactApiBaseUrl, {
+          await importTripsByDevice(settings.traccarScopeApiBaseUrl, {
             traccarDeviceId: Number(trip.deviceId),
             derivationVersion: `trip-v5-ignition-first-movement-${settings.movementThresholdM}`,
             treatOverlappingAsExisting: true,
@@ -3360,17 +3360,17 @@ function App() {
               maxSpeedMph: getTripMaxSpeedMph(trip),
             }],
           })
-          savedTrip = await resolveTrip(settings.traccarReactApiBaseUrl, trip)
+          savedTrip = await resolveTrip(settings.traccarScopeApiBaseUrl, trip)
         }
       }
       if (!isCurrent()) return
       const [tagResults, initialEvents, routeRows] = await Promise.all([
         Promise.all([
-          fetchTripTagsForTrip(settings.traccarReactApiBaseUrl, savedTrip.id),
-          fetchTripTags(settings.traccarReactApiBaseUrl, savedTrip.vehicleId),
+          fetchTripTagsForTrip(settings.traccarScopeApiBaseUrl, savedTrip.id),
+          fetchTripTags(settings.traccarScopeApiBaseUrl, savedTrip.vehicleId),
         ]),
-        fetchTripEvents(settings.traccarReactApiBaseUrl, savedTrip.id),
-        fetchTripRoutePoints(settings.traccarReactApiBaseUrl, savedTrip.id).catch(() => []),
+        fetchTripEvents(settings.traccarScopeApiBaseUrl, savedTrip.id),
+        fetchTripRoutePoints(settings.traccarScopeApiBaseUrl, savedTrip.id).catch(() => []),
       ])
       const [mappedTags, knownTags] = tagResults
       let events = initialEvents
@@ -3379,8 +3379,8 @@ function App() {
       if (!Array.isArray(events) || events.length === 0) {
         const detectedEvents = detectTripEvents(trip, resolveEventThresholds())
         if (detectedEvents.length > 0) {
-          await saveTripEvents(settings.traccarReactApiBaseUrl, savedTrip.id, detectedEvents)
-          events = await fetchTripEvents(settings.traccarReactApiBaseUrl, savedTrip.id)
+          await saveTripEvents(settings.traccarScopeApiBaseUrl, savedTrip.id, detectedEvents)
+          events = await fetchTripEvents(settings.traccarScopeApiBaseUrl, savedTrip.id)
         }
       }
 
@@ -3411,7 +3411,7 @@ function App() {
     } catch (err) {
       if (isCurrent()) {
         if (err?.status === 404) {
-      setTripEditorStatus('This trip is visible in Traccar but has not been synchronized into Traccar React API yet. Refresh or select its day to synchronize saved trip data before adding notes or tags.')
+      setTripEditorStatus('This trip is visible in Traccar but has not been synchronized into Traccar Scope API yet. Refresh or select its day to synchronize saved trip data before adding notes or tags.')
         } else {
           setTripEditorStatus(err instanceof Error ? err.message : 'Failed to load trip metadata.')
         }
@@ -3419,7 +3419,7 @@ function App() {
     } finally {
       if (isCurrent()) setTripEditorLoading(false)
     }
-  }, [activeBindings, devices, namedPlaces, settings.movementThresholdM, settings.traccarReactApiBaseUrl])
+  }, [activeBindings, devices, namedPlaces, settings.movementThresholdM, settings.traccarScopeApiBaseUrl])
 
   const editSelectedTrip = useCallback(async (action, successMessage, reloadTags = false) => {
     if (!selectedBackendTripId || tripEditorLoading || tripWritePending.current) return
@@ -3431,7 +3431,7 @@ function App() {
       await action(selectedBackendTripId)
       if (!isCurrent()) return
       if (reloadTags) {
-        const mapped = await fetchTripTagsForTrip(settings.traccarReactApiBaseUrl, selectedBackendTripId)
+        const mapped = await fetchTripTagsForTrip(settings.traccarScopeApiBaseUrl, selectedBackendTripId)
         if (!isCurrent()) return
         setTripEditorTags(mapped)
         setTagToAdd('')
@@ -3443,28 +3443,28 @@ function App() {
       tripWritePending.current = false
       setTripEditorBusy(false)
     }
-  }, [selectedBackendTripId, settings.traccarReactApiBaseUrl, tripEditorLoading])
+  }, [selectedBackendTripId, settings.traccarScopeApiBaseUrl, tripEditorLoading])
 
   const addSelectedTripTag = useCallback(() => {
     if (!tagToAdd) return
     return editSelectedTrip(
-      (id) => addTagToTrip(settings.traccarReactApiBaseUrl, id, tagToAdd),
+      (id) => addTagToTrip(settings.traccarScopeApiBaseUrl, id, tagToAdd),
       'Tag added to trip.', true,
     )
-  }, [editSelectedTrip, settings.traccarReactApiBaseUrl, tagToAdd])
+  }, [editSelectedTrip, settings.traccarScopeApiBaseUrl, tagToAdd])
 
   const removeSelectedTripTag = useCallback((tagId) => {
     if (!tagId) return
     return editSelectedTrip(
-      (id) => removeTagFromTrip(settings.traccarReactApiBaseUrl, id, tagId),
+      (id) => removeTagFromTrip(settings.traccarScopeApiBaseUrl, id, tagId),
       'Tag removed from trip.', true,
     )
-  }, [editSelectedTrip, settings.traccarReactApiBaseUrl])
+  }, [editSelectedTrip, settings.traccarScopeApiBaseUrl])
 
   const saveSelectedTripNote = useCallback(() => editSelectedTrip(
-    (id) => updateTripNotes(settings.traccarReactApiBaseUrl, id, tripNoteDraft),
+    (id) => updateTripNotes(settings.traccarScopeApiBaseUrl, id, tripNoteDraft),
     'Trip note saved.',
-  ), [editSelectedTrip, settings.traccarReactApiBaseUrl, tripNoteDraft])
+  ), [editSelectedTrip, settings.traccarScopeApiBaseUrl, tripNoteDraft])
 
   const testApi = useCallback(async () => {
     setError('')
@@ -3582,15 +3582,15 @@ function App() {
       const text = await file.text()
       const appCsv = parseAppPositionCsv(text, exportDeviceId || 0)
 
-      if (appCsv.format === 'traccar-react-positions-v1') {
+      if (appCsv.format === 'traccar-scope-positions-v1') {
         if (!exportDeviceId) {
-          setDataImportMessage('This is a Traccar React position export. Select its target device above before restoring it.')
+          setDataImportMessage('This is a Traccar Scope position export. Select its target device above before restoring it.')
           return
         }
 
         const device = devices.find((item) => item.id === exportDeviceId)
         if (!device || appCsv.rows.length === 0) {
-          setDataImportMessage('The Traccar React export did not contain any valid positions.')
+          setDataImportMessage('The Traccar Scope export did not contain any valid positions.')
           return
         }
 
@@ -3607,7 +3607,7 @@ function App() {
         const derivedTrips = buildTripsForDevice(exportDeviceId, appCsv.rows, settings.movementThresholdM)
         if (derivedTrips.length === 0) {
           setDataImportMessage(`Restored ${appCsv.rows.length} positions for ${device.name}; no movement trips were found.`)
-          setStatus(`Restored ${appCsv.rows.length} positions from Traccar React CSV`)
+          setStatus(`Restored ${appCsv.rows.length} positions from Traccar Scope CSV`)
           return
         }
 
@@ -3627,7 +3627,7 @@ function App() {
         }))
 
         try {
-          const result = await importTripsByDevice(settings.traccarReactApiBaseUrl, {
+          const result = await importTripsByDevice(settings.traccarScopeApiBaseUrl, {
             traccarDeviceId: primaryDeviceId,
           derivationVersion: `trip-v5-restored-csv-ignition-first-${settings.movementThresholdM}`,
             treatOverlappingAsExisting: true,
@@ -3646,23 +3646,23 @@ function App() {
             setDataImportMessage(`Restored ${appCsv.rows.length} positions for ${device.name}, but trips were not saved: ${tripError instanceof Error ? tripError.message : 'backend import failed'}`)
           }
         }
-        setStatus(`Restored ${appCsv.rows.length} positions from Traccar React CSV`)
+        setStatus(`Restored ${appCsv.rows.length} positions from Traccar Scope CSV`)
         return
       }
 
-      const vehicles = await fetchVehicleCatalog(settings.traccarReactApiBaseUrl)
+      const vehicles = await fetchVehicleCatalog(settings.traccarScopeApiBaseUrl)
       const parsed = parseBouncieCsv(text, vehicles)
       if (parsed.rows.length === 0) {
         setDataImportMessage(appCsv.error || `No importable rows found. ${parsed.unmatched.length} row(s) did not match a catalog vehicle.`)
         return
       }
-      const result = await importBouncieTrips(settings.traccarReactApiBaseUrl, parsed.rows)
+      const result = await importBouncieTrips(settings.traccarScopeApiBaseUrl, parsed.rows)
       setDataImportMessage(`Bouncie import complete: ${result.imported} added, ${result.skipped} duplicates skipped, ${result.importedEvents} events saved${parsed.unmatched.length ? `, ${parsed.unmatched.length} unmatched row(s)` : ''}.`)
       await loadHistorySummaries(historyWindow.from, historyWindow.to, 'updated history')
     } catch (err) {
       setDataImportMessage(err instanceof Error ? err.message : 'Data import failed.')
     }
-  }, [activeBindings, devices, exportDeviceId, historyWindow.from, historyWindow.to, loadHistorySummaries, namedPlaces, settings.movementThresholdM, settings.traccarReactApiBaseUrl])
+  }, [activeBindings, devices, exportDeviceId, historyWindow.from, historyWindow.to, loadHistorySummaries, namedPlaces, settings.movementThresholdM, settings.traccarScopeApiBaseUrl])
 
   const importTripsToBackend = useCallback(async () => {
     if (!exportDeviceId) {
@@ -3756,7 +3756,7 @@ function App() {
         return
       }
 
-      const result = await importTripsByDevice(settings.traccarReactApiBaseUrl, {
+      const result = await importTripsByDevice(settings.traccarScopeApiBaseUrl, {
         traccarDeviceId: primaryDeviceId,
         derivationVersion: `trip-v5-ignition-first-movement-${settings.movementThresholdM}`,
         trips: tripsPayload,
@@ -3793,7 +3793,7 @@ function App() {
     exportRangePreset,
     exportStartDate,
     settings.movementThresholdM,
-    settings.traccarReactApiBaseUrl,
+    settings.traccarScopeApiBaseUrl,
     namedPlaces,
   ])
 
@@ -3815,7 +3815,7 @@ function App() {
     setBindingRepairBusy(true)
     setBindingRepairStatus(`Assigning this trip window to ${bindingRepairSuggestion.vehicleDisplayName}...`)
     try {
-      await repairMissingDeviceBinding(settings.traccarReactApiBaseUrl, {
+      await repairMissingDeviceBinding(settings.traccarScopeApiBaseUrl, {
         bindingId: bindingRepairSuggestion.id,
         traccarDeviceId: importRecovery.traccarDeviceId,
         startedAt: importRecovery.startedAt,
@@ -3836,7 +3836,7 @@ function App() {
     } finally {
       setBindingRepairBusy(false)
     }
-  }, [bindingRepairSuggestion, importRecovery, loadHistoryRange, refreshBindingData, settings.traccarReactApiBaseUrl])
+  }, [bindingRepairSuggestion, importRecovery, loadHistoryRange, refreshBindingData, settings.traccarScopeApiBaseUrl])
 
   const dismissImportRecovery = useCallback(() => {
     setImportRecovery(null)
@@ -3908,7 +3908,7 @@ function App() {
       const queuedSave = profileSyncQueueRef.current.catch(() => {}).then(async () => {
         const expectedRevision = profileServerRevisionsRef.current[profileId]
         if (!Number.isInteger(expectedRevision)) throw new Error('The shared profile revision is unavailable. Reload profiles before saving.')
-        const result = await upsertTelemetryProfile(settings.traccarReactApiBaseUrl, next, expectedRevision)
+        const result = await upsertTelemetryProfile(settings.traccarScopeApiBaseUrl, next, expectedRevision)
         profileServerRevisionsRef.current = { ...profileServerRevisionsRef.current, [profileId]: result.revision }
         lastSyncedProfileDefinitionsRef.current = { ...(lastSyncedProfileDefinitionsRef.current || {}), [profileId]: next }
       })
@@ -3925,10 +3925,10 @@ function App() {
     return {
       ok: true,
       message: profileServerReady && profileServerAvailable
-        ? 'Shared mapping saved to the Traccar React API.'
+        ? 'Shared mapping saved to the Traccar Scope API.'
         : 'Shared mapping saved in this browser and will sync when profile storage is available.',
     }
-  }, [profileServerAvailable, profileServerReady, settings.displayUnits, settings.traccarReactApiBaseUrl, vehicleAuth.authenticated, vehicleAuth.enabled, vehicleAuth.role])
+  }, [profileServerAvailable, profileServerReady, settings.displayUnits, settings.traccarScopeApiBaseUrl, vehicleAuth.authenticated, vehicleAuth.enabled, vehicleAuth.role])
 
   const openProfileMappingEditor = useCallback(() => {
     let parsed
@@ -4088,7 +4088,7 @@ function App() {
     if (profileServerAvailable) {
       try {
         const queuedDelete = profileSyncQueueRef.current.catch(() => {}).then(async () => {
-          await deleteTelemetryProfile(settings.traccarReactApiBaseUrl, selectedProfileId, profileServerRevisionsRef.current[selectedProfileId])
+          await deleteTelemetryProfile(settings.traccarScopeApiBaseUrl, selectedProfileId, profileServerRevisionsRef.current[selectedProfileId])
           const revisions = { ...profileServerRevisionsRef.current }
           delete revisions[selectedProfileId]
           profileServerRevisionsRef.current = revisions
@@ -4112,7 +4112,7 @@ function App() {
 
     setSelectedProfileId(fallback.id)
     setProfileEditorStatus('Profile deleted.')
-  }, [profileOptions, profileServerAvailable, selectedProfileId, settings.traccarReactApiBaseUrl])
+  }, [profileOptions, profileServerAvailable, selectedProfileId, settings.traccarScopeApiBaseUrl])
 
   const statusEligibleDeviceIds = useMemo(() => {
     const ids = new Set()
@@ -4204,11 +4204,11 @@ function App() {
   const hasSavedTripPanelPosition = Number.isFinite(savedTripPanelPosition?.left) && Number.isFinite(savedTripPanelPosition?.top)
 
   if (vehicleAuth.checking) {
-    return <main className="auth-screen"><div className="auth-card"><h1>Traccar React</h1><p>Checking application access…</p></div></main>
+    return <main className="auth-screen"><div className="auth-card"><h1>Traccar Scope</h1><p>Checking application access…</p></div></main>
   }
 
   if (vehicleAuth.enabled && !vehicleAuth.authenticated) {
-    return <main className="auth-screen"><form className="auth-card" onSubmit={submitVehicleLogin}><h1>Traccar React</h1><p>Sign in to Traccar React.</p><label>Username<input autoComplete="username" value={vehicleLoginUsername} onChange={(event) => setVehicleLoginUsername(event.target.value)} /></label><label>Password<input type="password" autoComplete="current-password" value={vehicleLoginPassword} onChange={(event) => setVehicleLoginPassword(event.target.value)} /></label>{vehicleLoginError && <div className="trip-empty">{vehicleLoginError}</div>}<button type="submit">Sign in</button></form></main>
+    return <main className="auth-screen"><form className="auth-card" onSubmit={submitVehicleLogin}><h1>Traccar Scope</h1><p>Sign in to Traccar Scope.</p><label>Username<input autoComplete="username" value={vehicleLoginUsername} onChange={(event) => setVehicleLoginUsername(event.target.value)} /></label><label>Password<input type="password" autoComplete="current-password" value={vehicleLoginPassword} onChange={(event) => setVehicleLoginPassword(event.target.value)} /></label>{vehicleLoginError && <div className="trip-empty">{vehicleLoginError}</div>}<button type="submit">Sign in</button></form></main>
   }
 
   return (
@@ -4235,8 +4235,8 @@ function App() {
         </div>}
         </>}
       </div>
-      {SHOW_EXPERIMENTAL_ASK && isVehicleQueryOpen && createPortal(<Suspense fallback={null}><AskVehiclesPanel baseUrl={settings.traccarReactApiBaseUrl} displayUnits={settings.displayUnits} onClose={() => setIsVehicleQueryOpen(false)} /></Suspense>, document.body)}
-      {isUserProfileOpen && createPortal(<Suspense fallback={null}><UserProfilePanel baseUrl={settings.traccarReactApiBaseUrl} devices={devices} onClose={() => setIsUserProfileOpen(false)} /></Suspense>, document.body)}
+      {SHOW_EXPERIMENTAL_ASK && isVehicleQueryOpen && createPortal(<Suspense fallback={null}><AskVehiclesPanel baseUrl={settings.traccarScopeApiBaseUrl} displayUnits={settings.displayUnits} onClose={() => setIsVehicleQueryOpen(false)} /></Suspense>, document.body)}
+      {isUserProfileOpen && createPortal(<Suspense fallback={null}><UserProfilePanel baseUrl={settings.traccarScopeApiBaseUrl} devices={devices} onClose={() => setIsUserProfileOpen(false)} /></Suspense>, document.body)}
         {importRecovery && createPortal((
           <section className="import-conflict-badge map-import-conflict" role="status" aria-live="polite">
             <div className="import-conflict-badge-header">
@@ -4329,7 +4329,7 @@ function App() {
       {createPortal(<MovablePanel className="floating-notifications-panel" position={notificationsPanelPosition} onPositionChange={(position) => setNotificationsPanelPosition((current) => ({ ...current, ...position }))} onPositionCommit={(position) => commitMovableWindowPosition('notifications', position, () => persistMapKeyPosition('notificationsPanelPosition', 'notifications-panel-position', { ...notificationsPanelPosition, ...position }, setNotificationsPanelPosition))}>{renderNotificationsPanel(true)}</MovablePanel>, document.body)}
 
       <section className={`map-panel${isPickingLocation ? ' map-location-picker' : ''}`}>
-        <h1 className="map-app-title">Traccar React</h1>
+        <h1 className="map-app-title">Traccar Scope</h1>
         <div className="map-bottom-left-panels">
         {!hiddenMapPanels.trackPlaces && namedPlaces.some((place) => place.placeType && place.placeType !== 'general') && <MovableMapKey className="track-place-key" closeLabel="Hide track locations key" onHide={() => setHiddenMapPanels((current) => ({ ...current, trackPlaces: true }))} position={trackPlaceKeyPosition} onPositionChange={setTrackPlaceKeyPosition} onPositionCommit={(position) => commitMovableWindowPosition('trackPlaces', position, () => persistMapKeyPosition('trackPlaceKeyPosition', 'track-places-key-position', position, setTrackPlaceKeyPosition))}>
           <strong>Track locations</strong>
@@ -4372,7 +4372,7 @@ function App() {
       profile={profileContextWithSourceMappings({ vehicleId: statusVehicleId, deviceId: statusDevice?.id, at: statusPoint?.timestamp }).profile}
           cardFields={statusCardFieldsByVehicle[statusVehicleId] || DEFAULT_STATUS_CARD_FIELDS}
         />
-        <VehicleStatsPanel baseUrl={settings.traccarReactApiBaseUrl} vehicleId={statusVehicleId || null} traccarApi={apiFetch} profileMap={profileMap} bindings={activeBindings} profileAssignments={historicalProfileAssignments} sourceMappingRevisionsByDevice={sourceMappingRevisionsByDevice} displayUnits={settings.displayUnits} updateSetting={updateSetting} />
+        <VehicleStatsPanel baseUrl={settings.traccarScopeApiBaseUrl} vehicleId={statusVehicleId || null} traccarApi={apiFetch} profileMap={profileMap} bindings={activeBindings} profileAssignments={historicalProfileAssignments} sourceMappingRevisionsByDevice={sourceMappingRevisionsByDevice} displayUnits={settings.displayUnits} updateSetting={updateSetting} />
         <div ref={mapElementRef} className="map-canvas" />
 
         {!hiddenMapPanels.speedBands && <MovableMapKey className="speed-band-key" closeLabel="Hide speed bands key" onHide={() => setHiddenMapPanels((current) => ({ ...current, speedBands: true }))} position={speedBandKeyPosition} onPositionChange={setSpeedBandKeyPosition} onPositionCommit={(position) => commitMovableWindowPosition('speedBands', position, () => persistMapKeyPosition('speedBandKeyPosition', 'speed-bands-key-position', position, setSpeedBandKeyPosition))}>
@@ -4389,7 +4389,7 @@ function App() {
           isPickingLocation={isPickingLocation}
           startLocationPicker={startLocationPicker}
           settings={settings}
-          traccarReactApiBaseUrl={settings.traccarReactApiBaseUrl}
+          traccarScopeApiBaseUrl={settings.traccarScopeApiBaseUrl}
           canEditGeneralSettings={vehicleAuth.role === 'admin'}
           onSaveGlobalGeneralSettings={persistGlobalGeneralSettings}
           updateSetting={updateSetting}
@@ -4407,7 +4407,7 @@ function App() {
           profileAttributesJson={profileAttributesJson}
           setProfileAttributesJson={setProfileAttributesJson}
           profileEditorStatus={profileEditorStatus}
-          profileStorageNotice={vehicleAuth.enabled && vehicleAuth.role !== 'admin' ? 'Only Traccar React API administrators can change shared device protocol profiles.' : profileStorageState.notice}
+          profileStorageNotice={vehicleAuth.enabled && vehicleAuth.role !== 'admin' ? 'Only Traccar Scope API administrators can change shared device protocol profiles.' : profileStorageState.notice}
           profileStorageCanSave={profileStorageState.canSave && (!vehicleAuth.enabled || vehicleAuth.role === 'admin')}
           profileSyncStatus={profileSyncStatus}
           onOpenProfileMappingEditor={openProfileMappingEditor}
@@ -4528,17 +4528,17 @@ function App() {
           profileSchemaVersion={PROFILE_DEFINITION_SCHEMA_VERSION}
           submissionDevices={devices}
           submissionDefaultDeviceId={submissionDefaultDeviceId}
-          submissionApiBaseUrl={settings.traccarReactApiBaseUrl}
+          submissionApiBaseUrl={settings.traccarScopeApiBaseUrl}
           fetchSubmissionPositions={fetchDevicePositionsForProfileSubmission}
           displayUnits={settings.displayUnits}
           canSave={profileStorageState.canSave && (!vehicleAuth.enabled || vehicleAuth.role === 'admin')}
           serverSyncEnabled={profileServerReady && profileServerAvailable}
-          storageNotice={vehicleAuth.enabled && vehicleAuth.role !== 'admin' ? 'Only Traccar React API administrators can change shared device protocol profiles.' : profileStorageState.notice}
+          storageNotice={vehicleAuth.enabled && vehicleAuth.role !== 'admin' ? 'Only Traccar Scope API administrators can change shared device protocol profiles.' : profileStorageState.notice}
           syncStatus={profileSyncStatus}
           editorStatus={profileEditorStatus}
           saveProfile={saveProfileEdits}
           loadRevisions={profileStorageState.canSave && (!vehicleAuth.enabled || vehicleAuth.role === 'admin') && profileServerReady && profileServerAvailable
-            ? (id) => fetchTelemetryProfileRevisions(settings.traccarReactApiBaseUrl, id)
+            ? (id) => fetchTelemetryProfileRevisions(settings.traccarScopeApiBaseUrl, id)
             : undefined}
           onBackToSettings={returnToProfileSettings}
           onSaveAndClose={closeProfileMappingEditor}
@@ -4600,7 +4600,7 @@ function App() {
         </div>
       )}
 
-      {graphGroups && <Suspense fallback={null}><TelemetryGraphViewer groups={graphGroups} profile={graphProfile} fetchGpsPositions={fetchGpsPositionsForExport} namedPlaces={namedPlaces} vehicleMetadata={bindingVehicles.find((vehicle) => vehicle.id === graphGroups[0]?.vehicleId)} deviceMetadata={devices.find((device) => Number(device.id) === Number(graphGroups[0]?.deviceId))} vehicleMetadataList={bindingVehicles} deviceMetadataList={devices} traccarServerVersion={traccarServer?.baseUrl === settings.traccarReactApiBaseUrl ? traccarServer.version : ''} title={graphGroups.length === 1 ? 'Trip Telemetry Graph' : 'Selected Days Telemetry Graph'} profileOptions={profileOptions} profileVehicleCounts={Object.fromEntries(profileOptions.map((item) => [item.id, bindingVehicles.filter((vehicle) => vehicle.id === item.id).length]))} userName={vehicleAuth.username || ''} isAuthenticated={vehicleAuth.authenticated} canEditSharedProfiles={!vehicleAuth.enabled || (vehicleAuth.authenticated && vehicleAuth.role === 'admin')} traccarReactApiBaseUrl={settings.traccarReactApiBaseUrl} onSaveSharedMapping={saveGraphFieldMapping} onSourceMappingSaved={updateSourceMappingRevision} resolvePointProfileContext={(group, at) => profileContextWithSourceMappings({ vehicleId: group.vehicleId, deviceId: group.deviceId, at })} onClose={() => setGraphGroups(null)} /></Suspense>}
+      {graphGroups && <Suspense fallback={null}><TelemetryGraphViewer groups={graphGroups} profile={graphProfile} fetchGpsPositions={fetchGpsPositionsForExport} namedPlaces={namedPlaces} vehicleMetadata={bindingVehicles.find((vehicle) => vehicle.id === graphGroups[0]?.vehicleId)} deviceMetadata={devices.find((device) => Number(device.id) === Number(graphGroups[0]?.deviceId))} vehicleMetadataList={bindingVehicles} deviceMetadataList={devices} traccarServerVersion={traccarServer?.baseUrl === settings.traccarScopeApiBaseUrl ? traccarServer.version : ''} title={graphGroups.length === 1 ? 'Trip Telemetry Graph' : 'Selected Days Telemetry Graph'} profileOptions={profileOptions} profileVehicleCounts={Object.fromEntries(profileOptions.map((item) => [item.id, bindingVehicles.filter((vehicle) => vehicle.id === item.id).length]))} userName={vehicleAuth.username || ''} isAuthenticated={vehicleAuth.authenticated} canEditSharedProfiles={!vehicleAuth.enabled || (vehicleAuth.authenticated && vehicleAuth.role === 'admin')} traccarScopeApiBaseUrl={settings.traccarScopeApiBaseUrl} onSaveSharedMapping={saveGraphFieldMapping} onSourceMappingSaved={updateSourceMappingRevision} resolvePointProfileContext={(group, at) => profileContextWithSourceMappings({ vehicleId: group.vehicleId, deviceId: group.deviceId, at })} onClose={() => setGraphGroups(null)} /></Suspense>}
     </main>
   )
 }

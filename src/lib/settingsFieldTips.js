@@ -1,15 +1,15 @@
 const helpByLabel = {
-  'api base url': 'Shared Traccar API URL used by every user for devices, positions, and live data. The Traccar React API proxies these requests using the saved Traccar credentials.',
-  'traccar react api base url': 'Shared base URL for this app’s Traccar React API. All users use this URL for app data and settings requests.',
-  'username (email)': 'Shared Traccar account username used by the app for every user. This is not a Traccar React API login or an email alias.',
-  username: 'Login name for this Traccar React API user. Use it when signing in to the app.',
+  'api base url': 'Shared Traccar API URL used by every user for devices, positions, and live data. The Traccar Scope API proxies these requests using the saved Traccar credentials.',
+  'traccar scope api base url': 'Shared base URL for Traccar Scope API. All users use this URL for app data and settings requests.',
+  'username (email)': 'Shared Traccar account username used by the app for every user. This is not a Traccar Scope API login or an email alias.',
+  username: 'Login name for this Traccar Scope API user. Use it when signing in to the app.',
   password: 'Password for the selected account. When editing an existing user, leave blank to keep the current password.',
   'poll interval (ms)': 'How often the app asks Traccar for updated device data. Lower values refresh more often and make more requests.',
   'realtime hours': 'How many recent hours of positions to keep in the live map view.',
   'movement threshold (m)': 'Minimum distance in meters before a new position counts as movement. Raise it to filter GPS drift; lower it to detect smaller movements.',
   'display units': 'Choose whether distances and speeds are shown in US customary or metric units.',
   theme: 'Choose the app color theme, or follow the device setting with Auto.',
-  'device source': 'Choose whether the vehicle list comes directly from Traccar or from the Traccar React API catalog.',
+  'device source': 'Choose whether the vehicle list comes directly from Traccar or from the Traccar Scope API catalog.',
   'edit vehicle': 'Choose a catalog vehicle to edit, or select New vehicle to add one.',
   name: 'Display name used to identify this record in the app.',
   vin: 'Vehicle Identification Number. Enter the 17-character VIN when available.',
@@ -84,9 +84,9 @@ const helpByLabel = {
 }
 
 const helpBySectionAndLabel = {
-  'general|shared traccar username': 'Username for the shared Traccar account. It is used by the server for every user and is not an email alias or a Traccar React API login.',
-  'general|shared traccar password': 'Password for the shared Traccar account. The Traccar React API stores it encrypted and uses it for Traccar requests. Leave blank to keep the saved password.',
-  'users and groups|username': 'Unique login name for this Traccar React API user.',
+  'general|shared traccar username': 'Username for the shared Traccar account. It is used by the server for every user and is not an email alias or a Traccar Scope API login.',
+  'general|shared traccar password': 'Password for the shared Traccar account. The Traccar Scope API stores it encrypted and uses it for Traccar requests. Leave blank to keep the saved password.',
+  'users and groups|username': 'Unique login name for this Traccar Scope API user.',
   'users and groups|password': 'Set a password for this user. When editing an existing user, leave it blank to keep the current password.',
   'vehicle catalog|name': 'Display name for this catalog vehicle. It appears in vehicle lists and reports.',
   'named places|name': 'Name for this saved place, such as Home or Office.',

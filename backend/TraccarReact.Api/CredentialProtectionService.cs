@@ -14,7 +14,7 @@ public sealed class CredentialProtectionService
     {
         var keys = new Dictionary<string, byte[]>(StringComparer.Ordinal);
         var errors = new List<string>();
-        var configuredKeys = configuration.GetSection("TraccarReactApi:CredentialEncryption:Keys").GetChildren().ToArray();
+        var configuredKeys = configuration.GetSection("TraccarScopeApi:CredentialEncryption:Keys").GetChildren().ToArray();
         foreach (var section in configuredKeys)
         {
             if (!Regex.IsMatch(section.Key, "^[A-Za-z0-9_-]{1,64}$"))
@@ -35,10 +35,10 @@ public sealed class CredentialProtectionService
         }
 
         _keys = keys;
-        var configuredActiveKeyId = configuration["TraccarReactApi:CredentialEncryption:ActiveKeyId"];
+        var configuredActiveKeyId = configuration["TraccarScopeApi:CredentialEncryption:ActiveKeyId"];
         HasConfiguration = configuredKeys.Length > 0 || !string.IsNullOrWhiteSpace(configuredActiveKeyId);
         _activeKeyId = configuredActiveKeyId?.Trim();
-        if (string.IsNullOrWhiteSpace(_activeKeyId)) errors.Add("TraccarReactApi:CredentialEncryption:ActiveKeyId is required to save provider credentials.");
+        if (string.IsNullOrWhiteSpace(_activeKeyId)) errors.Add("TraccarScopeApi:CredentialEncryption:ActiveKeyId is required to save provider credentials.");
         else if (!keys.ContainsKey(_activeKeyId)) errors.Add("The active credential encryption key is missing or invalid.");
         _configurationError = errors.Count == 0 ? null : string.Join(" ", errors);
     }

@@ -5,7 +5,7 @@
 This repository contains:
 
 - React frontend code (`src/`)
-- .NET API code (`backend/TraccarReact.Api/`)
+- .NET API code (`backend/TraccarScope.Api/`)
 - SQL and operational scripts (`scripts/`)
 - deployment documentation
 

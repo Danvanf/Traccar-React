@@ -1,0 +1,65 @@
+services:
+  database:
+    image: timescale/timescaledb:latest-pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: traccar_scope
+      POSTGRES_USER: traccar_scope
+      POSTGRES_PASSWORD: ${TRACCAR_SCOPE_API_DB_PASSWORD}
+      TRACCAR_SCOPE_API_DB_PASSWORD: ${TRACCAR_SCOPE_API_DB_PASSWORD}
+      TIMESCALEDB_TELEMETRY: "off"
+    volumes:
+      - database-data:/var/lib/postgresql/data
+      - ${TRACCAR_SCOPE_SOURCE_DIR}/scripts/docker_init_traccar_scope_api_db.sh:/docker-entrypoint-initdb.d/10-create-traccar-scope-api-db.sh:ro
+      - ${TRACCAR_SCOPE_SOURCE_DIR}/scripts:/traccar-scope-api-bootstrap:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U traccar_scope -d traccar_scope"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  traccar-scope-api:
+    build:
+      context: ${TRACCAR_SCOPE_SOURCE_DIR}
+      dockerfile: scripts/installer-templates/Dockerfile.first-test-api
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:5124
+      ConnectionStrings__TraccarScopeApi: "Host=database;Port=5432;Database=traccar_scope_api;Username=traccar_scope_api;Password=${TRACCAR_SCOPE_API_DB_PASSWORD}"
+      TraccarScopeApi__Auth__Username: ${APP_ADMIN_USERNAME}
+      TraccarScopeApi__Auth__Password: ${APP_ADMIN_PASSWORD}
+      TraccarScopeApi__Auth__AllowUnauthenticatedDevelopment: "false"
+      TraccarScopeApi__CredentialEncryption__ActiveKeyId: install
+      TraccarScopeApi__CredentialEncryption__Keys__install: ${TRACCAR_SCOPE_API_CREDENTIAL_KEY}
+      Traccar__BaseUrl: ${TRACCAR_SERVER_URL}
+    expose:
+      - "5124"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - traccar
+
+  web:
+    build:
+      context: ${TRACCAR_SCOPE_SOURCE_DIR}
+      dockerfile: scripts/installer-templates/Dockerfile.traccar-scope-web
+    restart: unless-stopped
+    depends_on:
+      traccar-scope-api:
+        condition: service_started
+    ports:
+      - "${WEB_BIND_ADDRESS}:${WEB_PORT}:80"
+
+volumes:
+  database-data:
+
+networks:
+  default: {}
+  traccar:
+    external: true
+    name: ${TRACCAR_DOCKER_NETWORK}

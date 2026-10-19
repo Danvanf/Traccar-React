@@ -46,7 +46,7 @@ public static class DeploymentTestTransferEndpoints
     }
 
     private static async Task<IResult> StatusAsync(
-        TraccarReactApiAuthOptions authOptions,
+        TraccarScopeApiAuthOptions authOptions,
         NpgsqlDataSource dataSource,
         HttpContext context,
         CancellationToken cancellationToken)
@@ -69,7 +69,7 @@ public static class DeploymentTestTransferEndpoints
     private static async Task<IResult> ExportAsync(
         DateTimeOffset? from,
         DateTimeOffset? to,
-        TraccarReactApiAuthOptions authOptions,
+        TraccarScopeApiAuthOptions authOptions,
         NpgsqlDataSource dataSource,
         GlobalGeneralSettingsStore generalSettingsStore,
         TraccarProxyOptions traccarOptions,
@@ -105,7 +105,7 @@ public static class DeploymentTestTransferEndpoints
         if (string.IsNullOrWhiteSpace(settings.Username) || string.IsNullOrEmpty(settings.Password))
             return Results.Problem(title: "Traccar connection not configured", detail: "An administrator must configure the shared Traccar API account before exporting history.", statusCode: StatusCodes.Status503ServiceUnavailable);
 
-        var tempPath = Path.Combine(Path.GetTempPath(), $"traccar-react-api-transfer-{Guid.NewGuid():N}.zip");
+        var tempPath = Path.Combine(Path.GetTempPath(), $"traccar-scope-api-transfer-{Guid.NewGuid():N}.zip");
         FileStream? archiveStream = null;
         try
         {
@@ -117,7 +117,7 @@ public static class DeploymentTestTransferEndpoints
             using (var zip = new ZipArchive(archiveStream, ZipArchiveMode.Create, leaveOpen: true))
             {
                 (traccarVersion, deviceCount) = await ExportTraccarAsync(zip, fileSummaries, settings, traccarOptions, httpClientFactory, fromUtc, toUtc, cancellationToken);
-                appTableNames = await ExportTraccarReactApiAsync(zip, fileSummaries, dataSource, fromUtc, toUtc, cancellationToken);
+                appTableNames = await ExportTraccarScopeApiAsync(zip, fileSummaries, dataSource, fromUtc, toUtc, cancellationToken);
                 var manifest = new
                 {
                     formatVersion = 1,
@@ -126,13 +126,13 @@ public static class DeploymentTestTransferEndpoints
                     source = new
                     {
                         traccarVersion,
-                        application = "Traccar React",
+                        application = "Traccar Scope",
                         apiAssemblyVersion = typeof(DeploymentTestTransferEndpoints).Assembly.GetName().Version?.ToString(),
-                        traccarReactApiSchema = "allowlisted-jsonl-v1",
+                        traccarScopeApiSchema = "allowlisted-jsonl-v1",
                     },
                     deviceCount,
                     files = fileSummaries,
-                    includedTraccarReactApiTables = appTableNames,
+                    includedTraccarScopeApiTables = appTableNames,
                     remappingRequired = new[] { "Traccar device IDs", "Traccar position IDs" },
                 };
                 var entry = zip.CreateEntry("manifest.json", CompressionLevel.Fastest);
@@ -142,7 +142,7 @@ public static class DeploymentTestTransferEndpoints
 
             await archiveStream.FlushAsync(cancellationToken);
             archiveStream.Position = 0;
-            var downloadName = $"traccar-react-api-deployment-test-{fromUtc:yyyy-MM-dd}-to-{toUtc:yyyy-MM-dd}.zip";
+            var downloadName = $"traccar-scope-api-deployment-test-{fromUtc:yyyy-MM-dd}-to-{toUtc:yyyy-MM-dd}.zip";
             context.Response.Headers.CacheControl = "no-store, private";
             context.Response.Headers.Pragma = "no-cache";
             logger.LogInformation(
@@ -159,12 +159,12 @@ public static class DeploymentTestTransferEndpoints
         }
         catch (MissingExportSchemaException exception)
         {
-            return Results.Problem(title: "Traccar React API schema is not ready for export", detail: exception.Message, statusCode: StatusCodes.Status503ServiceUnavailable);
+            return Results.Problem(title: "Traccar Scope API schema is not ready for export", detail: exception.Message, statusCode: StatusCodes.Status503ServiceUnavailable);
         }
         catch (HttpRequestException exception)
         {
             logger.LogWarning(exception, "Deployment export could not retrieve a Traccar response (requestId: {RequestId})", context.TraceIdentifier);
-            return Results.Problem(title: "Traccar server unavailable", detail: "Traccar React API could not retrieve the selected historical records from the configured Traccar server.", statusCode: StatusCodes.Status502BadGateway);
+            return Results.Problem(title: "Traccar server unavailable", detail: "Traccar Scope API could not retrieve the selected historical records from the configured Traccar server.", statusCode: StatusCodes.Status502BadGateway);
         }
         catch (JsonException exception)
         {
@@ -177,7 +177,7 @@ public static class DeploymentTestTransferEndpoints
         }
         catch (PostgresException exception)
         {
-            return Results.Problem(title: "Traccar React API data export failed", detail: $"PostgreSQL {exception.SqlState}: {exception.MessageText}", statusCode: StatusCodes.Status500InternalServerError);
+            return Results.Problem(title: "Traccar Scope API data export failed", detail: $"PostgreSQL {exception.SqlState}: {exception.MessageText}", statusCode: StatusCodes.Status500InternalServerError);
         }
         finally
         {
@@ -273,7 +273,7 @@ public static class DeploymentTestTransferEndpoints
         return (version, devices.Count);
     }
 
-    private static async Task<IReadOnlyList<string>> ExportTraccarReactApiAsync(
+    private static async Task<IReadOnlyList<string>> ExportTraccarScopeApiAsync(
         ZipArchive zip,
         List<DeploymentTransferFileSummary> summaries,
         NpgsqlDataSource dataSource,
@@ -296,7 +296,7 @@ public static class DeploymentTestTransferEndpoints
         {
             if (!existing.Contains(table.Name))
             {
-                if (table.Required) throw new MissingExportSchemaException($"Required table '{table.Name}' is missing. Apply the current Traccar React API schema migrations before exporting.");
+                if (table.Required) throw new MissingExportSchemaException($"Required table '{table.Name}' is missing. Apply the current Traccar Scope API schema migrations before exporting.");
                 continue;
             }
 
@@ -314,7 +314,7 @@ public static class DeploymentTestTransferEndpoints
                 command.Parameters.AddWithValue("to", toUtc);
             }
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-            await using var writer = await JsonlZipWriter.CreateAsync(zip, $"traccar-react-api/{table.Name}.jsonl", cancellationToken);
+            await using var writer = await JsonlZipWriter.CreateAsync(zip, $"traccar-scope-api/{table.Name}.jsonl", cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
                 await writer.WriteLineAsync(Encoding.UTF8.GetBytes(reader.GetString(0)), cancellationToken);
             summaries.Add(await writer.CompleteAsync(cancellationToken));
@@ -350,7 +350,7 @@ public static class DeploymentTestTransferEndpoints
             ? property.GetString()
             : null;
 
-    private static async Task<IResult?> AuthorizeAdminAsync(NpgsqlDataSource dataSource, TraccarReactApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken)
+    private static async Task<IResult?> AuthorizeAdminAsync(NpgsqlDataSource dataSource, TraccarScopeApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken)
     {
         if (authOptions.IsDevelopmentBypass(context)
             && context.User.Identities.Any(identity => string.Equals(identity.AuthenticationType, "DevelopmentBypass", StringComparison.Ordinal)))

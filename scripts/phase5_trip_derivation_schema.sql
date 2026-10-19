@@ -1,5 +1,5 @@
 -- Phase 5 trip derivation metadata.
--- Run against the traccar_react_api database. This is additive and does not rewrite trips.
+-- Run against the traccar_scope_api database. This is additive and does not rewrite trips.
 \set ON_ERROR_STOP on
 alter table if exists trips add column if not exists derivation_version text;
 create index if not exists ix_trips_derivation_version

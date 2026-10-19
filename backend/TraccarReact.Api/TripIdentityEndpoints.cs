@@ -13,7 +13,7 @@ public static class TripIdentityEndpoints
     private static async Task<IResult> ResolveAsync(
         int traccarDeviceId, DateTimeOffset startedAt, DateTimeOffset endedAt,
         long? startTraccarPositionId, long? endTraccarPositionId,
-        NpgsqlDataSource dataSource, TraccarReactApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken)
+        NpgsqlDataSource dataSource, TraccarScopeApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken)
     {
         if (traccarDeviceId <= 0 || endedAt < startedAt
             || startTraccarPositionId is <= 0 || endTraccarPositionId is <= 0)

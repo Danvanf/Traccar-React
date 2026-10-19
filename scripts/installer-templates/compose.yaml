@@ -6,12 +6,12 @@ services:
       POSTGRES_DB: traccar
       POSTGRES_USER: traccar
       POSTGRES_PASSWORD: ${TRACCAR_DB_PASSWORD}
-      TRACCAR_REACT_API_DB_PASSWORD: ${TRACCAR_REACT_API_DB_PASSWORD}
+      TRACCAR_SCOPE_API_DB_PASSWORD: ${TRACCAR_SCOPE_API_DB_PASSWORD}
       TIMESCALEDB_TELEMETRY: "off"
     volumes:
       - database-data:/var/lib/postgresql/data
-      - ../traccar-react/scripts/docker_init_traccar_react_api_db.sh:/docker-entrypoint-initdb.d/10-create-traccar-react-api-db.sh:ro
-      - ../traccar-react/scripts:/traccar-react-api-bootstrap:ro
+      - ../traccar-scope/scripts/docker_init_traccar_scope_api_db.sh:/docker-entrypoint-initdb.d/10-create-traccar-scope-api-db.sh:ro
+      - ../traccar-scope/scripts:/traccar-scope-api-bootstrap:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U traccar -d traccar"]
       interval: 5s
@@ -42,9 +42,9 @@ services:
       start_period: 90s
       retries: 10
 
-  traccar-react-api-api:
+  traccar-scope-api:
     build:
-      context: ../traccar-react
+      context: ../traccar-scope
       dockerfile: Dockerfile.first-test-api
     restart: unless-stopped
     depends_on:
@@ -53,25 +53,25 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:5124
-      ConnectionStrings__TraccarReactApi: "Host=database;Port=5432;Database=traccar_react_api;Username=traccar_react_api;Password=${TRACCAR_REACT_API_DB_PASSWORD}"
-      TraccarReactApi__Auth__Username: ${APP_ADMIN_USERNAME}
-      TraccarReactApi__Auth__Password: ${APP_ADMIN_PASSWORD}
-      TraccarReactApi__Auth__AllowUnauthenticatedDevelopment: "false"
-      TraccarReactApi__CredentialEncryption__ActiveKeyId: first-test
-      TraccarReactApi__CredentialEncryption__Keys__first-test: ${TRACCAR_REACT_API_CREDENTIAL_KEY}
+      ConnectionStrings__TraccarScopeApi: "Host=database;Port=5432;Database=traccar_scope_api;Username=traccar_scope_api;Password=${TRACCAR_SCOPE_API_DB_PASSWORD}"
+      TraccarScopeApi__Auth__Username: ${APP_ADMIN_USERNAME}
+      TraccarScopeApi__Auth__Password: ${APP_ADMIN_PASSWORD}
+      TraccarScopeApi__Auth__AllowUnauthenticatedDevelopment: "false"
+      TraccarScopeApi__CredentialEncryption__ActiveKeyId: first-test
+      TraccarScopeApi__CredentialEncryption__Keys__first-test: ${TRACCAR_SCOPE_API_CREDENTIAL_KEY}
       Traccar__BaseUrl: http://traccar:8082
     expose:
       - "5124"
 
   web:
     build:
-      context: ../traccar-react
+      context: ../traccar-scope
       dockerfile: Dockerfile.first-test-web
     restart: unless-stopped
     depends_on:
       traccar:
         condition: service_healthy
-      traccar-react-api-api:
+      traccar-scope-api:
         condition: service_started
     ports:
       - "127.0.0.1:8089:80"

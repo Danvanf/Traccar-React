@@ -211,7 +211,7 @@ public static class TelemetryProfileSubmissionEndpoints
         var fileName = $"telemetry-profile-{safeName}-{fromDate:yyyy-MM-dd}-to-{throughDate:yyyy-MM-dd}.zip";
         var subjectName = Regex.Replace(profile.Name, @"[\x00-\x1F\x7F]+", " ").Trim();
         if (subjectName.Length > 100) subjectName = subjectName[..100];
-        var subject = $"Traccar React: Profile review - {subjectName} ({fromDate:yyyy-MM-dd} to {throughDate:yyyy-MM-dd})";
+        var subject = $"Traccar Scope: Profile review - {subjectName} ({fromDate:yyyy-MM-dd} to {throughDate:yyyy-MM-dd})";
         var json = JsonSerializer.SerializeToUtf8Bytes(payload, JsonOptions);
         var allTelemetryFieldsIncluded = !legacyPrivacyFilter && excludedFields.Length == 0;
         var archive = BuildArchive(json, fileName, excludedFields, allTelemetryFieldsIncluded, legacyPrivacyFilter);
@@ -241,7 +241,7 @@ public static class TelemetryProfileSubmissionEndpoints
 
             var readmeEntry = archive.CreateEntry("README.txt", CompressionLevel.Optimal);
             using var readme = new StreamWriter(readmeEntry.Open(), new UTF8Encoding(false));
-            readme.WriteLine("Traccar React device profile review");
+            readme.WriteLine("Traccar Scope device profile review");
             readme.WriteLine();
             readme.WriteLine("submission.json contains the proposed profile and every tracking point returned for the selected date range.");
             readme.WriteLine(legacyPrivacyFilter
@@ -283,7 +283,7 @@ public static class TelemetryProfileSubmissionEndpoints
     private static async Task<string?> GetDefaultSenderAsync(NpgsqlDataSource dataSource, CancellationToken cancellationToken)
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand("select default_sender_user_id from traccar_react_api_email_settings where id = 1", connection);
+        await using var command = new NpgsqlCommand("select default_sender_user_id from traccar_scope_api_email_settings where id = 1", connection);
         return (await command.ExecuteScalarAsync(cancellationToken) as string)?.Trim();
     }
 

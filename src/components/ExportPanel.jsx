@@ -73,7 +73,7 @@ function ExportPanel({
       </div>
       <hr />
       <h3>Restore CSV Data</h3>
-      <div className="export-hint">Choose a Bouncie trip export or a Traccar React position export. The format is detected from its headers. Traccar React exports restore raw positions to the selected device and rebuild duplicate-safe trips; notes, tags, and events remain server-side.</div>
+      <div className="export-hint">Choose a Bouncie trip export or a Traccar Scope position export. The format is detected from its headers. Traccar Scope exports restore raw positions to the selected device and rebuild duplicate-safe trips; notes, tags, and events remain server-side.</div>
       <input type="file" accept=".csv,text/csv" onChange={(event) => importDataFile(event.target.files?.[0] || null)} />
       <div className="export-output" role="status" aria-live="polite">{dataImportMessage || 'Restore results will appear here.'}</div>
     </div>

@@ -21,7 +21,7 @@ public static class TraccarProxyEndpoints
         GlobalGeneralSettingsStore store,
         TraccarProxyOptions options,
         NpgsqlDataSource dataSource,
-        TraccarReactApiAuthOptions authOptions,
+        TraccarScopeApiAuthOptions authOptions,
         IHttpClientFactory clientFactory,
         HttpContext context,
         CancellationToken cancellationToken)
@@ -143,7 +143,7 @@ public static class TraccarProxyEndpoints
         catch (HttpRequestException)
         {
             context.Response.StatusCode = StatusCodes.Status502BadGateway;
-            await context.Response.WriteAsJsonAsync(new { title = "Traccar server unavailable", detail = "Traccar React API could not reach the configured Traccar server." }, cancellationToken);
+            await context.Response.WriteAsJsonAsync(new { title = "Traccar server unavailable", detail = "Traccar Scope API could not reach the configured Traccar server." }, cancellationToken);
         }
     }
 

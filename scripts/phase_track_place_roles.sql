@@ -1,6 +1,6 @@
 -- Additive migration for named-place roles used by telemetry track timing.
--- Run against traccar_react_api if the API cannot perform its startup bootstrap:
---   psql -U traccar -d traccar_react_api -f scripts/phase_track_place_roles.sql
+-- Run against traccar_scope_api if the API cannot perform its startup bootstrap:
+--   psql -U traccar -d traccar_scope_api -f scripts/phase_track_place_roles.sql
 
 alter table if exists named_places
   add column if not exists place_type text not null default 'general';

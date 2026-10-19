@@ -41,7 +41,7 @@ foreach (var test in cases)
         && auth == $"{testAccountSid}:{testAuthToken}"
         && request.Form.Contains($"To={Uri.EscapeDataString(test.To)}", StringComparison.Ordinal)
         && request.Form.Contains($"From={Uri.EscapeDataString(test.From)}", StringComparison.Ordinal)
-        && request.Form.Contains("Body=Traccar+React+API+Twilio+magic-number+API+test.", StringComparison.Ordinal);
+        && request.Form.Contains("Body=Traccar+Scope+API+Twilio+magic-number+API+test.", StringComparison.Ordinal);
     var resultValid = result.Accepted == (test.ExpectedHttp == 201)
         && result.HttpStatusCode == test.ExpectedHttp
         && result.TwilioErrorCode == test.ExpectedErrorCode
@@ -64,22 +64,22 @@ passed++;
 // Retired environment configuration must never activate sending or webhook authentication.
 var retired = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
 {
-    ["TraccarReactApi:Sms:Provider"] = "Twilio",
-    ["TraccarReactApi:Sms:Twilio:AccountSid"] = "OLD_ACCOUNT",
-    ["TraccarReactApi:Sms:Twilio:ApiKeySid"] = "OLD_KEY",
-    ["TraccarReactApi:Sms:Twilio:ApiKeySecret"] = "OLD_SECRET",
-    ["TraccarReactApi:Sms:Twilio:FromNumber"] = "+15005550006",
-    ["TraccarReactApi:Sms:Twilio:TestAccountSid"] = "OLD_TEST",
-    ["TraccarReactApi:Sms:Twilio:TestAuthToken"] = "OLD_TOKEN",
-    ["TraccarReactApi:Sms:Twilio:WebhookUsername"] = "old",
-    ["TraccarReactApi:Sms:Twilio:WebhookPassword"] = "old",
-    ["TraccarReactApi:Email:Provider"] = "Graph",
-    ["TraccarReactApi:Email:Graph:TenantId"] = "OLD_TENANT",
-    ["TraccarReactApi:Email:Graph:ClientId"] = "OLD_CLIENT",
-    ["TraccarReactApi:Email:Graph:ClientSecret"] = "OLD_SECRET",
-    ["TraccarReactApi:Email:DailyLimit"] = "123",
-    ["TraccarReactApi:Sms:DailyLimit"] = "2",
-    ["TraccarReactApi:Sms:AlertDailyLimit"] = "30",
+    ["TraccarScopeApi:Sms:Provider"] = "Twilio",
+    ["TraccarScopeApi:Sms:Twilio:AccountSid"] = "OLD_ACCOUNT",
+    ["TraccarScopeApi:Sms:Twilio:ApiKeySid"] = "OLD_KEY",
+    ["TraccarScopeApi:Sms:Twilio:ApiKeySecret"] = "OLD_SECRET",
+    ["TraccarScopeApi:Sms:Twilio:FromNumber"] = "+15005550006",
+    ["TraccarScopeApi:Sms:Twilio:TestAccountSid"] = "OLD_TEST",
+    ["TraccarScopeApi:Sms:Twilio:TestAuthToken"] = "OLD_TOKEN",
+    ["TraccarScopeApi:Sms:Twilio:WebhookUsername"] = "old",
+    ["TraccarScopeApi:Sms:Twilio:WebhookPassword"] = "old",
+    ["TraccarScopeApi:Email:Provider"] = "Graph",
+    ["TraccarScopeApi:Email:Graph:TenantId"] = "OLD_TENANT",
+    ["TraccarScopeApi:Email:Graph:ClientId"] = "OLD_CLIENT",
+    ["TraccarScopeApi:Email:Graph:ClientSecret"] = "OLD_SECRET",
+    ["TraccarScopeApi:Email:DailyLimit"] = "123",
+    ["TraccarScopeApi:Sms:DailyLimit"] = "2",
+    ["TraccarScopeApi:Sms:AlertDailyLimit"] = "30",
 }).Build();
 var emptyAccounts = new ProviderAccountStore();
 var sms = new SmsDeliveryService(new SingleClientFactory(handler), retired, emptyAccounts);
@@ -101,7 +101,7 @@ passed++;
 accounts.DefaultAccount = accounts.DefaultAccount! with
 {
     Settings = new() { ["AccountSid"] = "SAVED", ["ApiKeySid"] = "SAVED", ["FromNumber"] = "+15005550006",
-        ["WebhookBaseUrl"] = "https://example.com/traccar-react-api", ["WebhookUsername"] = "saved" },
+        ["WebhookBaseUrl"] = "https://example.com/traccar-scope-api", ["WebhookUsername"] = "saved" },
     Secrets = new() { ["ApiKeySecret"] = "SAVED", ["WebhookPassword"] = "secret" },
 };
 var savedStatus = await service.GetStatusAsync(CancellationToken.None);

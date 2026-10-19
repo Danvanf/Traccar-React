@@ -17,7 +17,7 @@ public static class PlaceReportEndpoints
         string? format,
         string? units,
         NpgsqlDataSource dataSource,
-        TraccarReactApiAuthOptions authOptions,
+        TraccarScopeApiAuthOptions authOptions,
         HttpContext context,
         CancellationToken cancellationToken)
     {

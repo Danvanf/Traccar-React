@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import TelemetryGraphViewer from './TelemetryGraphViewer.jsx'
 
 function apiPath(token, suffix = '') {
-  return `/traccar-react-api/api/public/telemetry-shares/${encodeURIComponent(token)}${suffix}`
+  return `/traccar-scope-api/api/public/telemetry-shares/${encodeURIComponent(token)}${suffix}`
 }
 
 export default function PublicTelemetryShare({ token }) {
