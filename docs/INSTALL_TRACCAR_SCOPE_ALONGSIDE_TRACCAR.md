@@ -34,6 +34,8 @@ The installer generates the Traccar Scope administrator account, database passwo
 
 The default application URL is [http://localhost:8089](http://localhost:8089). The installer prints the initial Traccar Scope administrator username and password once. It also prints the credential-encryption key: store it securely and back it up with the app database. Losing that key makes the saved Traccar password and other encrypted provider credentials unreadable. The private settings file is stored under `~/docker/traccar-scope-install/deploy/.env` with owner-only permissions.
 
+The installer keeps its deployment files under `~/docker/traccar-scope-install/deploy` by default. Compose derives this installer's project name as `deploy` from that directory. Use that same project name and Compose file for later management commands. The current script does not choose a unique project name for a second copy, so run only one alongside installation per Docker engine unless the installer is first adjusted to give the other copy a distinct project name; named volumes and containers must remain isolated.
+
 ## Remote Linux VM access
 
 The service binds to loopback by default. From your workstation, open an SSH tunnel:
@@ -52,15 +54,15 @@ The deployment files and private `.env` live at `~/docker/traccar-scope-install/
 cd ~/docker/traccar-scope
 git pull --ff-only
 cd ~/docker/traccar-scope-install/deploy
-sudo docker compose --env-file .env up -d --build
-sudo docker compose --env-file .env ps
-sudo docker compose --env-file .env logs --tail 100 database traccar-scope-api web
+sudo docker compose -p deploy --env-file .env up -d --build
+sudo docker compose -p deploy --env-file .env ps
+sudo docker compose -p deploy --env-file .env logs --tail 100 database traccar-scope-api web
 ```
 
 To stop the app while preserving its database:
 
 ```bash
-sudo docker compose --env-file .env down
+sudo docker compose -p deploy --env-file .env down
 ```
 
 Do not add `-v` to `down` unless you intend to delete the Traccar Scope database. This deployment uses its own database container and volume, independent from Traccar's existing database.

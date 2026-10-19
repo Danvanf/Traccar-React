@@ -1,6 +1,6 @@
 # Install Full Stack: automated first-test deployment
 
-This guide installs Traccar, Traccar Scope, and both databases together with the repository's installer script. The script was tested on Ubuntu 24.04 under WSL 2. It is intended for a clean first-test system running Ubuntu with systemd and Docker Compose v2; other Linux distributions may need package or service-command adjustments.
+This guide installs Traccar, Traccar Scope, and both databases together with the repository's installer script. The script has been exercised on Ubuntu 24.04 under WSL 2; a clean install and browser check from an empty WSL Docker engine are still part of the remaining validation. It is intended for a clean first-test system running Ubuntu with systemd and Docker Compose v2; other Linux distributions may need package or service-command adjustments.
 
 This is an HTTP smoke-test installation. Both browser ports bind to the Linux host's loopback interface, no tracker ports are published, and the databases start empty. WSL makes the services available to a Windows browser through `localhost`. For a remote VM, use an SSH tunnel or another private forwarding method; do not expose this HTTP-only test stack directly to the public internet.
 
@@ -34,7 +34,7 @@ Choose one Docker Engine for the WSL distribution. If Docker Desktop integration
 
 ## 2. Clone the repository and run the installer
 
-Run these commands in the Ubuntu/Linux shell. The default installation workspace is `~/docker/traccar-scope-install`; it contains the source checkout and a separate `deploy` directory for Compose files, credentials, and persistent Docker volumes:
+Run these commands in the Ubuntu/Linux shell. The default installation workspace is `~/docker/traccar-scope-install`; it contains the source checkout and a separate `deploy` directory for Compose files and credentials. Docker stores the persistent volumes in its managed volume directory, not inside `deploy`:
 
 ```bash
 mkdir -p ~/docker/traccar-scope-install
@@ -47,7 +47,7 @@ bash scripts/install_first_test_wsl.sh
 
 The installer clones or fast-forwards the application checkout, prepares the Dockerfiles, Nginx configuration and Compose file from `scripts/installer-templates`, generates a private `.env` on a fresh install, builds the images, starts the complete stack, and waits for both web health endpoints. It initializes the Traccar Scope database automatically; no SQL file needs to be run by hand.
 
-The script keeps the installation workspace under `~/docker/traccar-scope-install` so Docker builds use the Linux filesystem. The workspace basename also determines the Compose project name, keeping separate installation workspaces isolated. To run a separate test install, use a different, clearly named workspace:
+The script keeps the installation workspace under `~/docker/traccar-scope-install` so Docker builds use the Linux filesystem. The workspace basename also determines the Compose project name (`traccar-scope-install` by default), keeping separate installation workspaces isolated. To run a separate test install, use a different, clearly named workspace:
 
 ```bash
 export INSTALL_ROOT="$HOME/docker/traccar-scope-install-test2"
@@ -83,6 +83,8 @@ sudo docker compose -p traccar-scope-install --env-file .env ps
 sudo docker compose -p traccar-scope-install --env-file .env logs --tail 100 \
   database traccar traccar-scope-api web
 ```
+
+For a custom `INSTALL_ROOT`, use the Compose project name derived from that workspace's basename. The installer lowercases the basename, replaces characters other than letters, digits, `_`, and `-` with `-`, and prefixes `traccar-scope-` unless that prefix is already present. For example, `~/docker/traccar-scope-install-test2` uses project `traccar-scope-install-test2`.
 
 The service URLs are local to the Linux host. From a Windows browser with WSL localhost forwarding, open the same `http://localhost` URLs. For a remote Linux VM, create a private SSH tunnel from your client, for example:
 

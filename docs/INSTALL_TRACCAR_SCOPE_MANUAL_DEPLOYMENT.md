@@ -1,6 +1,8 @@
 # Install Traccar Scope: manual Docker deployment
 
-This guide deploys the Traccar Scope API alongside an **existing** Traccar and PostgreSQL installation. It does not replace, recreate, or migrate the existing Traccar containers or databases. The clean, same-machine WSL test installation is documented separately in the private `communications-plan/First_test.md` file outside this repository.
+This guide deploys the Traccar Scope API alongside an **existing** Traccar and PostgreSQL installation. It does not replace, recreate, or migrate the existing Traccar containers or databases. Keep the Traccar database and Traccar Scope application database distinct. If the application database already contains user or trip data, back it up and preserve its existing connection credentials and encryption key; do not point a fresh-install Compose file at it or reinitialize it. The automated clean WSL test installation is documented in [Install Full Stack](INSTALL_FULL_STACK.md).
+
+This guide's manual example serves the frontend from a host reverse proxy and runs the API in Docker. For the Docker web-plus-API pattern validated on Limestone, use [`compose.limestone-app-only.yaml`](../scripts/installer-templates/compose.limestone-app-only.yaml): it joins the existing `traccar_default` network, connects to the existing `traccar-db` and `traccar_scope_api`, publishes only the web service on loopback port `8090`, and creates no database container or volume. The template expects a protected runtime environment file and is specific to that network and service naming; inspect it before adapting it to another host.
 
 The API project currently targets .NET 9. .NET 9 support ends on November 10, 2026, so use this guide to reproduce the current build, and plan a move to a supported .NET release before using it for a long-lived production deployment. See Microsoft's [official .NET support policy](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core).
 
@@ -10,7 +12,7 @@ The recommended production layout is:
 reverse proxy
   /              -> built React files
   /traccar-scope-api/  -> traccar-scope-api container
-  /traccar-api/  -> Traccar, if needed
+  /api/          -> Traccar, if needed
 
 Docker network: traccar_default
   traccar
@@ -111,7 +113,7 @@ The credential-encryption key must be the base64 encoding of exactly 32 random b
 openssl rand -base64 32
 ```
 
-Changing or losing a key makes credentials encrypted with it unreadable. Do not put this file in Git, a Docker image, or a browser setting. The API creates the initial admin account from `TraccarScopeApi__Auth__Username` and `TraccarScopeApi__Auth__Password` when it first starts against a new database. After sign-in, manage normal accounts in Settings > Users and Groups; remove the bootstrap values after the first administrator has been created.
+Changing or losing a key makes credentials encrypted with it unreadable. Do not put this file in Git, a Docker image, or a browser setting. The API creates the initial admin account from `TraccarScopeApi__Auth__Username` and `TraccarScopeApi__Auth__Password` when it first starts against a new application database. On an existing application database, these bootstrap values do not reset existing accounts. After sign-in, manage accounts in Settings > Users and Groups; remove bootstrap values after the first administrator has been created.
 
 Device protocol diagnostics are optional tooling for profile development and support in a test environment. Production installations do not need a Traccar diagnostic account or these environment variables to run the application. When using the tool, configure `Traccar__BaseUrl`, `Traccar__Username`, and `Traccar__Password` only on the test API host, using a read-only Traccar account. The diagnostic endpoint is loopback-only and does not require a Traccar Scope API browser session. Run its PowerShell helper on the API host. For development outside Docker, use the reachable Traccar host URL (for example `http://limestone:8082`) instead of `http://traccar:8082`. The endpoint returns the Traccar version, device model/category, and at most 2,000 decoded telemetry samples from a requested 24-hour window. It excludes coordinates and device identifiers. It cannot return raw tracker packets or the tracker's AVL configuration.
 
@@ -164,33 +166,17 @@ Use the same compose-file path for later updates, restarts, and shutdown command
 
 The first successful startup should show the API listening and completing its schema bootstrap. Leave the log view with `Ctrl+C`; that does not stop the container.
 
-## 6. Apply additive database scripts
+## 6. Check the application database schema
 
-Back up `traccar_scope_api` before applying a new schema script. Keep the backup/restore procedure in your private internal runbook.
-
-Run only the migration scripts required by the database's current schema. These commands are for an existing `traccar_scope_api` database and run from the repository checkout:
+The API bootstraps several application schema additions on startup, but optional features can still require their SQL scripts. Before applying any script to a database with existing data, make and verify a current database backup. Use the read-only migration status report to identify missing objects:
 
 ```bash
 cd ~/traccar-scope-api/traccar-scope
-
-sudo docker exec -i traccar-db psql -U traccar -d traccar_scope_api \
-  < scripts/phase7_trip_events_schema.sql
-
-sudo docker exec -i traccar-db psql -U traccar -d traccar_scope_api \
-  < scripts/phase8_bouncie_import_schema.sql
-
-sudo docker exec -i traccar-db psql -U traccar -d traccar_scope_api \
-  < scripts/phase9_bouncie_credentials.sql
-```
-
-Run the read-only audit afterward:
-
-```bash
 sudo docker exec -i traccar-db psql -U traccar -d traccar_scope_api \
   < scripts/traccar_scope_api_migration_status.sql
 ```
 
-The migration scripts are additive and repeatable. Do not run the initial Phase 3 bootstrap against an existing production database.
+Do not run a list of phase scripts blindly against a production database. Apply only a specific script required for a missing feature, after reviewing its contents and confirming it matches the schema status. Do not run the initial Phase 3 bootstrap against an existing database. The installer scripts initialize their own fresh application database automatically.
 
 ## 7. Verify the API from the Linux host
 
@@ -216,13 +202,13 @@ sudo docker logs --tail 100 traccar-scope-api
 
 ## 8. Put a reverse proxy in front
 
-For a usable browser deployment, build the frontend from the repository checkout (`npm ci && npm run build`, which writes `dist/`), serve those static files from Caddy or Nginx, and proxy `/traccar-scope-api/` to:
+For a usable browser deployment, build the frontend from the repository checkout (`npm ci && npm run build`, which writes `dist/`) and serve those static files from the same reverse proxy. The frontend also needs `/api/` proxied to Traccar, and `/traccar-scope-api/` proxied to:
 
 ```text
 http://traccar-scope-api:5124/
 ```
 
-If the proxy is a container, it and the API must share the Docker network and the target above works. If the proxy runs on the Linux host, publish API port 5124 on `127.0.0.1` and use `http://127.0.0.1:5124/` as its upstream. Use HTTPS before exposing the application outside the trusted LAN. The HttpOnly session cookie and Bouncie OAuth callback should use the final HTTPS hostname.
+If the proxy is a container, it and the API must share the Docker network and the target above works. If the proxy runs on the Linux host, publish API port 5124 on `127.0.0.1` and use `http://127.0.0.1:5124/` as its upstream. Proxy `/api/` to Traccar at `http://127.0.0.1:8082/api/` when Traccar publishes that host port, or to `http://traccar:8082/api/` when the proxy is on the Docker network. Preserve WebSocket upgrade headers for Traccar's `/api/socket` endpoint. Use HTTPS before exposing the application outside the trusted LAN. The HttpOnly session cookie and Bouncie OAuth callback should use the final HTTPS hostname.
 
 Lightweight host check (what is already installed):
 
@@ -232,7 +218,7 @@ sudo systemctl is-active nginx
 command -v caddy
 ```
 
-Minimal reverse-proxy target for all options:
+Scope API reverse-proxy target:
 
 ```text
 /traccar-scope-api/  ->  http://127.0.0.1:5124/
@@ -242,6 +228,8 @@ Example Apache vhost snippet:
 
 ```apache
 ProxyPreserveHost On
+ProxyPass /api/ http://127.0.0.1:8082/api/
+ProxyPassReverse /api/ http://127.0.0.1:8082/api/
 ProxyPass /traccar-scope-api/ http://127.0.0.1:5124/
 ProxyPassReverse /traccar-scope-api/ http://127.0.0.1:5124/
 ```
@@ -249,6 +237,16 @@ ProxyPassReverse /traccar-scope-api/ http://127.0.0.1:5124/
 Example Nginx location snippet:
 
 ```nginx
+location /api/ {
+  proxy_pass http://127.0.0.1:8082/api/;
+  proxy_http_version 1.1;
+  proxy_set_header Host $host;
+  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  proxy_set_header X-Forwarded-Proto $scheme;
+  proxy_set_header Upgrade $http_upgrade;
+  proxy_set_header Connection $connection_upgrade;
+}
+
 location /traccar-scope-api/ {
   proxy_pass http://127.0.0.1:5124/;
   proxy_set_header Host $host;
