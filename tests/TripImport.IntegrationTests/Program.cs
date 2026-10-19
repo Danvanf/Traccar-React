@@ -22,7 +22,7 @@ var schema = "trip_import_test_" + Guid.NewGuid().ToString("N");
 var testBuilder = new NpgsqlConnectionStringBuilder(connectionString) { SearchPath = schema };
 await using var admin = NpgsqlDataSource.Create(connectionString);
 await using var data = NpgsqlDataSource.Create(testBuilder.ConnectionString);
-using var logger = LoggerFactory.Create(builder => builder.SetMinimumLevel(LogLevel.Critical));
+using var logger = LoggerFactory.Create(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Error));
 var created = false;
 var count = 0;
 async Task<object?> Sql(string sql, params (string, object)[] parameters)
@@ -52,12 +52,15 @@ try
 {
     await using (var create = admin.CreateCommand($"create schema {schema}")) await create.ExecuteNonQueryAsync();
     created = true;
-    var ddl = await File.ReadAllTextAsync(Path.Combine(root, "scripts/phase3_traccar_scope_api_schema.sql"));
-    ddl = ddl[(ddl.IndexOf("-- Optional source registry", StringComparison.Ordinal))..];
+    var ddl = await File.ReadAllTextAsync(Path.Combine(root, "scripts/phase3_traccar_scope_api_tables.sql"));
     await Sql(ddl);
     var derivationSchema = await File.ReadAllTextAsync(Path.Combine(root, "scripts/phase5_trip_derivation_schema.sql"));
     derivationSchema = derivationSchema.Replace("\\set ON_ERROR_STOP on", "");
     await Sql(derivationSchema);
+    var eventsSchema = await File.ReadAllTextAsync(Path.Combine(root, "scripts/phase7_trip_events_schema.sql"));
+    await Sql(eventsSchema);
+    var bouncieSchema = await File.ReadAllTextAsync(Path.Combine(root, "scripts/phase8_bouncie_import_schema.sql"));
+    await Sql(bouncieSchema);
     Check((string)(await Sql("select current_schema()"))! == schema, "isolated search_path has no app schema fallback");
     var vehicleA = (Guid)(await Sql("insert into vehicles(display_name) values ('Isolated test A') returning id"))!;
     var vehicleB = (Guid)(await Sql("insert into vehicles(display_name) values ('Isolated test B') returning id"))!;
@@ -65,6 +68,8 @@ try
         ("vehicle", vehicleA), ("device", device), ("start", start.AddDays(-1)));
 
     var seed = await Import(Trip(0));
+    if (Status(seed) != 200 && seed is IValueHttpResult seedValue)
+        Console.WriteLine($"Initial import returned HTTP {Status(seed)}: {System.Text.Json.JsonSerializer.Serialize(seedValue.Value)}");
     Check(Status(seed) == 200 && Body(seed).Imported == 1, "initial import inserts exactly one trip");
     var id = Body(seed).Trips.Single().Id;
     var tag = (Guid)(await Sql("insert into trip_tags(name) values ('Keep tag') returning id"))!;

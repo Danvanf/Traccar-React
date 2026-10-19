@@ -1,4 +1,4 @@
-# Traccar Scope Migration
+# Traccar Scope
 
 
 Traccar-focused telemetry tooling for a full self-hosted vehicle history. Includes Bouncie trip-history import downloading all trip data points. Modern React + Vite frontend with a .NET backend for trip analysis, telemetry, and import workflows.

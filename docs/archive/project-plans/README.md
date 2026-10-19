@@ -13,6 +13,7 @@ This folder preserves planning documents and work snapshots that informed the cu
 | Archive file | Original location | Status at archive time |
 | --- | --- | --- |
 | [API rename handoff](API_RENAME_HANDOFF_2026-10-17.md) | communications-plan/API_RENAME_HANDOFF.md | Rename implementation completed; deployment and database migration notes preserved. |
+| [Traccar Scope API naming migration](API_NAMING_MIGRATION_2026-10-18.md) | docs/API_NAMING_MIGRATION.md | One-time development database and browser settings migration; completed and verified after new key configuration and browser sign-in. Do not rerun the migration. |
 | [Email and SMS plan](EMAIL_AND_SMS_PLAN_2026-10-09.md) | communications-plan/EMAIL_AND_SMS_PLAN.md | Checklist marked complete; its environment fallback guidance was later retired. |
 | [Encrypted provider settings TODO](ENCRYPTED_PROVIDER_SETTINGS_TODO_2026-10-12.md) | communications-plan/ENCRYPTED_PROVIDER_SETTINGS_TODO.md | Superseded by the final saved-account implementation; standalone Bouncie key compatibility was later removed. |
 | [PostgreSQL backend architecture update](Traccar_PostgreSQL_Backend_Architecture_Update_2026-09.md) | communications-plan/Traccar_PostgreSQL_Backend_Architecture_Update.md | Historical design, milestones, and deployment closeout. |

@@ -4,7 +4,7 @@ Active project plans and their unresolved items are maintained in the repository
 
 ## Active plans
 
-- [Traccar Scope rename](docs/TRACCAR_SCOPE_RENAMING_PLAN.md) — planned product, API, repository, installer, and Wiki rename; implementation has not started.
+- [Traccar Scope rename](docs/TRACCAR_SCOPE_RENAMING_PLAN.md) — the renamed API and browser app are running against the migrated database, saved Traccar credentials work, and core browser smoke checks pass. Finish the limited remaining QA, then coordinate GitHub/Wiki publication and the checkout-directory rename.
 - [Telemetry discovery and focused field editing](docs/TELEMETRY_DISCOVERY_AND_FIELD_EDITING_PLAN.md) — open implementation review items and multi-user verification.
 - [Device protocol profiles](docs/DEVICE_PROTOCOL_PROFILE_TODO.md) — remaining mapping evidence and device profile follow-up.
 

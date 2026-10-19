@@ -1,12 +1,12 @@
 # Traccar Scope: AI handoff
 
-## Planned product rename
+## Product identity
 
-The selected next name is **Traccar Scope**. Follow [the renaming plan](docs/TRACCAR_SCOPE_RENAMING_PLAN.md) for its canonical names, one-time development data conversion, installer and Wiki changes, and validation checkpoints. This is a plan only: the runtime/project/configuration names below remain current until implementation. Only development and test systems exist, so do not add permanent old-name aliases or compatibility readers.
+The selected product name is **Traccar Scope**. Source code, project names, installers, and active documentation use the Traccar Scope names. The one-time development data and runtime cutover is complete. See [the renaming plan](docs/TRACCAR_SCOPE_RENAMING_PLAN.md) for remaining publication and workspace steps. Do not add permanent old-name aliases or compatibility readers.
 
-## API naming transition
+## Backend status
 
-The backend is now **Traccar Scope API**. Its project is `backend/TraccarScope.Api/TraccarScope.Api.csproj`, assembly is `traccar_scope_api.dll`, database is `traccar_scope_api`, and proxy prefix is `/traccar-scope-api`. Existing database metadata has not been renamed by the code edits; follow `docs/API_NAMING_MIGRATION.md` before restarting an existing deployment against the new defaults. Fresh combined installations use `scripts/docker_init_traccar_scope_api_db.sh` automatically. Legacy identifiers remain only in explicit compatibility readers, migration scripts, and their tests.
+The backend is **Traccar Scope API**. Its project is `backend/TraccarScope.Api/TraccarScope.Api.csproj`, assembly is `traccar_scope_api.dll`, database is `traccar_scope_api`, and proxy prefix is `/traccar-scope-api`. The development database has been renamed from `traccar_react_api` after a readable backup was verified. The renamed API is running, saved Traccar credentials decrypt successfully, and the browser app has passed core sign-in, map/history, telemetry graph, profile editor, access-list, and reports smoke checks. Fresh combined installations create the Scope database with `scripts/docker_init_traccar_scope_api_db.sh`. Remaining old strings are deliberate migration inputs, historical references, or immutable credential-encryption metadata.
 
 ## Stack and boundaries
 

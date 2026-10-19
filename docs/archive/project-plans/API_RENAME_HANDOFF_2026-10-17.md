@@ -1,4 +1,4 @@
-> **Archived snapshot (2026-10-18).** Historical handoff snapshot. For current API names and the database transition, use the active API naming migration and Docker deployment guides.
+> **Archived snapshot (2026-10-18).** Historical handoff snapshot. For the completed database cutover, see [the archived Traccar Scope API naming migration](API_NAMING_MIGRATION_2026-10-18.md). Use current installation guides for deployment.
 >
 > This file records the original project discussion and its status at that time. Verify claims and commands against the current code and documentation before reusing them.
 
@@ -11,7 +11,7 @@ Use `backend/TraccarReact.Api/TraccarReact.Api.csproj`, published assembly `trac
 ## Operational steps still required
 
 - Review, commit, and publish the main repository changes before using a new GitHub clone for the WSL deployment test. A clone cannot contain these local changes until they are published.
-- Existing PostgreSQL database metadata has not been renamed. Before restarting an existing API against its updated defaults, stop database clients, back up the database, and follow [API naming migration](../../API_NAMING_MIGRATION.md). The guarded script is `scripts/rename_legacy_api_database.sql`; it refuses active clients and target-name collisions.
+- At the time this handoff was archived, the database rename was still pending. It has since been applied; the one-time procedure and result are recorded in [the archived migration note](API_NAMING_MIGRATION_2026-10-18.md). Do not rerun it.
 - Fresh WSL installs use First_test.md (the private runbook remains outside the repository) under `~/docker/vehicle`. Its Compose setup automatically creates the renamed database and schema on a fresh PostgreSQL volume. Existing data volumes do not rerun first-install scripts.
 - The user stopped the development API during the rename. The user-owned Vite server was used to verify the new field label and proxy URL. No API or Vite background server was started by this work.
 

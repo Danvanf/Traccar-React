@@ -1,7 +1,5 @@
 # Install Traccar Scope: manual Docker deployment
 
-For an existing installation using the former API name, follow [API naming migration](API_NAMING_MIGRATION.md) before restarting with the renamed database and project paths.
-
 This guide deploys the Traccar Scope API alongside an **existing** Traccar and PostgreSQL installation. It does not replace, recreate, or migrate the existing Traccar containers or databases. The clean, same-machine WSL test installation is documented separately in the private `communications-plan/First_test.md` file outside this repository.
 
 The API project currently targets .NET 9. .NET 9 support ends on November 10, 2026, so use this guide to reproduce the current build, and plan a move to a supported .NET release before using it for a long-lived production deployment. See Microsoft's [official .NET support policy](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core).
