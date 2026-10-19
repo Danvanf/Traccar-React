@@ -214,7 +214,8 @@ public sealed class TelemetryFieldInventoryService(
     {
         var configured = apiBaseUrl.Trim();
         Uri? result = null;
-        if (Uri.TryCreate(configured, UriKind.Absolute, out var absolute))
+        if (!configured.StartsWith("/", StringComparison.Ordinal)
+            && Uri.TryCreate(configured, UriKind.Absolute, out var absolute))
         {
             result = absolute;
         }

@@ -142,16 +142,39 @@ for attempt in $(seq 1 60); do
 done
 [[ "$database_health" == 'healthy' ]] || die 'The database did not become healthy; inspect database logs before continuing.'
 
-# The private .env is the source of truth. PostgreSQL's image only applies
-# POSTGRES_PASSWORD during first-time volume initialization, so reset the two
-# app roles in place before starting clients when an existing volume is reused.
+# The private .env is the source of truth. PostgreSQL's image only runs init
+# scripts for a brand-new data volume. Reconcile the app role/database here as
+# well so a volume initialized by an earlier Traccar-only test can be reused.
 sudo docker compose --env-file .env exec -T database \
   sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' <<'SQL'
 \getenv traccar_password POSTGRES_PASSWORD
 \getenv api_password TRACCAR_SCOPE_API_DB_PASSWORD
 ALTER ROLE traccar PASSWORD :'traccar_password';
+SELECT format('CREATE ROLE traccar_scope_api LOGIN PASSWORD %L', :'api_password')
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'traccar_scope_api')
+\gexec
 ALTER ROLE traccar_scope_api PASSWORD :'api_password';
+SELECT 'CREATE DATABASE traccar_scope_api OWNER traccar_scope_api'
+WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'traccar_scope_api')
+\gexec
 SQL
+
+# An existing Traccar-only volume has no app schema. Bootstrap it once while
+# leaving an already initialized application database and its rows untouched.
+sudo docker compose --env-file .env exec -T database \
+  psql -U traccar -d traccar_scope_api -v ON_ERROR_STOP=1 \
+  --command='CREATE EXTENSION IF NOT EXISTS pgcrypto;'
+api_schema_ready="$(sudo docker compose --env-file .env exec -T database \
+  psql -U traccar_scope_api -d traccar_scope_api -At \
+  --command="SELECT to_regclass('public.vehicles') IS NOT NULL AND to_regclass('public.app_users') IS NOT NULL;")"
+if [[ "$api_schema_ready" != 't' ]]; then
+  sudo docker compose --env-file .env exec -T database \
+    psql -U traccar_scope_api -d traccar_scope_api -v ON_ERROR_STOP=1 \
+    --file=/traccar-scope-api-bootstrap/phase3_traccar_scope_api_tables.sql
+  sudo docker compose --env-file .env exec -T database \
+    psql -U traccar_scope_api -d traccar_scope_api -v ON_ERROR_STOP=1 \
+    --file=/traccar-scope-api-bootstrap/phase11_user_access_schema.sql
+fi
 
 sudo docker compose --env-file .env up -d --build
 

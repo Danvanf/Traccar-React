@@ -152,7 +152,8 @@ public static class TraccarProxyEndpoints
         target = null!;
         var apiPath = apiBaseUrl.Trim();
         var escapedPath = string.Join("/", (path ?? string.Empty).Split('/', StringSplitOptions.RemoveEmptyEntries).Select(Uri.EscapeDataString));
-        if (Uri.TryCreate(apiPath, UriKind.Absolute, out var absoluteApiBase))
+        if (!apiPath.StartsWith("/", StringComparison.Ordinal)
+            && Uri.TryCreate(apiPath, UriKind.Absolute, out var absoluteApiBase))
         {
             if (absoluteApiBase.Scheme is not ("http" or "https") || !string.IsNullOrEmpty(absoluteApiBase.UserInfo)) return false;
             target = new Uri($"{absoluteApiBase.ToString().TrimEnd('/')}/{escapedPath}{query}", UriKind.Absolute);

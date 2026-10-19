@@ -327,7 +327,11 @@ public static class DeploymentTestTransferEndpoints
 
     private static Uri ResolveApiBaseUri(string apiBaseUrl, string? serverBaseUrl)
     {
-        if (Uri.TryCreate(apiBaseUrl, UriKind.Absolute, out var absolute))
+        var configuredApiBase = apiBaseUrl.Trim();
+        // Root-relative paths such as "/api" must be resolved against the
+        // configured Traccar server, not interpreted as absolute file URIs.
+        if (!configuredApiBase.StartsWith("/", StringComparison.Ordinal)
+            && Uri.TryCreate(configuredApiBase, UriKind.Absolute, out var absolute))
         {
             if (absolute.Scheme is not ("http" or "https") || !string.IsNullOrEmpty(absolute.UserInfo))
                 throw new InvalidOperationException("The configured Traccar API URL is invalid.");
@@ -338,7 +342,7 @@ public static class DeploymentTestTransferEndpoints
             || serverBase.Scheme is not ("http" or "https") || !string.IsNullOrEmpty(serverBase.UserInfo))
             throw new InvalidOperationException("The Traccar server target is invalid.");
 
-        var apiPath = apiBaseUrl.Trim();
+        var apiPath = configuredApiBase;
         var combined = apiPath.StartsWith('/')
             ? new Uri(serverBase.GetLeftPart(UriPartial.Authority) + apiPath.TrimEnd('/') + "/", UriKind.Absolute)
             : new Uri(serverBase, apiPath.TrimEnd('/') + "/");
