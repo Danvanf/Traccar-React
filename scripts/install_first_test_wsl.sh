@@ -168,10 +168,11 @@ SQL
 
 # An existing Traccar-only volume has no app schema. Bootstrap it once while
 # leaving an already initialized application database and its rows untouched.
-note 'Ensuring the PostgreSQL extension and checking the Traccar Scope schema'
+note 'Ensuring the PostgreSQL extension is installed'
 sudo docker compose -p "$COMPOSE_PROJECT_NAME" --env-file .env exec -T database \
   psql -U traccar -d traccar_scope_api -v ON_ERROR_STOP=1 \
   --command='CREATE EXTENSION IF NOT EXISTS pgcrypto;'
+note 'Checking whether the Traccar Scope database schema needs bootstrapping'
 api_schema_ready="$(sudo docker compose -p "$COMPOSE_PROJECT_NAME" --env-file .env exec -T database \
   psql -U traccar_scope_api -d traccar_scope_api -At \
   --command="SELECT to_regclass('public.vehicles') IS NOT NULL AND to_regclass('public.app_users') IS NOT NULL;")"
@@ -184,7 +185,8 @@ if [[ "$api_schema_ready" != 't' ]]; then
     --file=/traccar-scope-api-bootstrap/phase11_user_access_schema.sql
 fi
 
-sudo docker compose -p "$COMPOSE_PROJECT_NAME" --env-file .env up -d --build
+note 'Building the API and web images with visible progress, then starting all services'
+sudo docker compose --progress plain -p "$COMPOSE_PROJECT_NAME" --env-file .env up -d --build
 
 wait_for_url() {
   local url="$1" attempt
