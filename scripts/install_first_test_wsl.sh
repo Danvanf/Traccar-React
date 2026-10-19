@@ -139,11 +139,11 @@ sudo docker compose -p "$COMPOSE_PROJECT_NAME" --env-file .env config --quiet
 
 note 'Starting the database and aligning database-role passwords with the private .env'
 sudo docker compose -p "$COMPOSE_PROJECT_NAME" --env-file .env up -d database
-database_id="$(sudo docker compose -p "$COMPOSE_PROJECT_NAME" --env-file .env ps -q database)"
+database_id="$(sudo -n docker compose -p "$COMPOSE_PROJECT_NAME" --env-file .env ps -q database)"
 [[ -n "$database_id" ]] || die 'The database container was not created.'
 database_health=''
 for attempt in $(seq 1 60); do
-  database_health="$(sudo docker inspect --format '{{.State.Health.Status}}' "$database_id" 2>/dev/null || true)"
+  database_health="$(sudo -n docker inspect --format '{{.State.Health.Status}}' "$database_id" 2>/dev/null || true)"
   [[ "$database_health" == 'healthy' ]] && break
   sleep 2
 done
@@ -173,9 +173,10 @@ sudo docker compose -p "$COMPOSE_PROJECT_NAME" --env-file .env exec -T database 
   psql -U traccar -d traccar_scope_api -v ON_ERROR_STOP=1 \
   --command='CREATE EXTENSION IF NOT EXISTS pgcrypto;'
 note 'Checking whether the Traccar Scope database schema needs bootstrapping'
-api_schema_ready="$(sudo docker compose -p "$COMPOSE_PROJECT_NAME" --env-file .env exec -T database \
+api_schema_ready="$(sudo -n docker compose -p "$COMPOSE_PROJECT_NAME" --env-file .env exec -T database \
   psql -U traccar_scope_api -d traccar_scope_api -At \
   --command="SELECT to_regclass('public.vehicles') IS NOT NULL AND to_regclass('public.app_users') IS NOT NULL;")"
+printf 'Traccar Scope schema check result: %s\n' "$api_schema_ready"
 if [[ "$api_schema_ready" != 't' ]]; then
   sudo docker compose -p "$COMPOSE_PROJECT_NAME" --env-file .env exec -T database \
     psql -U traccar_scope_api -d traccar_scope_api -v ON_ERROR_STOP=1 \
