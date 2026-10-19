@@ -6,7 +6,14 @@ REPO_URL="https://github.com/Danvanf/Traccar-Scope.git"
 REPO_BRANCH="master"
 DEFAULT_TRACCAR_VERSION="6.16.0"
 WIKI_URL="https://en.wikipedia.org/api/rest_v1/page/summary/Solar_System"
-INSTALL_ROOT="${INSTALL_ROOT:-$HOME/docker/vehicle}"
+INSTALL_ROOT="${INSTALL_ROOT:-$HOME/docker/traccar-scope-install}"
+INSTALL_ROOT_NAME="$(basename -- "$INSTALL_ROOT" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9_-]+/-/g; s/^-+|-+$//g')"
+INSTALL_ROOT_NAME="${INSTALL_ROOT_NAME:-install}"
+if [[ "$INSTALL_ROOT_NAME" == traccar-scope-* ]]; then
+  COMPOSE_PROJECT_NAME="$INSTALL_ROOT_NAME"
+else
+  COMPOSE_PROJECT_NAME="traccar-scope-$INSTALL_ROOT_NAME"
+fi
 SOURCE_DIR="$INSTALL_ROOT/traccar-scope"
 DEPLOY_DIR="$INSTALL_ROOT/deploy"
 ENV_FILE="$DEPLOY_DIR/.env"
@@ -128,11 +135,11 @@ chmod 0600 "$ENV_FILE"
 
 note 'Validating Compose and building/starting the services'
 cd "$DEPLOY_DIR"
-sudo docker compose --env-file .env config --quiet
+sudo docker compose -p "$COMPOSE_PROJECT_NAME" --env-file .env config --quiet
 
 note 'Starting the database and aligning database-role passwords with the private .env'
-sudo docker compose --env-file .env up -d database
-database_id="$(sudo docker compose --env-file .env ps -q database)"
+sudo docker compose -p "$COMPOSE_PROJECT_NAME" --env-file .env up -d database
+database_id="$(sudo docker compose -p "$COMPOSE_PROJECT_NAME" --env-file .env ps -q database)"
 [[ -n "$database_id" ]] || die 'The database container was not created.'
 database_health=''
 for attempt in $(seq 1 60); do
@@ -145,7 +152,7 @@ done
 # The private .env is the source of truth. PostgreSQL's image only runs init
 # scripts for a brand-new data volume. Reconcile the app role/database here as
 # well so a volume initialized by an earlier Traccar-only test can be reused.
-sudo docker compose --env-file .env exec -T database \
+sudo docker compose -p "$COMPOSE_PROJECT_NAME" --env-file .env exec -T database \
   sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' <<'SQL'
 \getenv traccar_password POSTGRES_PASSWORD
 \getenv api_password TRACCAR_SCOPE_API_DB_PASSWORD
@@ -161,22 +168,23 @@ SQL
 
 # An existing Traccar-only volume has no app schema. Bootstrap it once while
 # leaving an already initialized application database and its rows untouched.
-sudo docker compose --env-file .env exec -T database \
+note 'Ensuring the PostgreSQL extension and checking the Traccar Scope schema'
+sudo docker compose -p "$COMPOSE_PROJECT_NAME" --env-file .env exec -T database \
   psql -U traccar -d traccar_scope_api -v ON_ERROR_STOP=1 \
   --command='CREATE EXTENSION IF NOT EXISTS pgcrypto;'
-api_schema_ready="$(sudo docker compose --env-file .env exec -T database \
+api_schema_ready="$(sudo docker compose -p "$COMPOSE_PROJECT_NAME" --env-file .env exec -T database \
   psql -U traccar_scope_api -d traccar_scope_api -At \
   --command="SELECT to_regclass('public.vehicles') IS NOT NULL AND to_regclass('public.app_users') IS NOT NULL;")"
 if [[ "$api_schema_ready" != 't' ]]; then
-  sudo docker compose --env-file .env exec -T database \
+  sudo docker compose -p "$COMPOSE_PROJECT_NAME" --env-file .env exec -T database \
     psql -U traccar_scope_api -d traccar_scope_api -v ON_ERROR_STOP=1 \
     --file=/traccar-scope-api-bootstrap/phase3_traccar_scope_api_tables.sql
-  sudo docker compose --env-file .env exec -T database \
+  sudo docker compose -p "$COMPOSE_PROJECT_NAME" --env-file .env exec -T database \
     psql -U traccar_scope_api -d traccar_scope_api -v ON_ERROR_STOP=1 \
     --file=/traccar-scope-api-bootstrap/phase11_user_access_schema.sql
 fi
 
-sudo docker compose --env-file .env up -d --build
+sudo docker compose -p "$COMPOSE_PROJECT_NAME" --env-file .env up -d --build
 
 wait_for_url() {
   local url="$1" attempt
@@ -192,9 +200,9 @@ wait_for_url() {
 
 note 'Waiting for both browser-facing HTTP services'
 wait_for_url 'http://127.0.0.1:8089/traccar-scope-api/health' \
-  || die 'Traccar Scope API did not become ready. Inspect with: sudo docker compose --env-file .env logs --tail 100 database traccar traccar-scope-api web'
+  || die 'Traccar Scope API did not become ready. Inspect with: sudo docker compose -p "$COMPOSE_PROJECT_NAME" --env-file .env logs --tail 100 database traccar traccar-scope-api web'
 wait_for_url 'http://127.0.0.1:8092/api/health' \
-  || die 'Traccar did not become ready. Inspect with: sudo docker compose --env-file .env logs --tail 100 database traccar traccar-scope-api web'
+  || die 'Traccar did not become ready. Inspect with: sudo docker compose -p "$COMPOSE_PROJECT_NAME" --env-file .env logs --tail 100 database traccar traccar-scope-api web'
 
 admin_username="$(env_value APP_ADMIN_USERNAME)"
 admin_password="$(env_value APP_ADMIN_PASSWORD)"
@@ -214,4 +222,4 @@ printf 'Traccar Scope API credential key: %s\n' "$api_credential_key"
 printf 'Credentials are also stored in %s (permissions 600). Back up that file securely.\n' "$ENV_FILE"
 printf 'Traccar has a separate first-run registration; the Traccar Scope admin login does not sign in to Traccar.\n'
 printf 'On reruns, existing credentials and database volumes are preserved; bootstrap admin values do not reset an existing account password.\n\n'
-sudo docker compose --env-file .env ps
+sudo docker compose -p "$COMPOSE_PROJECT_NAME" --env-file .env ps

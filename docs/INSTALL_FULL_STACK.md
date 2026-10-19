@@ -34,23 +34,23 @@ Choose one Docker Engine for the WSL distribution. If Docker Desktop integration
 
 ## 2. Clone the repository and run the installer
 
-Run these commands in the Ubuntu/Linux shell. The default install location is `~/docker/vehicle`:
+Run these commands in the Ubuntu/Linux shell. The default installation workspace is `~/docker/traccar-scope-install`; it contains the source checkout and a separate `deploy` directory for Compose files, credentials, and persistent Docker volumes:
 
 ```bash
-mkdir -p ~/docker/vehicle
+mkdir -p ~/docker/traccar-scope-install
 git clone --branch master --single-branch \
   https://github.com/Danvanf/Traccar-Scope.git \
-  ~/docker/vehicle/traccar-scope
-cd ~/docker/vehicle/traccar-scope
+  ~/docker/traccar-scope-install/traccar-scope
+cd ~/docker/traccar-scope-install/traccar-scope
 bash scripts/install_first_test_wsl.sh
 ```
 
 The installer clones or fast-forwards the application checkout, prepares the Dockerfiles, Nginx configuration and Compose file from `scripts/installer-templates`, generates a private `.env` on a fresh install, builds the images, starts the complete stack, and waits for both web health endpoints. It initializes the Traccar Scope database automatically; no SQL file needs to be run by hand.
 
-The script keeps the deployment under `~/docker/vehicle` so Docker builds use the Linux filesystem. To use another location, set `INSTALL_ROOT` when running it and clone the repository into that location's `traccar-scope` subdirectory:
+The script keeps the installation workspace under `~/docker/traccar-scope-install` so Docker builds use the Linux filesystem. The workspace basename also determines the Compose project name, keeping separate installation workspaces isolated. To run a separate test install, use a different, clearly named workspace:
 
 ```bash
-export INSTALL_ROOT="$HOME/docker/vehicle-test"
+export INSTALL_ROOT="$HOME/docker/traccar-scope-install-test2"
 mkdir -p "$INSTALL_ROOT"
 git clone --branch master --single-branch \
   https://github.com/Danvanf/Traccar-Scope.git "$INSTALL_ROOT/traccar-scope"
@@ -65,7 +65,7 @@ When the script reports that installation is ready, use:
 - Traccar Scope: [http://localhost:8089](http://localhost:8089)
 - Traccar: [http://localhost:8092](http://localhost:8092)
 
-The installer prints the initial Traccar Scope administrator username and password, plus database credentials and the API credential-encryption key. It also stores them in `~/docker/vehicle/deploy/.env` with owner-only permissions. Save the required credentials securely. The Traccar Scope login is separate from Traccar's first-user registration, which is handled by Traccar itself.
+The installer prints the initial Traccar Scope administrator username and password, plus database credentials and the API credential-encryption key. It also stores them in `~/docker/traccar-scope-install/deploy/.env` with owner-only permissions. Save the required credentials securely. The Traccar Scope login is separate from Traccar's first-user registration, which is handled by Traccar itself.
 
 The generated first administrator follows the `FirstUser` plus five-digit millisecond suffix format. The initial password is made from three distinct four-letter words selected from the Solar System article, with periods between them and the first word capitalized. Database passwords and the API encryption key are generated from random bytes.
 
@@ -78,9 +78,9 @@ The `.env` file is the source of truth for generated secrets. Back it up securel
 ## Check status and logs
 
 ```bash
-cd ~/docker/vehicle/deploy
-sudo docker compose --env-file .env ps
-sudo docker compose --env-file .env logs --tail 100 \
+cd ~/docker/traccar-scope-install/deploy
+sudo docker compose -p traccar-scope-install --env-file .env ps
+sudo docker compose -p traccar-scope-install --env-file .env logs --tail 100 \
   database traccar traccar-scope-api web
 ```
 
