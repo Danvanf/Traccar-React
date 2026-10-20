@@ -110,6 +110,12 @@ public static class ReportEndpoints
                          join app_group_memberships gm on gm.group_id = ga.group_id
                          join app_users u on u.id = gm.user_id
                          where ga.vehicle_id = @vehicleId and u.username = @username and u.active
+                       ) or exists (
+                         select 1 from trips t
+                         where t.vehicle_id = @vehicleId and (
+                           exists (select 1 from app_user_device_access da join app_users u on u.id=da.user_id where da.traccar_device_id=t.traccar_device_id and u.username=@username and u.active)
+                           or exists (select 1 from app_group_device_access dg join app_group_memberships gm on gm.group_id=dg.group_id join app_users u on u.id=gm.user_id where dg.traccar_device_id=t.traccar_device_id and u.username=@username and u.active)
+                         )
                        )
                 """, connection);
             accessCommand.Parameters.AddWithValue("vehicleId", vehicleId.Value);
@@ -154,16 +160,7 @@ public static class ReportEndpoints
                 ) end_place_name on true
                 where t.started_at >= @from and t.started_at <= @to
                   and (cast(@vehicleId as uuid) is null or t.vehicle_id = cast(@vehicleId as uuid))
-                  and (not @authEnabled or @isAdmin or exists (
-                         select 1 from app_user_vehicle_access ua
-                         join app_users u on u.id = ua.user_id
-                         where ua.vehicle_id = t.vehicle_id and u.username = @username and u.active
-                       ) or exists (
-                         select 1 from app_group_vehicle_access ga
-                         join app_group_memberships gm on gm.group_id = ga.group_id
-                         join app_users u on u.id = gm.user_id
-                         where ga.vehicle_id = t.vehicle_id and u.username = @username and u.active
-                       ))
+                  and {VehicleAccess.TripReadAccessPredicate("t")}
                   and (cast(@tagId as uuid) is null or exists (
                          select 1 from trip_tag_map tm
                          where tm.trip_id = t.id and tm.tag_id = cast(@tagId as uuid)

@@ -285,7 +285,6 @@ app.Use(async (context, next) =>
             || path.StartsWithSegments("/api/event-thresholds")
             || (path.StartsWithSegments("/api/vehicles/") && (path.Value?.Contains("speed-bands", StringComparison.OrdinalIgnoreCase) ?? false))
             || path.StartsWithSegments("/api/integrations/bouncie")
-            || path.StartsWithSegments("/api/trips/import")
             || path.StartsWithSegments("/api/dtc/catalog")
             || path.StartsWithSegments("/api/dtc/events");
         if (configurationWrite && !context.User.IsInRole("admin"))
@@ -1537,8 +1536,11 @@ app.MapDelete("/api/trip-tags/{tagId:guid}", async Task<IResult> (
 app.MapGet("/api/trips/{tripId:guid}/tags", async Task<IResult> (
     Guid tripId,
     NpgsqlDataSource dataSource,
+    TraccarScopeApiAuthOptions authOptions,
+    HttpContext context,
     CancellationToken cancellationToken) =>
 {
+    if (!await VehicleAccess.CanReadTripAsync(tripId, dataSource, authOptions, context, cancellationToken)) return Results.Forbid();
     try
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -1582,8 +1584,11 @@ app.MapPost("/api/trips/{tripId:guid}/tags/{tagId:guid}", async Task<IResult> (
     Guid tripId,
     Guid tagId,
     NpgsqlDataSource dataSource,
+    TraccarScopeApiAuthOptions authOptions,
+    HttpContext context,
     CancellationToken cancellationToken) =>
 {
+    if (!await VehicleAccess.CanReadTripAsync(tripId, dataSource, authOptions, context, cancellationToken)) return Results.Forbid();
     try
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -1619,8 +1624,11 @@ app.MapDelete("/api/trips/{tripId:guid}/tags/{tagId:guid}", async Task<IResult> 
     Guid tripId,
     Guid tagId,
     NpgsqlDataSource dataSource,
+    TraccarScopeApiAuthOptions authOptions,
+    HttpContext context,
     CancellationToken cancellationToken) =>
 {
+    if (!await VehicleAccess.CanReadTripAsync(tripId, dataSource, authOptions, context, cancellationToken)) return Results.Forbid();
     try
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -1652,8 +1660,11 @@ app.MapPost("/api/trips/{tripId:guid}/notes", async Task<IResult> (
     Guid tripId,
     TripNoteUpdateRequest request,
     NpgsqlDataSource dataSource,
+    TraccarScopeApiAuthOptions authOptions,
+    HttpContext context,
     CancellationToken cancellationToken) =>
 {
+    if (!await VehicleAccess.CanReadTripAsync(tripId, dataSource, authOptions, context, cancellationToken)) return Results.Forbid();
     try
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);

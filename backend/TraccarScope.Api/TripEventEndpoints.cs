@@ -59,7 +59,7 @@ public static class TripEventEndpoints
         app.MapGet("/api/trip-events/notifications", async (DateTimeOffset? from, DateTimeOffset? to, Guid? vehicleId, NpgsqlDataSource dataSource, TraccarScopeApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken) =>
         {
             await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-            await using var command = new NpgsqlCommand("""
+            await using var command = new NpgsqlCommand($"""
                 select e.id, e.trip_id, e.vehicle_id, coalesce(v.display_name, 'Unknown vehicle'),
                        e.event_type, e.source, e.occurred_at, e.measured_value,
                        e.threshold_value, e.unit, e.severity, e.latitude, e.longitude
@@ -68,7 +68,7 @@ public static class TripEventEndpoints
                 where (cast(@from as timestamptz) is null or e.occurred_at >= cast(@from as timestamptz))
                   and (cast(@to as timestamptz) is null or e.occurred_at <= cast(@to as timestamptz))
                   and (cast(@vehicleId as uuid) is null or e.vehicle_id = cast(@vehicleId as uuid))
-                  and (not @authEnabled or @isAdmin or exists (select 1 from app_user_vehicle_access ua join app_users u on u.id = ua.user_id where ua.vehicle_id = e.vehicle_id and u.username = @username and u.active) or exists (select 1 from app_group_vehicle_access ga join app_group_memberships gm on gm.group_id = ga.group_id join app_users u on u.id = gm.user_id where ga.vehicle_id = e.vehicle_id and u.username = @username and u.active))
+                  and {VehicleAccess.TripReadAccessPredicate("e")}
                 order by e.occurred_at desc
                 limit 500
                 """, connection);

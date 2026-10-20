@@ -23,7 +23,7 @@ public static class TripIdentityEndpoints
         {
             await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
             await using var command = new NpgsqlCommand(
-                """
+                $"""
                 select id, vehicle_id, traccar_device_id, started_at, ended_at,
                        start_traccar_position_id, end_traccar_position_id, notes, derivation_version, max_speed_mph
                 from trips
@@ -33,7 +33,7 @@ public static class TripIdentityEndpoints
                            and start_traccar_position_id = cast(@startPositionId as bigint)
                            and end_traccar_position_id = cast(@endPositionId as bigint)))
                   and traccar_source_id is null
-                  and (@authDisabled or @isAdmin or exists (select 1 from app_user_vehicle_access ua join app_users u on u.id = ua.user_id where ua.vehicle_id = trips.vehicle_id and u.username = @username and u.active) or exists (select 1 from app_group_vehicle_access ga join app_group_memberships gm on gm.group_id = ga.group_id join app_users u on u.id = gm.user_id where ga.vehicle_id = trips.vehicle_id and u.username = @username and u.active))
+                  and {VehicleAccess.TripReadAccessPredicate("trips")}
                 limit 2
                 """, connection);
             command.Parameters.AddWithValue("deviceId", traccarDeviceId);
@@ -41,7 +41,7 @@ public static class TripIdentityEndpoints
             command.Parameters.AddWithValue("endedAt", endedAt.UtcDateTime);
             command.Parameters.Add("startPositionId", NpgsqlDbType.Bigint).Value = (object?)startTraccarPositionId ?? DBNull.Value;
             command.Parameters.Add("endPositionId", NpgsqlDbType.Bigint).Value = (object?)endTraccarPositionId ?? DBNull.Value;
-            command.Parameters.AddWithValue("authDisabled", !authOptions.Enabled);
+            command.Parameters.AddWithValue("authEnabled", authOptions.Enabled);
             command.Parameters.AddWithValue("isAdmin", context.User.IsInRole("admin"));
             command.Parameters.AddWithValue("username", context.User.Identity?.Name ?? string.Empty);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);

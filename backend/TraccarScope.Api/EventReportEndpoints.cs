@@ -13,14 +13,14 @@ public static class EventReportEndpoints
         if (end < start) return Results.BadRequest(new { title = "Invalid report range", detail = "The through date must be on or after the from date." });
         var isAdmin = context.User.IsInRole("admin"); var username = context.User.Identity?.Name ?? string.Empty;
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand("""
+        await using var command = new NpgsqlCommand($"""
           select t.vehicle_id, v.display_name, e.event_type, e.source, count(*)::int,
                  min(e.occurred_at), max(e.occurred_at), min(e.measured_value), max(e.measured_value), max(e.unit),
                  count(*) filter (where e.severity = 'high')::int
           from trip_events e join trips t on t.id=e.trip_id join vehicles v on v.id=t.vehicle_id
           where t.started_at >= @from and t.started_at <= @to
             and (cast(@vehicleId as uuid) is null or t.vehicle_id=cast(@vehicleId as uuid))
-            and (not @authEnabled or @isAdmin or exists (select 1 from app_user_vehicle_access ua join app_users u on u.id=ua.user_id where ua.vehicle_id=t.vehicle_id and u.username=@username and u.active) or exists (select 1 from app_group_vehicle_access ga join app_group_memberships gm on gm.group_id=ga.group_id join app_users u on u.id=gm.user_id where ga.vehicle_id=t.vehicle_id and u.username=@username and u.active))
+            and {VehicleAccess.TripReadAccessPredicate("t")}
             and (cast(@tagId as uuid) is null or exists (select 1 from trip_tag_map tm where tm.trip_id=t.id and tm.tag_id=cast(@tagId as uuid)))
           group by t.vehicle_id, v.display_name, e.event_type, e.source
           order by max(e.occurred_at) desc, v.display_name, e.event_type

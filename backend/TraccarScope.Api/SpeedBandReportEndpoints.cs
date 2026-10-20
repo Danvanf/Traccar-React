@@ -11,7 +11,7 @@ public static class SpeedBandReportEndpoints
         if (end < start) return Results.BadRequest(new { title = "Invalid report range" });
         var admin = context.User.IsInRole("admin"); var username = context.User.Identity?.Name ?? string.Empty;
         await using var db = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand("""
+        await using var command = new NpgsqlCommand($"""
           select t.vehicle_id, v.display_name, coalesce(sb.bands, '[]'::jsonb), t.traccar_device_id, t.started_at, t.ended_at, rp.trip_id, rp.point_index, rp.latitude, rp.longitude, rp.speed_mph
           from trips t join vehicles v on v.id=t.vehicle_id left join vehicle_speed_bands sb on sb.vehicle_id=t.vehicle_id
           left join trip_route_points rp on rp.trip_id=t.id
@@ -22,10 +22,10 @@ public static class SpeedBandReportEndpoints
             -- speed per coordinate, so speed-band distance is Traccar-only.
             and coalesce(t.external_metadata ->> 'source', '') <> 'bouncie-rest-v1'
             and coalesce(t.derivation_version, '') <> 'bouncie-csv-v1'
-            and (not @authEnabled or @admin or exists (select 1 from app_user_vehicle_access ua join app_users u on u.id=ua.user_id where ua.vehicle_id=t.vehicle_id and u.username=@username and u.active) or exists (select 1 from app_group_vehicle_access ga join app_group_memberships gm on gm.group_id=ga.group_id join app_users u on u.id=gm.user_id where ga.vehicle_id=t.vehicle_id and u.username=@username and u.active))
+            and {VehicleAccess.TripReadAccessPredicate("t")}
           order by t.vehicle_id, rp.trip_id, rp.point_index
           """, db);
-        command.Parameters.AddWithValue("from", start.UtcDateTime); command.Parameters.AddWithValue("to", end.UtcDateTime); command.Parameters.AddWithValue("vehicleId", (object?)vehicleId ?? DBNull.Value); command.Parameters.AddWithValue("tagId", (object?)tagId ?? DBNull.Value); command.Parameters.AddWithValue("authEnabled", authOptions.Enabled); command.Parameters.AddWithValue("admin", admin); command.Parameters.AddWithValue("username", username);
+        command.Parameters.AddWithValue("from", start.UtcDateTime); command.Parameters.AddWithValue("to", end.UtcDateTime); command.Parameters.AddWithValue("vehicleId", (object?)vehicleId ?? DBNull.Value); command.Parameters.AddWithValue("tagId", (object?)tagId ?? DBNull.Value); command.Parameters.AddWithValue("authEnabled", authOptions.Enabled); command.Parameters.AddWithValue("isAdmin", admin); command.Parameters.AddWithValue("username", username);
         var states = new Dictionary<Guid, State>();
         var windows = new List<TraccarWindow>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);

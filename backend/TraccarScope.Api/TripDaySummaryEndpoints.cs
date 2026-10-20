@@ -24,13 +24,13 @@ public static class TripDaySummaryEndpoints
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var command = new NpgsqlCommand(
-            """
-            select min(started_at) as earliest_started_at,
-                   max(ended_at) as latest_ended_at,
+            $"""
+            select min(t.started_at) as earliest_started_at,
+                   max(t.ended_at) as latest_ended_at,
                    count(*)::bigint as trip_count
-            from trips
-            where (cast(@vehicleId as uuid) is null or vehicle_id = cast(@vehicleId as uuid))
-              and (not @authEnabled or @isAdmin or vehicle_id in (select vehicle_id from app_user_vehicle_access ua join app_users u on u.id = ua.user_id where u.username = @username and u.active union select ga.vehicle_id from app_group_vehicle_access ga join app_group_memberships gm on gm.group_id = ga.group_id join app_users u on u.id = gm.user_id where u.username = @username and u.active))
+            from trips t
+            where (cast(@vehicleId as uuid) is null or t.vehicle_id = cast(@vehicleId as uuid))
+              and {VehicleAccess.TripReadAccessPredicate("t")}
             """, connection);
         command.Parameters.AddWithValue("vehicleId", (object?)vehicleId ?? DBNull.Value);
         AddAccessParameters(command, authOptions, context);
@@ -52,13 +52,13 @@ public static class TripDaySummaryEndpoints
     {
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var command = new NpgsqlCommand(
-            """
-            select to_char(date_trunc('month', started_at at time zone 'UTC'), 'YYYY-MM') as month_key,
+            $"""
+            select to_char(date_trunc('month', t.started_at at time zone 'UTC'), 'YYYY-MM') as month_key,
                    count(distinct date_trunc('day', started_at at time zone 'UTC'))::int as active_day_count,
                    count(*)::int as trip_count
-            from trips
-            where (cast(@vehicleId as uuid) is null or vehicle_id = cast(@vehicleId as uuid))
-              and (not @authEnabled or @isAdmin or vehicle_id in (select vehicle_id from app_user_vehicle_access ua join app_users u on u.id = ua.user_id where u.username = @username and u.active union select ga.vehicle_id from app_group_vehicle_access ga join app_group_memberships gm on gm.group_id = ga.group_id join app_users u on u.id = gm.user_id where u.username = @username and u.active))
+            from trips t
+            where (cast(@vehicleId as uuid) is null or t.vehicle_id = cast(@vehicleId as uuid))
+              and {VehicleAccess.TripReadAccessPredicate("t")}
             group by 1
             order by 1 desc
             """, connection);
@@ -89,19 +89,19 @@ public static class TripDaySummaryEndpoints
 
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var command = new NpgsqlCommand(
-            """
-            select id, vehicle_id, traccar_device_id, started_at, ended_at,
+            $"""
+            select t.id, t.vehicle_id, t.traccar_device_id, t.started_at, t.ended_at,
                    duration_seconds, distance_meters, max_speed_mph,
-                   (select count(*) from trip_events e where e.trip_id = trips.id) as event_count,
+                   (select count(*) from trip_events e where e.trip_id = t.id) as event_count,
                    start_traccar_position_id, end_traccar_position_id,
                    start_latitude, start_longitude, end_latitude, end_longitude,
                    start_address, end_address
-            from trips
-            where (cast(@from as timestamptz) is null or ended_at >= cast(@from as timestamptz))
-              and (cast(@to as timestamptz) is null or started_at <= cast(@to as timestamptz))
-              and (cast(@vehicleId as uuid) is null or vehicle_id = cast(@vehicleId as uuid))
-              and (not @authEnabled or @isAdmin or vehicle_id in (select vehicle_id from app_user_vehicle_access ua join app_users u on u.id = ua.user_id where u.username = @username and u.active union select ga.vehicle_id from app_group_vehicle_access ga join app_group_memberships gm on gm.group_id = ga.group_id join app_users u on u.id = gm.user_id where u.username = @username and u.active))
-            order by started_at desc
+            from trips t
+            where (cast(@from as timestamptz) is null or t.ended_at >= cast(@from as timestamptz))
+              and (cast(@to as timestamptz) is null or t.started_at <= cast(@to as timestamptz))
+              and (cast(@vehicleId as uuid) is null or t.vehicle_id = cast(@vehicleId as uuid))
+              and {VehicleAccess.TripReadAccessPredicate("t")}
+            order by t.started_at desc
             limit 10000
             """, connection);
         command.Parameters.AddWithValue("from", (object?)from?.UtcDateTime ?? DBNull.Value);

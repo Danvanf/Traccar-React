@@ -14,7 +14,7 @@ public static class BusinessMileageReportEndpoints
         if (reportUnits is null) return Results.BadRequest(new { title = "Invalid report units", detail = "Units must be imperial or metric." });
         var isAdmin = context.User.IsInRole("admin"); var username = context.User.Identity?.Name ?? string.Empty;
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand("""
+        await using var command = new NpgsqlCommand($"""
           select t.id, t.started_at, t.ended_at, t.vehicle_id, v.display_name, t.start_address, t.end_address,
                  t.start_latitude, t.start_longitude, t.end_latitude, t.end_longitude, t.distance_meters, t.duration_seconds,
                  coalesce(string_agg(distinct tg.name, '; ' order by tg.name), '') as tags, coalesce(t.notes, '')
@@ -23,7 +23,7 @@ public static class BusinessMileageReportEndpoints
           where t.started_at >= @from and t.started_at <= @to
             and (cast(@vehicleId as uuid) is null or t.vehicle_id=cast(@vehicleId as uuid))
             and (cast(@tagId as uuid) is null or exists (select 1 from trip_tag_map tx where tx.trip_id=t.id and tx.tag_id=cast(@tagId as uuid)))
-            and (not @authEnabled or @isAdmin or exists (select 1 from app_user_vehicle_access ua join app_users u on u.id=ua.user_id where ua.vehicle_id=t.vehicle_id and u.username=@username and u.active) or exists (select 1 from app_group_vehicle_access ga join app_group_memberships gm on gm.group_id=ga.group_id join app_users u on u.id=gm.user_id where ga.vehicle_id=t.vehicle_id and u.username=@username and u.active))
+            and {VehicleAccess.TripReadAccessPredicate("t")}
           group by t.id, t.started_at, t.ended_at, t.vehicle_id, v.display_name, t.start_address, t.end_address, t.start_latitude, t.start_longitude, t.end_latitude, t.end_longitude, t.distance_meters, t.duration_seconds, t.notes
           order by t.started_at desc
           """, connection);

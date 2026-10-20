@@ -11,10 +11,13 @@ public static class TripImportEndpoints
     }
 
     public static async Task<IResult> ImportAsync(ImportTripsByDeviceRequest request,
-        NpgsqlDataSource dataSource, ILoggerFactory loggerFactory, CancellationToken cancellationToken)
+        NpgsqlDataSource dataSource, ILoggerFactory loggerFactory,
+        TraccarScopeApiAuthOptions authOptions, HttpContext context, CancellationToken cancellationToken)
     {
         if (request.TraccarDeviceId <= 0 || request.TraccarDeviceId > int.MaxValue)
             return TypedResults.BadRequest("traccarDeviceId must be a positive 32-bit integer.");
+        if (!await VehicleAccess.CanReadDeviceAsync((int)request.TraccarDeviceId, dataSource, authOptions, context, cancellationToken))
+            return TypedResults.NotFound();
         if (request.Trips is null || request.Trips.Count == 0 || request.Trips.Count > 5000)
             return TypedResults.BadRequest("trips must contain between 1 and 5000 items.");
         if (request.Trips.Any(trip => trip is null || trip.EndedAt <= trip.StartedAt
