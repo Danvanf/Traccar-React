@@ -528,7 +528,7 @@ def mysql_value(value: Any, column: str) -> str:
 
 
 def preflight_mysql_traccar(target: MysqlTarget, archive_path: Path, mapping: dict[int, int]) -> None:
-    rows = target.query("SELECT CONCAT((SELECT COUNT(*) FROM tc_positions), CHAR(9), (SELECT COUNT(*) FROM tc_events), CHAR(9), (SELECT COUNT(*) FROM tc_devices));\n")
+    rows = target.query("SELECT (SELECT COUNT(*) FROM tc_positions), (SELECT COUNT(*) FROM tc_events), (SELECT COUNT(*) FROM tc_devices);\n")
     try:
         positions, events, devices = (int(part) for part in rows.split("\t"))
     except (ValueError, TypeError):
@@ -537,14 +537,14 @@ def preflight_mysql_traccar(target: MysqlTarget, archive_path: Path, mapping: di
         fail(f"Target Traccar history is not empty (positions={positions}, events={events}); refusing to import.")
     if devices == 0:
         fail("Target Traccar has no devices. Create the destination devices in Traccar first.")
-    engines = target.query("SELECT CONCAT(TABLE_NAME, CHAR(9), COALESCE(ENGINE, '')) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('tc_positions', 'tc_events') ORDER BY TABLE_NAME;\n")
+    engines = target.query("SELECT TABLE_NAME, COALESCE(ENGINE, '') FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('tc_positions', 'tc_events') ORDER BY TABLE_NAME;\n")
     engine_map = dict(line.split("\t", 1) for line in engines.splitlines() if "\t" in line)
     if set(engine_map) != {"tc_positions", "tc_events"}:
         fail("Target MySQL Traccar database is missing tc_positions or tc_events.")
     if any(engine.upper() != "INNODB" for engine in engine_map.values()):
         fail("Target MySQL Traccar history tables must use InnoDB so imports can roll back safely.")
 
-    available = target.query("SELECT CONCAT(TABLE_NAME, CHAR(9), COLUMN_NAME) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('tc_positions', 'tc_events');\n")
+    available = target.query("SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('tc_positions', 'tc_events');\n")
     columns_by_table: dict[str, set[str]] = {"tc_positions": set(), "tc_events": set()}
     for line in available.splitlines():
         table, column = line.split("\t", 1)

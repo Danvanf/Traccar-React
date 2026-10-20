@@ -136,12 +136,13 @@ class RestorePackageTests(unittest.TestCase):
 
                 def query(self, sql):
                     if "COUNT(*)" in sql:
-                        assert "CHAR(9)" in sql
+                        assert "CONCAT" not in sql
                         return "0\t0\t1"
                     if "information_schema.TABLES" in sql:
-                        assert "CHAR(9)" in sql
+                        assert "TABLE_NAME, COALESCE(ENGINE" in sql
                         return "tc_events\tInnoDB\ntc_positions\tInnoDB"
                     if "information_schema.COLUMNS" in sql:
+                        assert "TABLE_NAME, COLUMN_NAME" in sql
                         return ""
                     raise AssertionError(f"Unexpected MySQL query: {sql}")
 
