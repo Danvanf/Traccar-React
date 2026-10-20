@@ -317,6 +317,30 @@ def map_record(record: dict[str, Any], mapping: dict[int, int], table: str) -> d
     return result
 
 
+def validate_archive_device_references(archive_path: Path, mapping: dict[int, int], included_tables: list[str]) -> None:
+    """Reject history or API rows that reference devices absent from the source inventory."""
+    entries = ["traccar/positions.jsonl", "traccar/events.jsonl"]
+    entries.extend(f"traccar-scope-api/{table}.jsonl" for table in included_tables)
+    missing: dict[tuple[str, int], int] = {}
+    with zipfile.ZipFile(archive_path, "r") as archive:
+        for entry in entries:
+            for record in read_json_lines(archive, entry):
+                keys = ("deviceId",) if entry.startswith("traccar/") else ("traccar_device_id",)
+                key = next((candidate for candidate in keys if candidate in record), None)
+                if key is None or record[key] is None:
+                    continue
+                try:
+                    source_id = int(record[key])
+                except (ValueError, TypeError):
+                    fail(f"Non-numeric {key} in {entry}")
+                if source_id not in mapping:
+                    missing[(entry, source_id)] = missing.get((entry, source_id), 0) + 1
+    if missing:
+        details = "; ".join(f"{entry}: device {device_id} ({count} rows)" for (entry, device_id), count in sorted(missing.items()))
+        fail("Archive rows reference Traccar device IDs absent from its device inventory; no import was started. "
+             "Identify the source device and regenerate the export or correct the source data before retrying. " + details)
+
+
 def psql_stream(service: str, emit) -> None:
     command = ["psql", "--no-psqlrc", "--set", "ON_ERROR_STOP=1", "--dbname", f"service={service}"]
     try:
@@ -330,6 +354,10 @@ def psql_stream(service: str, emit) -> None:
             except BaseException:
                 process.kill()
                 process.wait()
+                try:
+                    process.stdin.close()
+                except BrokenPipeError:
+                    pass
                 raise
             if status:
                 errors.seek(0)
@@ -406,6 +434,10 @@ class MysqlTarget:
                 except BaseException:
                     process.kill()
                     process.wait()
+                    try:
+                        process.stdin.close()
+                    except BrokenPipeError:
+                        pass
                     raise
                 if status:
                     errors.seek(0)
@@ -739,6 +771,7 @@ def main() -> int:
                 fail("Confirmation did not match; no changes were made.")
 
         mapping = load_device_map(args.device_map, source_devices)
+        validate_archive_device_references(args.archive, mapping, manifest["includedTraccarScopeApiTables"])
         username = input("Target Traccar username: ")
         password = getpass.getpass("Target Traccar password: ")
         server = traccar_get(args.target_traccar_url, username, password, TRACCAR_VERSION_URL_PATH)

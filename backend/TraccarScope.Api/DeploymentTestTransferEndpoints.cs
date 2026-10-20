@@ -18,12 +18,12 @@ public static class DeploymentTestTransferEndpoints
     [
         new("vehicles", true),
         new("traccar_sources", false),
-        new("vehicle_device_bindings", true),
-        new("trips", true, "ended_at >= @from and started_at < @to"),
-        new("trip_route_points", false, "trip_id in (select id from trips where ended_at >= @from and started_at < @to)"),
+        new("vehicle_device_bindings", true, "traccar_device_id = any(@device_ids)"),
+        new("trips", true, "ended_at >= @from and started_at < @to and traccar_device_id = any(@device_ids)"),
+        new("trip_route_points", false, "trip_id in (select id from trips where ended_at >= @from and started_at < @to and traccar_device_id = any(@device_ids))"),
         new("trip_tags", false),
-        new("trip_tag_map", false, "trip_id in (select id from trips where ended_at >= @from and started_at < @to)"),
-        new("trip_events", false, "occurred_at >= @from and occurred_at < @to"),
+        new("trip_tag_map", false, "trip_id in (select id from trips where ended_at >= @from and started_at < @to and traccar_device_id = any(@device_ids))"),
+        new("trip_events", false, "occurred_at >= @from and occurred_at < @to and trip_id in (select id from trips where ended_at >= @from and started_at < @to and traccar_device_id = any(@device_ids))"),
         new("trip_event_thresholds", false),
         new("named_places", false),
         new("fuel_fills", false, "filled_at >= @from and filled_at < @to"),
@@ -36,7 +36,7 @@ public static class DeploymentTestTransferEndpoints
         new("telemetry_source_mapping_revisions", true),
         new("vehicle_speed_bands", false),
         new("vehicle_status_card_preferences", false),
-        new("trip_external_identities", false, "trip_id in (select id from trips where ended_at >= @from and started_at < @to)"),
+        new("trip_external_identities", false, "trip_id in (select id from trips where ended_at >= @from and started_at < @to and traccar_device_id = any(@device_ids))"),
     ];
 
     public static void MapDeploymentTestTransferEndpoints(this WebApplication app)
@@ -112,12 +112,12 @@ public static class DeploymentTestTransferEndpoints
             archiveStream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 1024 * 128, FileOptions.Asynchronous | FileOptions.SequentialScan | FileOptions.DeleteOnClose);
             var fileSummaries = new List<DeploymentTransferFileSummary>();
             string traccarVersion;
-            int deviceCount;
+            IReadOnlySet<int> deviceIds;
             IReadOnlyList<string> appTableNames;
             using (var zip = new ZipArchive(archiveStream, ZipArchiveMode.Create, leaveOpen: true))
             {
-                (traccarVersion, deviceCount) = await ExportTraccarAsync(zip, fileSummaries, settings, traccarOptions, httpClientFactory, fromUtc, toUtc, cancellationToken);
-                appTableNames = await ExportTraccarScopeApiAsync(zip, fileSummaries, dataSource, fromUtc, toUtc, cancellationToken);
+                (traccarVersion, deviceIds) = await ExportTraccarAsync(zip, fileSummaries, settings, traccarOptions, httpClientFactory, fromUtc, toUtc, cancellationToken);
+                appTableNames = await ExportTraccarScopeApiAsync(zip, fileSummaries, dataSource, deviceIds, fromUtc, toUtc, cancellationToken);
                 var manifest = new
                 {
                     formatVersion = 2,
@@ -130,7 +130,7 @@ public static class DeploymentTestTransferEndpoints
                         apiAssemblyVersion = typeof(DeploymentTestTransferEndpoints).Assembly.GetName().Version?.ToString(),
                         traccarScopeApiSchema = "allowlisted-jsonl-v1",
                     },
-                    deviceCount,
+                    deviceCount = deviceIds.Count,
                     files = fileSummaries,
                     includedTraccarScopeApiTables = appTableNames,
                     remappingRequired = new[] { "Traccar device IDs", "Traccar position IDs" },
@@ -150,7 +150,7 @@ public static class DeploymentTestTransferEndpoints
                 context.User.Identity?.Name,
                 fromUtc,
                 toUtc,
-                deviceCount,
+                deviceIds.Count,
                 fileSummaries.Sum(file => file.Records),
                 context.TraceIdentifier);
             var resultStream = archiveStream;
@@ -186,7 +186,7 @@ public static class DeploymentTestTransferEndpoints
         }
     }
 
-    private static async Task<(string Version, int DeviceCount)> ExportTraccarAsync(
+    private static async Task<(string Version, IReadOnlySet<int> DeviceIds)> ExportTraccarAsync(
         ZipArchive zip,
         List<DeploymentTransferFileSummary> summaries,
         GlobalGeneralSettings settings,
@@ -270,13 +270,14 @@ public static class DeploymentTestTransferEndpoints
             summaries.Add(await writer.CompleteAsync(cancellationToken));
         }
 
-        return (version, devices.Count);
+        return (version, devices.Select(device => device.GetProperty("id").GetInt32()).ToHashSet());
     }
 
     private static async Task<IReadOnlyList<string>> ExportTraccarScopeApiAsync(
         ZipArchive zip,
         List<DeploymentTransferFileSummary> summaries,
         NpgsqlDataSource dataSource,
+        IReadOnlySet<int> deviceIds,
         DateTimeOffset fromUtc,
         DateTimeOffset toUtc,
         CancellationToken cancellationToken)
@@ -312,6 +313,8 @@ public static class DeploymentTestTransferEndpoints
             {
                 command.Parameters.AddWithValue("from", fromUtc);
                 command.Parameters.AddWithValue("to", toUtc);
+                if (table.FilterSql.Contains("@device_ids", StringComparison.Ordinal))
+                    command.Parameters.AddWithValue("device_ids", deviceIds.ToArray());
             }
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             await using var writer = await JsonlZipWriter.CreateAsync(zip, $"traccar-scope-api/{table.Name}.jsonl", cancellationToken);
