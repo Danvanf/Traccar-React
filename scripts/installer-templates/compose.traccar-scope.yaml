@@ -54,6 +54,9 @@ services:
         condition: service_started
     ports:
       - "${WEB_BIND_ADDRESS}:${WEB_PORT}:80"
+    networks:
+      - default
+      - traccar
 
 volumes:
   database-data:

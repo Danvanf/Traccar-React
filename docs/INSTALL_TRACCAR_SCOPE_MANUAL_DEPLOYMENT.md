@@ -205,6 +205,17 @@ sudo env TRACCAR_SCOPE_API_ENV_FILE="$old_env" \
   docker compose -p traccar-scope-limestone -f "$old_compose" down
 sudo docker compose -f ~/docker/traccar-scope-api/traccar-scope-api.compose.yml up -d --no-build
 sudo docker compose -f ~/docker/traccar-scope-api/traccar-scope-api.compose.yml ps
+for attempt in {1..30}; do
+  if curl --fail --silent --max-time 2 http://127.0.0.1:8090/traccar-scope-api/health; then
+    printf '\nTraccar Scope API is ready.\n'
+    break
+  fi
+  if [[ "$attempt" -eq 30 ]]; then
+    printf '\nTraccar Scope API did not become ready; inspect its Compose logs.\n'
+    exit 1
+  fi
+  sleep 2
+done
 sudo docker compose -f ~/docker/traccar-scope-api/traccar-scope-api.compose.yml logs --tail 100 traccar-scope-api
 curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8090/
 curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8090/traccar-scope-api/health

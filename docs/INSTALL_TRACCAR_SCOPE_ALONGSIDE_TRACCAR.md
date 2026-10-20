@@ -4,11 +4,24 @@ Use this installer when Traccar is already running and you want to add Traccar S
 
 The script is intended for Ubuntu 24.04 under WSL 2 or a systemd-based Linux VM with Docker Engine and Compose v2. It binds the web service to `127.0.0.1` by default. On a remote VM, connect through an SSH tunnel; do not expose this HTTP-only setup directly to the public internet.
 
+## Find the Traccar Docker network
+
+`docker ps` shows container names and published ports, but it does not show the Docker networks those containers use. Inspect the running Traccar container instead. For example, the container in the sample output is named `traccar-traccar-1`:
+
+```bash
+sudo docker inspect traccar-traccar-1 \
+  --format '{{range $network, $details := .NetworkSettings.Networks}}{{printf "%s (aliases: %v)\n" $network $details.Aliases}}{{end}}'
+```
+
+The output lists each attached network and the DNS aliases available on it. Enter the network name that Traccar uses when the installer asks for the Docker network. Compose commonly creates a name such as `traccar_default`, but use the name printed by `docker inspect`; do not infer it from the container name alone. If multiple networks are listed, choose the one through which the Scope API should reach Traccar. The hostname in the Traccar base URL must also resolve on that network, commonly the `traccar` service alias (for example, `http://traccar:8082`).
+
+If the container name differs, get the current name from the `NAMES` column of `sudo docker ps` and substitute it in the inspect command. To confirm the network exists, list Docker networks with `sudo docker network ls`.
+
 ## Before you start
 
 - Traccar must already be reachable from Docker containers on the installation host.
 - Have the Traccar base URL, username, and password ready. Use an account that can see the devices and positions the intended Traccar Scope users should access. The installer stores the password encrypted in the Traccar Scope database; it does not save it in `.env`.
-- If Traccar runs in Docker on the same host, know its Docker network name (often `traccar_default`). The installer connects the Traccar Scope API container to that network. If Traccar is reached through a host-published port, use the `bridge` network and URL `http://host.docker.internal:8082` (adjust the port as needed).
+- If Traccar runs in Docker on the same host, find its Docker network name before installing (see [Find the Traccar Docker network](#find-the-traccar-docker-network)). The installer connects the Traccar Scope API and web containers to that network. If Traccar is reached through a host-published port, use the `bridge` network and URL `http://host.docker.internal:8082` (adjust the port as needed).
 - Install Docker Engine, the Compose v2 plugin, Git, curl, OpenSSL, and Python 3. On WSL, enable systemd and use Docker Engine inside the Ubuntu distribution. See the [Docker Ubuntu guide](https://docs.docker.com/engine/install/ubuntu/) and [Microsoft's WSL systemd guide](https://learn.microsoft.com/en-us/windows/wsl/systemd/).
 
 ## Install
@@ -28,7 +41,7 @@ The installer prompts for:
 
 1. The Traccar base URL reachable from the Traccar Scope API container. Enter the server root, such as `http://traccar:8082` or `http://host.docker.internal:8082`; do not add `/api`.
 2. A Traccar username and password.
-3. The Traccar Docker network name. Enter the network containing the Traccar service, or press Enter for `bridge` when connecting through a host-published port.
+3. The Traccar Docker network name. For same-host Docker deployments, enter the network found in [Find the Traccar Docker network](#find-the-traccar-docker-network). Enter `bridge` only when connecting through a host-published port.
 
 The installer generates the Traccar Scope administrator account, database password, and credential-encryption key; initializes the app schema automatically; builds and starts the services; then saves the Traccar connection through the administrator API and verifies the connection. No SQL command or manual settings step is needed.
 
