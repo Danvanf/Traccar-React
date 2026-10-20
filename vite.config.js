@@ -8,6 +8,8 @@ const traccarScopeApiTarget = process.env.VITE_TRACCAR_SCOPE_API_TARGET || 'http
 export default defineConfig({
   plugins: [react()],
   server: {
+    port: 5510,
+    strictPort: true,
     proxy: {
       '/api': {
         target: traccarTarget,

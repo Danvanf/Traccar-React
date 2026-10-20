@@ -3,7 +3,7 @@
 
 The tool deliberately supports only the export format/version documented in
 docs/DEPLOYMENT_TEST_DATA_TRANSFER.md. It validates everything before writes,
-and requires separate, explicit PostgreSQL services for Traccar and TraccarScopeApi.
+and supports PostgreSQL or MySQL for Traccar plus PostgreSQL for Traccar Scope API.
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 import getpass
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -215,7 +216,7 @@ def sql_literal(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
 
-def preflight_databases(traccar_service: str, app_service: str, included_tables: list[str]) -> None:
+def preflight_databases(traccar_service: str, app_service, included_tables: list[str]) -> None:
     # Reject TimescaleDB/hypertables: Traccar versions can drop primary keys there,
     # which invalidates exact-ID insertion and is not tested by this importer.
     traccar_check = r"""
@@ -254,7 +255,7 @@ from (
   where table_schema=current_schema() and table_type='BASE TABLE' and table_name in ({names})
 ) counts;
 """
-    rows = json.loads(psql(app_service, sql))
+    rows = json.loads(psql_target(app_service, sql))
     found = {row["table"] for row in rows}
     if found != set(included_tables):
         fail("Target Traccar Scope API schema must be migrated before restore; missing: " + ", ".join(sorted(set(included_tables) - found)))
@@ -333,7 +334,276 @@ def psql_stream(service: str, emit) -> None:
         fail("psql was not found. Install the PostgreSQL client on the restore host.")
 
 
-def copy_archive_to_psql(archive_path: Path, traccar_service: str, app_service: str,
+class MysqlTarget:
+    """Run the MySQL client inside an existing disposable database container."""
+
+    def __init__(self, container: str, user: str, database: str, password: str, docker_sudo: bool = False):
+        self.container = container
+        self.docker_prefix = ["sudo", "docker"] if docker_sudo else ["docker"]
+        self.config_path = f"/tmp/traccar-scope-restore-{os.getpid()}.cnf"
+        escaped_password = password.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+        config = f'[client]\nuser="{user}"\npassword="{escaped_password}"\ndatabase="{database}"\n'
+        try:
+            with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False) as stream:
+                self.host_config = Path(stream.name)
+                stream.write(config)
+            os.chmod(self.host_config, 0o600)
+            copied = subprocess.run(
+                [*self.docker_prefix, "cp", str(self.host_config), f"{container}:{self.config_path}"],
+                capture_output=True, text=True, check=False,
+            )
+            if copied.returncode:
+                fail("Could not securely stage temporary MySQL client configuration in the database container: " + copied.stderr.strip())
+            secured = subprocess.run(
+                [*self.docker_prefix, "exec", container, "chmod", "600", self.config_path],
+                capture_output=True, text=True, check=False,
+            )
+            if secured.returncode:
+                fail("Could not restrict temporary MySQL client configuration permissions: " + secured.stderr.strip())
+        except OSError as exc:
+            if hasattr(self, "host_config"):
+                self.host_config.unlink(missing_ok=True)
+            fail(f"Could not prepare MySQL client configuration: {exc}")
+        except RestoreError:
+            if hasattr(self, "host_config"):
+                self.host_config.unlink(missing_ok=True)
+            subprocess.run([*self.docker_prefix, "exec", container, "rm", "-f", self.config_path], capture_output=True, check=False)
+            raise
+
+    def close(self) -> None:
+        try:
+            subprocess.run([*self.docker_prefix, "exec", self.container, "rm", "-f", self.config_path], capture_output=True, check=False)
+        finally:
+            if hasattr(self, "host_config"):
+                self.host_config.unlink(missing_ok=True)
+
+    def command(self) -> list[str]:
+        return [*self.docker_prefix, "exec", "-i", self.container, "mysql", f"--defaults-extra-file={self.config_path}", "--batch", "--skip-column-names", "--default-character-set=utf8mb4"]
+
+    def query(self, sql: str) -> str:
+        try:
+            result = subprocess.run(self.command(), input=sql, text=True, capture_output=True, check=False)
+        except FileNotFoundError:
+            fail("Docker CLI was not found; it is required to run the MySQL client in the database container.")
+        if result.returncode:
+            fail("MySQL target preflight failed: " + (result.stderr.strip() or f"mysql exited with status {result.returncode}"))
+        return result.stdout.strip()
+
+    def stream(self, emit) -> None:
+        try:
+            with tempfile.TemporaryFile(mode="w+t", encoding="utf-8") as errors:
+                process = subprocess.Popen(self.command(), stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=errors, text=True)
+                assert process.stdin is not None
+                try:
+                    emit(process.stdin)
+                    process.stdin.close()
+                    status = process.wait()
+                except BaseException:
+                    process.kill()
+                    process.wait()
+                    raise
+                if status:
+                    errors.seek(0)
+                    fail("MySQL import failed: " + (errors.read().strip() or f"mysql exited with status {status}"))
+        except FileNotFoundError:
+            fail("Docker CLI was not found; it is required to run the MySQL client in the database container.")
+
+
+class PostgresContainerTarget:
+    """Run psql inside a PostgreSQL container without publishing its port."""
+
+    def __init__(self, container: str, user: str, database: str, password: str, docker_sudo: bool = False):
+        self.container = container
+        self.user = user
+        self.database = database
+        self.docker_prefix = ["sudo", "docker"] if docker_sudo else ["docker"]
+        self.passfile_path = f"/tmp/traccar-scope-restore-{os.getpid()}.pgpass"
+        escaped_password = password.replace("\\", "\\\\").replace(":", "\\:").replace("\n", "\\n")
+        passfile = f"127.0.0.1:5432:{database}:{user}:{escaped_password}\n"
+        try:
+            with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False) as stream:
+                self.host_passfile = Path(stream.name)
+                stream.write(passfile)
+            os.chmod(self.host_passfile, 0o600)
+            copied = subprocess.run(
+                [*self.docker_prefix, "cp", str(self.host_passfile), f"{container}:{self.passfile_path}"],
+                capture_output=True, text=True, check=False,
+            )
+            if copied.returncode:
+                fail("Could not securely stage temporary PostgreSQL password file in the database container: " + copied.stderr.strip())
+            secured = subprocess.run(
+                [*self.docker_prefix, "exec", container, "chmod", "600", self.passfile_path],
+                capture_output=True, text=True, check=False,
+            )
+            if secured.returncode:
+                fail("Could not restrict temporary PostgreSQL password file permissions: " + secured.stderr.strip())
+        except OSError as exc:
+            if hasattr(self, "host_passfile"):
+                self.host_passfile.unlink(missing_ok=True)
+            fail(f"Could not prepare PostgreSQL password file: {exc}")
+        except RestoreError:
+            if hasattr(self, "host_passfile"):
+                self.host_passfile.unlink(missing_ok=True)
+            subprocess.run([*self.docker_prefix, "exec", container, "rm", "-f", self.passfile_path], capture_output=True, check=False)
+            raise
+
+    def close(self) -> None:
+        try:
+            subprocess.run([*self.docker_prefix, "exec", self.container, "rm", "-f", self.passfile_path], capture_output=True, check=False)
+        finally:
+            if hasattr(self, "host_passfile"):
+                self.host_passfile.unlink(missing_ok=True)
+
+    def command(self) -> list[str]:
+        return [*self.docker_prefix, "exec", "-i", "-e", f"PGPASSFILE={self.passfile_path}", self.container,
+                "psql", "--no-psqlrc", "--set", "ON_ERROR_STOP=1", "--host=127.0.0.1", "--username", self.user,
+                "--dbname", self.database]
+
+    def query(self, sql: str) -> str:
+        command = self.command() + ["--tuples-only", "--no-align"]
+        try:
+            result = subprocess.run(command, input=sql, text=True, capture_output=True, check=False)
+        except FileNotFoundError:
+            fail("Docker CLI was not found; it is required to run psql in the PostgreSQL container.")
+        if result.returncode:
+            fail("PostgreSQL container query failed: " + (result.stderr.strip() or f"psql exited with status {result.returncode}"))
+        return result.stdout.strip()
+
+    def stream(self, emit) -> None:
+        try:
+            with tempfile.TemporaryFile(mode="w+t", encoding="utf-8") as errors:
+                process = subprocess.Popen(self.command(), stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=errors, text=True)
+                assert process.stdin is not None
+                try:
+                    emit(process.stdin)
+                    process.stdin.close()
+                    status = process.wait()
+                except BaseException:
+                    process.kill()
+                    process.wait()
+                    raise
+                if status:
+                    errors.seek(0)
+                    fail("PostgreSQL container import failed: " + (errors.read().strip() or f"psql exited with status {status}"))
+        except FileNotFoundError:
+            fail("Docker CLI was not found; it is required to run psql in the PostgreSQL container.")
+
+
+def psql_target(target, sql: str) -> str:
+    return target.query(sql) if isinstance(target, PostgresContainerTarget) else psql(target, sql)
+
+
+def psql_target_stream(target, emit) -> None:
+    target.stream(emit) if isinstance(target, PostgresContainerTarget) else psql_stream(target, emit)
+
+
+def mysql_value(value: Any, column: str) -> str:
+    if value is None:
+        return "NULL"
+    if isinstance(value, bool):
+        return "1" if value else "0"
+    if isinstance(value, (int, float)):
+        if isinstance(value, float) and not (float("-inf") < value < float("inf")):
+            fail("Archive contains a non-finite number")
+        return repr(value)
+    if isinstance(value, (dict, list)):
+        value = json.dumps(value, separators=(",", ":"), ensure_ascii=False)
+    if not isinstance(value, str):
+        fail(f"Unsupported value type for MySQL column {column}")
+    if column in {"servertime", "devicetime", "fixtime", "eventtime"}:
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            if parsed.tzinfo is not None:
+                parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+            value = parsed.strftime("%Y-%m-%d %H:%M:%S.%f")
+        except ValueError:
+            fail(f"Invalid UTC timestamp in MySQL column {column}")
+    encoded = value.encode("utf-8").hex()
+    return f"CONVERT(X'{encoded}' USING utf8mb4)"
+
+
+def preflight_mysql_traccar(target: MysqlTarget, archive_path: Path, mapping: dict[int, int]) -> None:
+    rows = target.query("SELECT CONCAT((SELECT COUNT(*) FROM tc_positions), '\\t', (SELECT COUNT(*) FROM tc_events), '\\t', (SELECT COUNT(*) FROM tc_devices));\n")
+    try:
+        positions, events, devices = (int(part) for part in rows.split("\t"))
+    except (ValueError, TypeError):
+        fail("Could not validate target MySQL Traccar tables")
+    if positions or events:
+        fail(f"Target Traccar history is not empty (positions={positions}, events={events}); refusing to import.")
+    if devices == 0:
+        fail("Target Traccar has no devices. Create the destination devices in Traccar first.")
+    engines = target.query("SELECT CONCAT(TABLE_NAME, '\\t', COALESCE(ENGINE, '')) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('tc_positions', 'tc_events') ORDER BY TABLE_NAME;\n")
+    engine_map = dict(line.split("\t", 1) for line in engines.splitlines() if "\t" in line)
+    if set(engine_map) != {"tc_positions", "tc_events"}:
+        fail("Target MySQL Traccar database is missing tc_positions or tc_events.")
+    if any(engine.upper() != "INNODB" for engine in engine_map.values()):
+        fail("Target MySQL Traccar history tables must use InnoDB so imports can roll back safely.")
+
+    available = target.query("SELECT CONCAT(TABLE_NAME, '\\t', COLUMN_NAME) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('tc_positions', 'tc_events');\n")
+    columns_by_table: dict[str, set[str]] = {"tc_positions": set(), "tc_events": set()}
+    for line in available.splitlines():
+        table, column = line.split("\t", 1)
+        columns_by_table[table].add(column)
+    expected_by_table: dict[str, set[str]] = {"tc_positions": set(), "tc_events": set()}
+    for entry, table in (("traccar/positions.jsonl", "tc_positions"), ("traccar/events.jsonl", "tc_events")):
+        with zipfile.ZipFile(archive_path, "r") as package:
+            for record in read_json_lines(package, entry):
+                expected_by_table[table].update(map_record(record, mapping, entry))
+    for table, expected in expected_by_table.items():
+        missing = expected - columns_by_table[table]
+        if missing:
+            fail(f"Target MySQL {table} schema is missing columns required by the export: " + ", ".join(sorted(missing)))
+
+
+def preflight_app_database(app_service, included_tables: list[str]) -> None:
+    names = ",".join(sql_literal(table) for table in included_tables)
+    sql = f"""
+select coalesce(json_agg(json_build_object('table', table_name, 'rows', row_count)), '[]'::json)::text
+from (
+  select table_name, (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I', table_name), false, true, '')))[1]::text::bigint as row_count
+  from information_schema.tables
+  where table_schema=current_schema() and table_type='BASE TABLE' and table_name in ({names})
+) counts;
+"""
+    rows = json.loads(psql_target(app_service, sql))
+    found = {row["table"] for row in rows}
+    if found != set(included_tables):
+        fail("Target Traccar Scope API schema must be migrated before restore; missing: " + ", ".join(sorted(set(included_tables) - found)))
+    nonempty = [f"{row['table']}={row['rows']}" for row in rows if row["rows"]]
+    if nonempty:
+        fail("Target Traccar Scope API transfer tables are not empty; refusing to overwrite: " + ", ".join(nonempty))
+
+
+def import_mysql_traccar(archive_path: Path, target: MysqlTarget, mapping: dict[int, int]) -> None:
+    def emit(sql) -> None:
+        sql.write("START TRANSACTION;\n")
+        for entry, table in (("traccar/positions.jsonl", "tc_positions"), ("traccar/events.jsonl", "tc_events")):
+            columns: set[str] = set()
+            with zipfile.ZipFile(archive_path, "r") as archive:
+                for record in read_json_lines(archive, entry):
+                    columns.update(map_record(record, mapping, entry))
+            if not columns:
+                continue
+            if any(not IDENTIFIER.fullmatch(column) for column in columns):
+                fail(f"Archive contains an unsafe MySQL column name in {entry}")
+            ordered = sorted(columns)
+            quoted = ", ".join(f"`{column}`" for column in ordered)
+            values: list[str] = []
+            with zipfile.ZipFile(archive_path, "r") as archive:
+                for record in read_json_lines(archive, entry):
+                    mapped = map_record(record, mapping, entry)
+                    values.append("(" + ", ".join(mysql_value(mapped.get(column), column) for column in ordered) + ")")
+                    if len(values) >= 250:
+                        sql.write(f"INSERT INTO `{table}` ({quoted}) VALUES\n" + ",\n".join(values) + ";\n")
+                        values.clear()
+            if values:
+                sql.write(f"INSERT INTO `{table}` ({quoted}) VALUES\n" + ",\n".join(values) + ";\n")
+        sql.write("COMMIT;\n")
+    target.stream(emit)
+
+
+def copy_archive_to_psql(archive_path: Path, traccar_service,
+                         app_service,
                          included_tables: list[str], mapping: dict[int, int]) -> None:
     # Stage JSON rows with COPY, then insert using PostgreSQL's typed row
     # conversion. This keeps the process streaming and avoids SQL-literal data.
@@ -372,11 +642,12 @@ def copy_archive_to_psql(archive_path: Path, traccar_service: str, app_service: 
                 )
                 stdin.write(f'INSERT INTO public."{table}" ({quoted}) SELECT {values} FROM "{stage}";\n')
             stdin.write("COMMIT;\n")
-        psql_stream(service, emit)
+        psql_target_stream(service, emit)
 
     # Keep Traccar and app imports in separate transactions. Backups are the
     # rollback boundary if the second database fails after the first commits.
-    restore_database(traccar_service, [("traccar/positions.jsonl", "tc_positions"), ("traccar/events.jsonl", "tc_events")])
+    if traccar_service:
+        restore_database(traccar_service, [("traccar/positions.jsonl", "tc_positions"), ("traccar/events.jsonl", "tc_events")])
     app_items = [(f"traccar-scope-api/{table}.jsonl", table) for table in APP_TABLE_ORDER if table in included_tables]
     restore_database(app_service, app_items)
 
@@ -406,12 +677,21 @@ def main() -> int:
     parser.add_argument("--validate-only", action="store_true", help="Validate package and print record counts; do not contact servers or write data")
     parser.add_argument("--target-traccar-url", help="Destination Traccar base URL, e.g. http://127.0.0.1:8082")
     parser.add_argument("--traccar-service", help="pg_service.conf alias for target Traccar PostgreSQL")
+    parser.add_argument("--traccar-mysql-container", help="Running Traccar MySQL database container name")
+    parser.add_argument("--traccar-mysql-user", help="MySQL account used for the target Traccar database")
+    parser.add_argument("--traccar-mysql-database", default="traccar", help="Target MySQL database name (default: traccar)")
+    parser.add_argument("--docker-sudo", action="store_true", help="Run Docker CLI commands through sudo (use when Docker access is not granted to your user)")
     parser.add_argument("--traccar-scope-api-service", help="pg_service.conf alias for target Traccar Scope API PostgreSQL")
+    parser.add_argument("--traccar-scope-api-postgres-container", help="Running PostgreSQL container for Traccar Scope API database")
+    parser.add_argument("--traccar-scope-api-postgres-user", help="Database account used for the Traccar Scope API database")
+    parser.add_argument("--traccar-scope-api-postgres-database", default="traccar_scope_api", help="Traccar Scope API database name (default: traccar_scope_api)")
     parser.add_argument("--device-map", type=Path, help="JSON object mapping source Traccar device IDs to destination IDs")
     parser.add_argument("--confirm-empty-target", action="store_true", help="Confirm both destination databases are disposable and transfer tables are empty")
     parser.add_argument("--execute", action="store_true", help="Perform writes after all preflight checks; requires --confirm-empty-target")
     args = parser.parse_args()
 
+    mysql_target = None
+    app_postgres_target = None
     try:
         manifest, _ = inspect_archive(args.archive)
         with zipfile.ZipFile(args.archive, "r") as archive:
@@ -433,8 +713,18 @@ def main() -> int:
             print("Validation only: no target connection or database writes were attempted.")
             return 0
 
-        if not all((args.target_traccar_url, args.traccar_service, args.traccar_scope_api_service, args.device_map)):
-            fail("Restore requires --target-traccar-url, --traccar-service, --traccar-scope-api-service, and --device-map (or use --validate-only).")
+        use_mysql = bool(args.traccar_mysql_container)
+        if bool(args.traccar_service) == use_mysql:
+            fail("Specify exactly one of --traccar-service (PostgreSQL) or --traccar-mysql-container (MySQL).")
+        if use_mysql and not args.traccar_mysql_user:
+            fail("--traccar-mysql-user is required with --traccar-mysql-container.")
+        use_app_container = bool(args.traccar_scope_api_postgres_container)
+        if bool(args.traccar_scope_api_service) == use_app_container:
+            fail("Specify exactly one of --traccar-scope-api-service or --traccar-scope-api-postgres-container.")
+        if use_app_container and not args.traccar_scope_api_postgres_user:
+            fail("--traccar-scope-api-postgres-user is required with --traccar-scope-api-postgres-container.")
+        if not all((args.target_traccar_url, args.device_map)):
+            fail("Restore requires --target-traccar-url, one Traccar database option, one Traccar Scope API database option, and --device-map (or use --validate-only).")
         if args.execute and not args.confirm_empty_target:
             fail("--execute requires --confirm-empty-target")
         if args.confirm_empty_target:
@@ -461,18 +751,44 @@ def main() -> int:
             target_name = target_by_id[target_id].get("name", "(unnamed)")
             print(f"Device mapping: {source_id} {source_name!r} -> {target_id} {target_name!r}")
         included = manifest["includedTraccarScopeApiTables"]
-        preflight_databases(args.traccar_service, args.traccar_scope_api_service, included)
-        print("Preflight passed: exact Traccar version, mapped devices, supported PostgreSQL tables, and empty target transfer/history tables.")
+        if use_app_container:
+            app_password = getpass.getpass("Target Traccar Scope API PostgreSQL password: ")
+            app_postgres_target = PostgresContainerTarget(
+                args.traccar_scope_api_postgres_container,
+                args.traccar_scope_api_postgres_user,
+                args.traccar_scope_api_postgres_database,
+                app_password,
+                args.docker_sudo,
+            )
+        else:
+            app_postgres_target = args.traccar_scope_api_service
+        if use_mysql:
+            mysql_password = getpass.getpass("Target Traccar MySQL password: ")
+            mysql_target = MysqlTarget(args.traccar_mysql_container, args.traccar_mysql_user, args.traccar_mysql_database, mysql_password, args.docker_sudo)
+            preflight_mysql_traccar(mysql_target, args.archive, mapping)
+            preflight_app_database(app_postgres_target, included)
+            traccar_database_kind = "MySQL"
+        else:
+            preflight_databases(args.traccar_service, app_postgres_target, included)
+            traccar_database_kind = "PostgreSQL"
+        print(f"Preflight passed: exact Traccar version, mapped devices, supported {traccar_database_kind} tables, and empty target transfer/history tables.")
         if not args.execute:
             print("No writes were made. Add --execute --confirm-empty-target after reviewing the mappings and taking target backups.")
             return 0
         print("Importing Traccar history (positions, then events) and Traccar Scope API rows in dependency order.")
-        copy_archive_to_psql(args.archive, args.traccar_service, args.traccar_scope_api_service, included, mapping)
-        psql(args.traccar_service, "\n".join(
-            f"select setval(pg_get_serial_sequence('public.{table}', 'id'), coalesce(max(id), 1), max(id) is not null) from public.{table};"
-            for table in ("tc_positions", "tc_events")
-        ) + "\n")
-        psql(args.traccar_scope_api_service, write_app_sequence_sql(included))
+        if mysql_target:
+            import_mysql_traccar(args.archive, mysql_target, mapping)
+            for table in ("tc_positions", "tc_events"):
+                maximum = int(mysql_target.query(f"SELECT COALESCE(MAX(id), 0) FROM `{table}`;\n"))
+                mysql_target.query(f"ALTER TABLE `{table}` AUTO_INCREMENT = {maximum + 1};\n")
+            copy_archive_to_psql(args.archive, None, app_postgres_target, included, mapping)
+        else:
+            copy_archive_to_psql(args.archive, args.traccar_service, app_postgres_target, included, mapping)
+            psql(args.traccar_service, "\n".join(
+                f"select setval(pg_get_serial_sequence('public.{table}', 'id'), coalesce(max(id), 1), max(id) is not null) from public.{table};"
+                for table in ("tc_positions", "tc_events")
+            ) + "\n")
+        psql_target(app_postgres_target, write_app_sequence_sql(included))
         print("Import completed. Compare manifest counts with both databases before starting Traccar Scope API or Traccar services.")
         return 0
     except RestoreError as exc:
@@ -481,6 +797,11 @@ def main() -> int:
     except (KeyError, TypeError, ValueError, zipfile.BadZipFile) as exc:
         print(f"Restore refused: malformed package or mapping ({exc})", file=sys.stderr)
         return 2
+    finally:
+        if mysql_target:
+            mysql_target.close()
+        if app_postgres_target and isinstance(app_postgres_target, PostgresContainerTarget):
+            app_postgres_target.close()
 
 
 if __name__ == "__main__":

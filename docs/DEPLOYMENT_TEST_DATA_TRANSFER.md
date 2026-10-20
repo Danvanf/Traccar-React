@@ -84,19 +84,13 @@ Do not copy or restore `traccar.xml`, app environment files, source base URLs, e
 
 ## Offline restore utility
 
-The utility is separate from the API and supports only format version 2 and Traccar 6.14.5. It does not create destination devices or application users, copy server configuration, or replace a target database. It translates the API's camelCase fields into Traccar's database columns, including the `eventTime` to `eventtime` rename in the Traccar schema, and serializes API JSON objects for the database's text columns. First migrate both target databases using the normal Traccar/TraccarScopeApi startup procedure, create the destination Traccar devices, and use a dedicated disposable target Traccar Scope API database. Stop Traccar and Traccar Scope API before the import. Take restorable backups of both target databases and protect the export ZIP as sensitive location data. The field mapping follows the pinned [Traccar v6.14.5 source](https://github.com/traccar/traccar/tree/v6.14.5).
+The utility is separate from the API and supports only format version 2 and Traccar 6.14.5. It does not create destination devices or application users, copy server configuration, or replace a target database. It translates the API's camelCase fields into Traccar's database columns, including the `eventTime` to `eventtime` rename in the Traccar schema, and serializes API JSON objects for the database's text columns. Traccar history can be restored to PostgreSQL or MySQL; the Traccar Scope API database must be PostgreSQL. First migrate both target databases using the normal Traccar/TraccarScopeApi startup procedure, create the destination Traccar devices, and use a dedicated disposable target Traccar Scope API database. Stop Traccar and Traccar Scope API before the import. Take restorable backups of both target databases and protect the export ZIP as sensitive location data. The field mapping follows the pinned [Traccar v6.14.5 source](https://github.com/traccar/traccar/tree/v6.14.5).
 
-Install Python 3 and the PostgreSQL client on the Linux host. Configure two aliases in the restore user's `~/.pg_service.conf` (mode 0600), one for each database. Put passwords in `~/.pgpass` (mode 0600) or use another libpq-supported secret mechanism; do not put passwords in shell history or command-line arguments. For example:
+Install Python 3 and the PostgreSQL client on the Linux host. For a host-reachable Traccar Scope API database, configure an alias in the restore user's `~/.pg_service.conf` (mode 0600) and store its password in `~/.pgpass` (mode 0600) or another libpq-supported secret mechanism. For a database container without a published host port, use the container option shown below; the tool stages a temporary mode-600 password file inside the container and removes it when the run ends. PostgreSQL Traccar targets can use a service alias or a container. MySQL Traccar targets use the MySQL client inside the existing database container and require Docker access plus a MySQL database username/password. Passwords are prompted without echoing and are not placed in command-line arguments.
 
 Run the synthetic safety tests from the repository root with `python3 scripts/test_restore_deployment_test.py` before handling a real export.
 
 ```ini
-[traccar_restore]
-host=127.0.0.1
-port=5432
-dbname=traccar
-user=traccar_restore
-
 [traccar_scope_api_restore]
 host=127.0.0.1
 port=5432
@@ -130,15 +124,48 @@ python3 scripts/restore_deployment_test.py deployment-export.zip \
   --confirm-empty-target
 ```
 
+For a MySQL Traccar database, replace `--traccar-service traccar_restore` with the target database container and MySQL account. If the Scope API database is also in an unpublished container, use its container option too. The tool prompts for both database passwords without echoing them. For example:
+
+```sh
+python3 scripts/restore_deployment_test.py deployment-export.zip \
+  --target-traccar-url http://127.0.0.1:8082 \
+  --traccar-mysql-container traccar-database-1 \
+  --traccar-mysql-user MYSQL_DATABASE_USER \
+  --traccar-mysql-database traccar \
+  --traccar-scope-api-postgres-container deploy-database-1 \
+  --traccar-scope-api-postgres-user traccar_scope_api \
+  --traccar-scope-api-postgres-database traccar_scope_api \
+  --device-map device-map.json \
+  --confirm-empty-target
+```
+
+Add `--docker-sudo` if your Linux user needs `sudo docker` to access the database containers. The MySQL history tables must use InnoDB. The tool checks the target table engines and required columns before import, and maps the exported UTC timestamps to MySQL datetime values.
+
 After reviewing the mapping, exact version, and empty-target checks, perform the import with `--execute`:
 
 ```sh
 python3 scripts/restore_deployment_test.py deployment-export.zip \
   --target-traccar-url http://127.0.0.1:8082 \
   --traccar-service traccar_restore \
+  --traccar-scope-api-postgres-container deploy-database-1 \
+  --traccar-scope-api-postgres-user traccar_scope_api \
+  --traccar-scope-api-postgres-database traccar_scope_api \
+  --docker-sudo \
+  --device-map device-map.json \
+  --confirm-empty-target --execute
+```
+
+For a MySQL Traccar target, rerun the same preflight command with `--execute` added:
+
+```sh
+python3 scripts/restore_deployment_test.py deployment-export.zip \
+  --target-traccar-url http://127.0.0.1:8082 \
+  --traccar-mysql-container traccar-database-1 \
+  --traccar-mysql-user MYSQL_DATABASE_USER \
+  --traccar-mysql-database traccar \
   --traccar-scope-api-service traccar_scope_api_restore \
   --device-map device-map.json \
   --confirm-empty-target --execute
 ```
 
-The utility asks the operator to type `RESTORE`. It commits Traccar history first and Traccar Scope API data second; PostgreSQL transactions protect each database individually, but there is no cross-database atomic transaction. If the app import fails after Traccar commits, restore both target databases from pre-import backups before retrying. Start services only after the importer completes. Compare database row counts with the archive manifest and check device visibility, map/history, trips, telemetry graphs, status cards, and profile editing. Do not use the utility on an installation with real data: it refuses nonempty history and allowlisted app tables and does not merge datasets.
+The utility asks the operator to type `RESTORE`. It commits Traccar history first and Traccar Scope API data second; each database uses a transaction, but there is no cross-database atomic transaction. If the app import fails after Traccar commits, restore both target databases from pre-import backups before retrying. Start services only after the importer completes. Compare database row counts with the archive manifest and check device visibility, map/history, trips, telemetry graphs, status cards, and profile editing. Do not use the utility on an installation with real data: it refuses nonempty history and allowlisted app tables and does not merge datasets.
