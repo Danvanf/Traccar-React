@@ -58,6 +58,21 @@ except ValueError:
     valid = False
 raise SystemExit(0 if valid else 1)
 PY
+  traccar_url_host="$(python3 - "$traccar_server_url" <<'PY'
+import sys
+from urllib.parse import urlsplit
+print(urlsplit(sys.argv[1]).hostname or "")
+PY
+)"
+  python3 - "$traccar_url_host" <<'PY' || die 'The Traccar URL cannot use localhost or a loopback address from inside Docker. Use a Docker service name such as http://traccar:8082 or http://host.docker.internal:8082.'
+import ipaddress, sys
+host = sys.argv[1].lower()
+try:
+    is_loopback = host == "localhost" or ipaddress.ip_address(host).is_loopback
+except ValueError:
+    is_loopback = host.endswith(".localhost")
+raise SystemExit(1 if is_loopback else 0)
+PY
 
   read -r -p 'Traccar username (use an account with access to the intended devices): ' traccar_username
   [[ -n "$traccar_username" ]] || die 'A Traccar username is required.'
@@ -65,10 +80,44 @@ PY
   printf '\n'
   [[ -n "$traccar_password" ]] || die 'A Traccar password is required.'
 
-  printf 'If Traccar runs in Docker on this host, enter its Docker network so this app can resolve its service name.\n'
-  printf 'Use "bridge" when reaching Traccar through a host-published port; Compose networks commonly end in _default.\n'
-  read -r -p 'Traccar Docker network [bridge]: ' traccar_docker_network
-  traccar_docker_network="${traccar_docker_network:-bridge}"
+  printf 'Detecting the Docker network for the Traccar URL host and running Traccar container...\n'
+  traccar_docker_network_candidates="$(sudo docker inspect $(sudo docker ps -q) 2>/dev/null | python3 -c '
+import json, sys
+host = sys.argv[1].lower().rstrip(".")
+try:
+    containers = json.load(sys.stdin)
+except Exception:
+    containers = []
+matched = set()
+fallback = set()
+for container in containers:
+    networks = container.get("NetworkSettings", {}).get("Networks", {})
+    aliases_by_network = {
+        network: {str(alias).lower().rstrip(".") for alias in details.get("Aliases", [])}
+        for network, details in networks.items()
+    }
+    if host and any(host in aliases for aliases in aliases_by_network.values()):
+        matched.update(network for network, aliases in aliases_by_network.items() if host in aliases)
+    name = container.get("Name", "").lstrip("/").lower()
+    image = container.get("Config", {}).get("Image", "").lower()
+    if ("traccar" in name and "scope" not in name) or image.startswith("traccar/"):
+        fallback.update(networks)
+for network in sorted(matched or fallback):
+    print(network)
+' "$traccar_url_host" || true)"
+  detected_network_count="$(printf '%s\n' "$traccar_docker_network_candidates" | awk 'NF { count++ } END { print count+0 }')"
+  detected_network="$(printf '%s\n' "$traccar_docker_network_candidates" | awk 'NF { print; exit }')"
+  if (( detected_network_count > 1 )); then
+    printf 'Found several candidate networks for Traccar:\n%s\n' "$traccar_docker_network_candidates"
+    printf 'Enter the network the Scope API should use, or press Enter to use the first listed network.\n'
+  elif [[ -n "$detected_network" ]]; then
+    printf 'Found Traccar network: %s\n' "$detected_network"
+  else
+    printf 'No Traccar network was detected. Use "bridge" for a host-published URL such as http://host.docker.internal:8082.\n'
+  fi
+  network_default="${detected_network:-bridge}"
+  read -r -p "Traccar Docker network [$network_default]: " traccar_docker_network
+  traccar_docker_network="${traccar_docker_network:-$network_default}"
   [[ "$traccar_docker_network" =~ ^[A-Za-z0-9_.-]+$ ]] || die 'Invalid Docker network name.'
   sudo docker network inspect "$traccar_docker_network" >/dev/null 2>&1 || die "Docker network '$traccar_docker_network' does not exist on this host."
 

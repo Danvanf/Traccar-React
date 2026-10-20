@@ -13,7 +13,7 @@ sudo docker inspect traccar-traccar-1 \
   --format '{{range $network, $details := .NetworkSettings.Networks}}{{printf "%s (aliases: %v)\n" $network $details.Aliases}}{{end}}'
 ```
 
-The output lists each attached network and the DNS aliases available on it. Enter the network name that Traccar uses when the installer asks for the Docker network. Compose commonly creates a name such as `traccar_default`, but use the name printed by `docker inspect`; do not infer it from the container name alone. If multiple networks are listed, choose the one through which the Scope API should reach Traccar. The hostname in the Traccar base URL must also resolve on that network, commonly the `traccar` service alias (for example, `http://traccar:8082`).
+The output lists each attached network and the DNS aliases available on it. The installer checks running containers for the Traccar URL hostname and suggests the matching network. Compose commonly creates a name such as `traccar_default`. Press Enter to accept the suggested network or type a different existing network. If there are several candidates, the installer lists them. The hostname in the Traccar base URL must resolve on the selected network, commonly the `traccar` service alias (for example, `http://traccar:8082`).
 
 If the container name differs, get the current name from the `NAMES` column of `sudo docker ps` and substitute it in the inspect command. To confirm the network exists, list Docker networks with `sudo docker network ls`.
 
@@ -41,7 +41,7 @@ The installer prompts for:
 
 1. The Traccar base URL reachable from the Traccar Scope API container. Enter the server root, such as `http://traccar:8082` or `http://host.docker.internal:8082`; do not add `/api`.
 2. A Traccar username and password.
-3. The Traccar Docker network name. For same-host Docker deployments, enter the network found in [Find the Traccar Docker network](#find-the-traccar-docker-network). Enter `bridge` only when connecting through a host-published port.
+3. The Traccar Docker network. The installer detects and suggests a network from the Traccar URL hostname and running containers; press Enter to accept it or enter a different network. If Traccar is reached through a host-published port, use `bridge` with `http://host.docker.internal:8082` (adjust the port as needed).
 
 The installer generates the Traccar Scope administrator account, database password, and credential-encryption key; initializes the app schema automatically; builds and starts the services; then saves the Traccar connection through the administrator API and verifies the connection. No SQL command or manual settings step is needed.
 
