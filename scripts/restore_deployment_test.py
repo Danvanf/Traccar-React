@@ -28,6 +28,11 @@ from typing import Any, Iterable
 
 EXPECTED_FORMAT = 2
 SUPPORTED_TRACCAR_VERSION = "6.14.5"
+# The package remains pinned to 6.14.5. Traccar 6.16.0 is also accepted as a
+# target: its intervening 6.15 migration widens IDs in tc_devices/tc_actions,
+# while this importer writes history only to tc_positions/tc_events and checks
+# those target table schemas before any write.
+SUPPORTED_TARGET_TRACCAR_VERSIONS = {"6.14.5", "6.16.0"}
 MAX_ARCHIVE_UNCOMPRESSED = 8 * 1024 * 1024 * 1024
 APP_TABLE_ORDER = (
     "vehicles", "traccar_sources", "vehicle_device_bindings", "trips",
@@ -737,8 +742,9 @@ def main() -> int:
         username = input("Target Traccar username: ")
         password = getpass.getpass("Target Traccar password: ")
         server = traccar_get(args.target_traccar_url, username, password, TRACCAR_VERSION_URL_PATH)
-        if server.get("version") != SUPPORTED_TRACCAR_VERSION:
-            fail(f"Target Traccar version is {server.get('version')!r}; exact {SUPPORTED_TRACCAR_VERSION} is required.")
+        if server.get("version") not in SUPPORTED_TARGET_TRACCAR_VERSIONS:
+            supported_targets = ", ".join(sorted(SUPPORTED_TARGET_TRACCAR_VERSIONS))
+            fail(f"Target Traccar version is {server.get('version')!r}; supported target versions are {supported_targets}.")
         devices = traccar_get(args.target_traccar_url, username, password, TRACCAR_DEVICES_URL_PATH)
         target_ids = {int(device["id"]) for device in devices if "id" in device}
         missing_targets = set(mapping.values()) - target_ids
@@ -771,7 +777,7 @@ def main() -> int:
         else:
             preflight_databases(args.traccar_service, app_postgres_target, included)
             traccar_database_kind = "PostgreSQL"
-        print(f"Preflight passed: exact Traccar version, mapped devices, supported {traccar_database_kind} tables, and empty target transfer/history tables.")
+        print(f"Preflight passed: supported Traccar version, mapped devices, supported {traccar_database_kind} tables, and empty target transfer/history tables.")
         if not args.execute:
             print("No writes were made. Add --execute --confirm-empty-target after reviewing the mappings and taking target backups.")
             return 0

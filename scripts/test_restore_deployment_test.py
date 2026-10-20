@@ -113,6 +113,67 @@ class RestorePackageTests(unittest.TestCase):
         self.assertEqual(record["positionid"], 4)
         self.assertEqual(record["eventtime"], "2026-10-01T18:00:00Z")
 
+    def test_mysql_datetime_is_normalized_to_utc_mysql_format(self):
+        encoded = TOOL.mysql_value("2026-10-01T18:00:00Z", "fixtime")
+        self.assertEqual(encoded, "CONVERT(X'323032362d31302d30312031383a30303a30302e303030303030' USING utf8mb4)")
+
+    def test_mysql_target_preflight_stops_before_any_import(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive_path = root / "synthetic.zip"
+            device_map_path = root / "device-map.json"
+            make_archive(archive_path)
+            device_map_path.write_text('{"7":22}', encoding="utf-8")
+
+            def fake_traccar_get(_url, _username, _password, path):
+                if path == TOOL.TRACCAR_VERSION_URL_PATH:
+                    return {"version": "6.16.0"}
+                return [{"id": 22, "name": "Synthetic target"}]
+
+            class FakeMysqlTarget:
+                def __init__(self, *_args, **_kwargs):
+                    pass
+
+                def query(self, sql):
+                    if "COUNT(*)" in sql:
+                        return "0\t0\t1"
+                    if "information_schema.TABLES" in sql:
+                        return "tc_events\tInnoDB\ntc_positions\tInnoDB"
+                    if "information_schema.COLUMNS" in sql:
+                        return ""
+                    raise AssertionError(f"Unexpected MySQL query: {sql}")
+
+                def close(self):
+                    pass
+
+            argv = [
+                "restore_deployment_test.py", str(archive_path),
+                "--target-traccar-url", "http://127.0.0.1:8082",
+                "--traccar-mysql-container", "mysql-target",
+                "--traccar-mysql-user", "restore",
+                "--traccar-scope-api-service", "traccar_scope_api_restore",
+                "--device-map", str(device_map_path),
+                "--confirm-empty-target",
+            ]
+            output = io.StringIO()
+            with (
+                mock.patch.object(sys, "argv", argv),
+                mock.patch.object(TOOL, "traccar_get", side_effect=fake_traccar_get),
+                mock.patch.object(TOOL, "MysqlTarget", FakeMysqlTarget),
+                mock.patch.object(TOOL, "psql", return_value=json.dumps([{"table": table, "rows": 0} for table in TABLES])),
+                mock.patch.object(TOOL, "import_mysql_traccar") as mysql_import_mock,
+                mock.patch.object(TOOL, "copy_archive_to_psql") as app_import_mock,
+                mock.patch("builtins.input", return_value="RESTORE"),
+                mock.patch("getpass.getpass", return_value="synthetic-password"),
+                contextlib.redirect_stdout(output),
+            ):
+                result = TOOL.main()
+            self.assertEqual(result, 0)
+            self.assertIn("supported MySQL tables", output.getvalue())
+            self.assertIn("No writes were made", output.getvalue())
+            mysql_import_mock.assert_not_called()
+            app_import_mock.assert_not_called()
+
     def test_full_target_preflight_stops_before_any_import(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
