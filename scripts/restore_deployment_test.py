@@ -351,8 +351,20 @@ def psql_stream(service: str, emit) -> None:
                 emit(process.stdin)
                 process.stdin.close()
                 status = process.wait()
+            except BrokenPipeError:
+                if process.poll() is None:
+                    process.kill()
+                status = process.wait()
+                try:
+                    process.stdin.close()
+                except BrokenPipeError:
+                    pass
+                errors.seek(0)
+                detail = errors.read().strip() or f"psql exited with status {status} while receiving import data"
+                fail(f"PostgreSQL import failed for service {service}: {detail}")
             except BaseException:
-                process.kill()
+                if process.poll() is None:
+                    process.kill()
                 process.wait()
                 try:
                     process.stdin.close()
@@ -515,7 +527,19 @@ class PostgresContainerTarget:
                     emit(process.stdin)
                     process.stdin.close()
                     status = process.wait()
+            except BrokenPipeError:
+                if process.poll() is None:
+                    process.kill()
+                status = process.wait()
+                try:
+                    process.stdin.close()
+                except BrokenPipeError:
+                    pass
+                errors.seek(0)
+                detail = errors.read().strip() or f"psql exited with status {status} while receiving import data"
+                fail(f"PostgreSQL container import failed: {detail}")
                 except BaseException:
+                if process.poll() is None:
                     process.kill()
                     process.wait()
                     raise
@@ -592,7 +616,8 @@ def preflight_mysql_traccar(target: MysqlTarget, archive_path: Path, mapping: di
             fail(f"Target MySQL {table} schema is missing columns required by the export: " + ", ".join(sorted(missing)))
 
 
-def preflight_app_database(app_service, included_tables: list[str]) -> None:
+def preflight_app_database(app_service, included_tables: list[str], archive_path: Path,
+                           mapping: dict[int, int]) -> None:
     names = ",".join(sql_literal(table) for table in included_tables)
     sql = f"""
 select coalesce(json_agg(json_build_object('table', table_name, 'rows', row_count)), '[]'::json)::text
@@ -609,6 +634,30 @@ from (
     nonempty = [f"{row['table']}={row['rows']}" for row in rows if row["rows"]]
     if nonempty:
         fail("Target Traccar Scope API transfer tables are not empty; refusing to overwrite: " + ", ".join(nonempty))
+
+    expected: dict[str, set[str]] = {table: set() for table in included_tables}
+    with zipfile.ZipFile(archive_path, "r") as archive:
+        for table in included_tables:
+            entry = f"traccar-scope-api/{table}.jsonl"
+            for record in read_json_lines(archive, entry):
+                expected[table].update(map_record(record, mapping, entry))
+    actual_rows = psql_target(app_service, f"""
+select coalesce(json_object_agg(table_name, columns), '{{}}'::json)::text
+from (
+  select table_name, json_agg(column_name order by ordinal_position) as columns
+  from information_schema.columns
+  where table_schema=current_schema() and table_name in ({names})
+  group by table_name
+) available;
+""")
+    actual = json.loads(actual_rows)
+    missing = [
+        f"{table}.{column}"
+        for table, columns in expected.items()
+        for column in sorted(columns - set(actual.get(table, [])))
+    ]
+    if missing:
+        fail("Target Traccar Scope API schema is missing columns required by the archive: " + ", ".join(missing))
 
 
 def import_mysql_traccar(archive_path: Path, target: MysqlTarget, mapping: dict[int, int]) -> None:
@@ -805,7 +854,7 @@ def main() -> int:
             mysql_password = getpass.getpass("Target Traccar MySQL password: ")
             mysql_target = MysqlTarget(args.traccar_mysql_container, args.traccar_mysql_user, args.traccar_mysql_database, mysql_password, args.docker_sudo)
             preflight_mysql_traccar(mysql_target, args.archive, mapping)
-            preflight_app_database(app_postgres_target, included)
+            preflight_app_database(app_postgres_target, included, args.archive, mapping)
             traccar_database_kind = "MySQL"
         else:
             preflight_databases(args.traccar_service, app_postgres_target, included)

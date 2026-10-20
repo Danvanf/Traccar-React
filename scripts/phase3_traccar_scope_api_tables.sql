@@ -128,8 +128,12 @@ CREATE TABLE IF NOT EXISTS trip_tags (
   vehicle_id uuid REFERENCES vehicles(id) ON DELETE CASCADE,
   name text NOT NULL,
   color text,
+  created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (vehicle_id, name)
 );
+
+ALTER TABLE trip_tags
+  ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
 
 CREATE TABLE IF NOT EXISTS trip_tag_map (
   trip_id uuid NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
