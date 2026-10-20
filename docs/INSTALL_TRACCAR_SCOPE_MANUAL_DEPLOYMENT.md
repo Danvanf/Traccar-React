@@ -2,7 +2,9 @@
 
 This guide deploys the Traccar Scope API alongside an **existing** Traccar and PostgreSQL installation. It does not replace, recreate, or migrate the existing Traccar containers or databases. Keep the Traccar database and Traccar Scope application database distinct. If the application database already contains user or trip data, back it up and preserve its existing connection credentials and encryption key; do not point a fresh-install Compose file at it or reinitialize it. The automated clean WSL test installation is documented in [Install Full Stack](INSTALL_FULL_STACK.md).
 
-This guide's manual example serves the frontend from a host reverse proxy and runs the API in Docker. For the Docker web-plus-API pattern validated on Limestone, use [`compose.limestone-app-only.yaml`](../scripts/installer-templates/compose.limestone-app-only.yaml): it joins the existing `traccar_default` network, connects to the existing `traccar-db` and `traccar_scope_api`, publishes only the web service on loopback port `8090`, and creates no database container or volume. The template expects a protected runtime environment file and is specific to that network and service naming; inspect it before adapting it to another host.
+This guide's manual example serves the frontend from a host reverse proxy and runs the API in Docker. It assumes an existing Traccar and PostgreSQL deployment and does not install a frontend container or database container.
+
+Names such as `traccar`, `traccar-db`, `traccar_default`, and `traccar-scope-api` are examples for Docker containers, services, or networks. Replace them with the names used by your deployment wherever they appear in commands or configuration. Paths such as `~/docker/traccar` are also examples; substitute the directory where your Traccar Compose files are stored.
 
 The API project currently targets .NET 9. .NET 9 support ends on November 10, 2026, so use this guide to reproduce the current build, and plan a move to a supported .NET release before using it for a long-lived production deployment. See Microsoft's [official .NET support policy](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core).
 
@@ -25,7 +27,7 @@ Docker network: traccar_default
 On the Linux host:
 
 ```bash
-cd ~/docker/traccar
+cd ~/docker/traccar  # Replace with the directory containing your Traccar Compose files
 sudo docker ps
 sudo docker network ls
 sudo docker inspect traccar --format '{{json .NetworkSettings.Networks}}'
@@ -40,7 +42,7 @@ Do not use `localhost` from inside the API container. Inside Docker, PostgreSQL 
 Host=traccar-db;Port=5432;Database=traccar_scope_api;Username=traccar;Password=...
 ```
 
-The published host port `55432` is for clients outside Docker. It is not the API container's PostgreSQL port.
+If PostgreSQL is published on a host port such as `55432`, that port is for clients outside Docker. Containers on the shared Docker network connect to PostgreSQL on port `5432`.
 
 ## 2. Put the repository on the Linux host
 
@@ -53,7 +55,7 @@ git clone <repository-url> traccar-scope
 cd traccar-scope
 ```
 
-Keep the deployment checkout separate from `~/docker/traccar`. The API source can be updated and rebuilt without touching the Traccar compose directory. In the rest of this guide, the compose and environment files are in `~/traccar-scope-api`, and the repository checkout is in `~/traccar-scope-api/traccar-scope`.
+Keep the deployment checkout separate from the Traccar Compose directory identified in step 1. The API source can be updated and rebuilt without touching that directory. In the rest of this guide, the Compose and environment files are in `~/traccar-scope-api`, and the repository checkout is in `~/traccar-scope-api/traccar-scope`.
 
 Using a different stable base folder is also valid. For example, this guide's commands work the same if you use:
 
@@ -107,7 +109,7 @@ chmod 600 ~/traccar-scope-api/traccar-scope-api.env
 
 If your deployment root is `~/docker/traccar-scope-api`, keeping `traccar-scope-api.env` there is fine as long as it remains outside Git and locked down with `chmod 600`.
 
-The credential-encryption key must be the base64 encoding of exactly 32 random bytes. Generate one once and keep it stable:
+The database host, database name, and username in the sample connection string must match your PostgreSQL configuration. The credential-encryption key must be the base64 encoding of exactly 32 random bytes. Generate one once and keep it stable:
 
 ```bash
 openssl rand -base64 32
@@ -115,16 +117,16 @@ openssl rand -base64 32
 
 Changing or losing a key makes credentials encrypted with it unreadable. Do not put this file in Git, a Docker image, or a browser setting. The API creates the initial admin account from `TraccarScopeApi__Auth__Username` and `TraccarScopeApi__Auth__Password` when it first starts against a new application database. On an existing application database, these bootstrap values do not reset existing accounts. After sign-in, manage accounts in Settings > Users and Groups; remove bootstrap values after the first administrator has been created.
 
-Device protocol diagnostics are optional tooling for profile development and support in a test environment. Production installations do not need a Traccar diagnostic account or these environment variables to run the application. When using the tool, configure `Traccar__BaseUrl`, `Traccar__Username`, and `Traccar__Password` only on the test API host, using a read-only Traccar account. The diagnostic endpoint is loopback-only and does not require a Traccar Scope API browser session. Run its PowerShell helper on the API host. For development outside Docker, use the reachable Traccar host URL (for example `http://limestone:8082`) instead of `http://traccar:8082`. The endpoint returns the Traccar version, device model/category, and at most 2,000 decoded telemetry samples from a requested 24-hour window. It excludes coordinates and device identifiers. It cannot return raw tracker packets or the tracker's AVL configuration.
+Device protocol diagnostics are optional tooling for profile development and support in a test environment. Production installations do not need a Traccar diagnostic account or these environment variables to run the application. When using the tool, configure `Traccar__BaseUrl`, `Traccar__Username`, and `Traccar__Password` only on the test API host, using a read-only Traccar account. The diagnostic endpoint is loopback-only and does not require a Traccar Scope API browser session. Run its PowerShell helper on the API host. For development outside Docker, use the Traccar host URL or IP address reachable from the API host instead of a Docker service name such as `http://traccar:8082`. The endpoint returns the Traccar version, device model/category, and at most 2,000 decoded telemetry samples from a requested 24-hour window. It excludes coordinates and device identifiers. It cannot return raw tracker packets or the tracker's AVL configuration.
 
-From PowerShell on the API host, capture a sample with the script (the API process must have all three `Traccar__*` settings):
+From PowerShell on the API host, capture a sample with the script (the API process must have all three `Traccar__*` settings). Replace the sample device ID and time range with values from your Traccar system:
 
 ```powershell
 ./scripts/capture_device_protocol_diagnostics.ps1 `
-  -DeviceId 5 `
-  -FromUtc '2026-10-08T20:45:00Z' `
-  -ThroughUtc '2026-10-08T21:15:00Z' `
-  -OutputPath "$env:TEMP/fmm003-device-5-diagnostics.json"
+  -DeviceId 123 `
+  -FromUtc '2026-01-01T20:45:00Z' `
+  -ThroughUtc '2026-01-01T21:15:00Z' `
+  -OutputPath "$env:TEMP/traccar-device-diagnostics.json"
 ```
 
 The script calls the local Traccar Scope API, which authenticates to Traccar using its server-side configuration. It prints only the sanitized capture or the output file path, never the credentials.
@@ -166,83 +168,9 @@ Use the same compose-file path for later updates, restarts, and shutdown command
 
 The first successful startup should show the API listening and completing its schema bootstrap. Leave the log view with `Ctrl+C`; that does not stop the container.
 
-## Limestone: move the existing production app to the standard layout
-
-Limestone currently runs the React site and API as an app-only Compose project. The Traccar and PostgreSQL containers, databases, and Docker volumes are separate and must remain in place. The following migration moves only the app checkout and Compose definition; it reuses the existing production environment file and the `traccar_default` network. Do not use `docker compose down -v`.
-
-The target layout is `~/docker/traccar-scope-api/`, with the repository at `traccar-scope/`, the Compose file at `traccar-scope-api.compose.yml`, and the protected runtime file at `traccar-scope-api.env`.
-
-First prepare the new checkout and files while the current production app stays online:
-
-```bash
-mkdir -p ~/docker/traccar-scope-api
-git clone --branch master --single-branch \
-  https://github.com/Danvanf/Traccar-Scope.git \
-  ~/docker/traccar-scope-api/traccar-scope
-cp ~/docker/traccar-scope-api/traccar-scope/scripts/installer-templates/traccar-scope-api.compose.yml \
-  ~/docker/traccar-scope-api/traccar-scope-api.compose.yml
-install -m 600 \
-  ~/docker/vehicle-app/private-renaming-backups/traccar-scope-production-20261019_182510.env \
-  ~/docker/traccar-scope-api/traccar-scope-api.env
-```
-
-If the protected production environment file has a different name, substitute its actual path. Do not print its contents. Confirm the new checkout is current and build both images before stopping the current project:
-
-```bash
-cd ~/docker/traccar-scope-api/traccar-scope
-git pull --ff-only
-cd ~/docker/traccar-scope-api
-sudo docker compose -f ~/docker/traccar-scope-api/traccar-scope-api.compose.yml config --quiet
-sudo docker compose -f ~/docker/traccar-scope-api/traccar-scope-api.compose.yml build
-```
-
-Then switch projects. The old Compose file and environment file are deliberately retained for rollback:
-
-```bash
-old_compose=~/docker/vehicle-app/traccar-react/scripts/installer-templates/compose.limestone-app-only.yaml
-old_env=~/docker/vehicle-app/private-renaming-backups/traccar-scope-production-20261019_182510.env
-sudo env TRACCAR_SCOPE_API_ENV_FILE="$old_env" \
-  docker compose -p traccar-scope-limestone -f "$old_compose" down
-sudo docker compose -f ~/docker/traccar-scope-api/traccar-scope-api.compose.yml up -d --no-build
-sudo docker compose -f ~/docker/traccar-scope-api/traccar-scope-api.compose.yml ps
-for attempt in {1..30}; do
-  if curl --fail --silent --max-time 2 http://127.0.0.1:8090/traccar-scope-api/health; then
-    printf '\nTraccar Scope API is ready.\n'
-    break
-  fi
-  if [[ "$attempt" -eq 30 ]]; then
-    printf '\nTraccar Scope API did not become ready; inspect its Compose logs.\n'
-    exit 1
-  fi
-  sleep 2
-done
-sudo docker compose -f ~/docker/traccar-scope-api/traccar-scope-api.compose.yml logs --tail 100 traccar-scope-api
-curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8090/
-curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8090/traccar-scope-api/health
-curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8090/api/health
-```
-
-Verify browser login, historical trips, Named Places, and settings before retiring the old checkout. If the new stack does not come up, stop it and restore the old app project (this uses its already-built images and does not touch either database):
-
-```bash
-sudo docker compose -f ~/docker/traccar-scope-api/traccar-scope-api.compose.yml down
-sudo env TRACCAR_SCOPE_API_ENV_FILE="$old_env" \
-  docker compose -p traccar-scope-limestone -f "$old_compose" up -d --no-build
-```
-
-After successful verification, preserve the old backup directory under the new deployment root, then quarantine the old app tree instead of deleting it immediately:
-
-```bash
-mv ~/docker/vehicle-app/private-renaming-backups \
-  ~/docker/traccar-scope-api/private-backups
-mv ~/docker/vehicle-app ~/docker/vehicle-app-retired
-```
-
-The database containers, database files, Docker volumes, and `~/docker/traccar` are not moved by these steps. Keep `vehicle-app-retired` until a later backup-retention review confirms that its remaining scripts and notes are no longer needed.
-
 ## 6. Check the application database schema
 
-The API bootstraps several application schema additions on startup, but optional features can still require their SQL scripts. Before applying any script to a database with existing data, make and verify a current database backup. Use the read-only migration status report to identify missing objects:
+The API bootstraps several application schema additions on startup, but optional features can still require their SQL scripts. Before applying any script to a database with existing data, make and verify a current database backup. The command below uses example container, role, and database names; replace them with the names from your deployment. Use the read-only migration status report to identify missing objects:
 
 ```bash
 cd ~/traccar-scope-api/traccar-scope

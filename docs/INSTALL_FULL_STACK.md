@@ -1,6 +1,6 @@
 # Install Full Stack: automated first-test deployment
 
-This guide installs Traccar, Traccar Scope, and both databases together with the repository's installer script. The script has been exercised on Ubuntu 24.04 under WSL 2; a clean install and browser check from an empty WSL Docker engine are still part of the remaining validation. It is intended for a clean first-test system running Ubuntu with systemd and Docker Compose v2; other Linux distributions may need package or service-command adjustments.
+This guide installs Traccar, Traccar Scope, and both databases together with the repository's installer script. A clean installation and browser check have been completed on Ubuntu 24.04 under WSL 2, and the user has also completed a fresh install under the renamed project on a Linux test VM. It is intended for a clean first-test system running Ubuntu with systemd and Docker Compose v2; other Linux distributions may need package or service-command adjustments.
 
 This is an HTTP smoke-test installation. Both browser ports bind to the Linux host's loopback interface, no tracker ports are published, and the databases start empty. WSL makes the services available to a Windows browser through `localhost`. For a remote VM, use an SSH tunnel or another private forwarding method; do not expose this HTTP-only test stack directly to the public internet.
 
