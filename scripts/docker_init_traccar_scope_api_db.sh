@@ -19,3 +19,7 @@ psql --username traccar_scope_api --dbname traccar_scope_api --set=ON_ERROR_STOP
   --file=/traccar-scope-api-bootstrap/phase3_traccar_scope_api_tables.sql
 psql --username traccar_scope_api --dbname traccar_scope_api --set=ON_ERROR_STOP=1 \
   --file=/traccar-scope-api-bootstrap/phase11_user_access_schema.sql
+psql --username traccar_scope_api --dbname traccar_scope_api --set=ON_ERROR_STOP=1 \
+  --file=/traccar-scope-api-bootstrap/phase7_trip_events_schema.sql
+psql --username traccar_scope_api --dbname traccar_scope_api --set=ON_ERROR_STOP=1 \
+  --file=/traccar-scope-api-bootstrap/phase_telemetry_sharing_schema.sql
