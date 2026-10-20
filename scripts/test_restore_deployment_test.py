@@ -136,8 +136,10 @@ class RestorePackageTests(unittest.TestCase):
 
                 def query(self, sql):
                     if "COUNT(*)" in sql:
+                        assert "CHAR(9)" in sql
                         return "0\t0\t1"
                     if "information_schema.TABLES" in sql:
+                        assert "CHAR(9)" in sql
                         return "tc_events\tInnoDB\ntc_positions\tInnoDB"
                     if "information_schema.COLUMNS" in sql:
                         return ""
