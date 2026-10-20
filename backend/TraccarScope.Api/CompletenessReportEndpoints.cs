@@ -27,7 +27,7 @@ public static class CompletenessReportEndpoints
                 and {VehicleAccess.TripReadAccessPredicate("t")}
                 and (cast(@tagId as uuid) is null or exists (select 1 from trip_tag_map tm where tm.trip_id=t.id and tm.tag_id=cast(@tagId as uuid)))
             ), route as (
-              select trip_id, count(*)::int as route_points, count(*) filter (where raw_evidence <> '{}'::jsonb)::int as telemetry_points
+              select trip_id, count(*)::int as route_points, count(*) filter (where raw_evidence <> '{{}}'::jsonb)::int as telemetry_points
               from trip_route_points group by trip_id
             ), events as (
               select trip_id, count(*)::int as event_count from trip_events group by trip_id
