@@ -67,7 +67,7 @@ When the script reports that installation is ready, use:
 
 The installer prints the initial Traccar Scope administrator username and password, plus database credentials and the API credential-encryption key. It also stores them in `~/docker/traccar-scope-install/deploy/.env` with owner-only permissions. Save the required credentials securely. The Traccar Scope login is separate from Traccar's first-user registration, which is handled by Traccar itself.
 
-The generated first administrator follows the `FirstUser` plus five-digit millisecond suffix format. The initial password is made from three distinct four-letter words selected from the Solar System article, with periods between them and the first word capitalized. Database passwords and the API encryption key are generated from random bytes.
+The generated first administrator follows the `FirstUser` plus five-digit millisecond suffix format. The initial password is made from three distinct four-letter words selected from the Solar System article, with periods between them and each word capitalized. Database passwords and the API encryption key are generated from random bytes.
 
 ## What rerunning the installer does
 

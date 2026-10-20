@@ -139,7 +139,7 @@ for word in re.findall(r"(?<![A-Za-z])[A-Za-z]{4}(?![A-Za-z])", data.get("extrac
 if len(words) < 3:
     raise SystemExit("The Solar System article did not provide three distinct four-letter words.")
 picked=secrets.SystemRandom().sample(words, 3)
-print(picked[0].capitalize()+"."+picked[1]+"."+picked[2])')" \
+print(".".join(word.capitalize() for word in picked))')" \
     || die 'Could not generate the initial password from the Wikipedia Solar System article.'
   api_db_password="$(openssl rand -hex 32)"
   credential_key="$(openssl rand -base64 32 | tr -d '\n')"
