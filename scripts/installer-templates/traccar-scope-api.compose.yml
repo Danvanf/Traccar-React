@@ -1,0 +1,38 @@
+# Production app stack for ~/docker/traccar-scope-api.
+# The sibling traccar-scope checkout supplies the build context; the protected
+# environment file stays outside the Git checkout.
+services:
+  traccar-scope-api:
+    build:
+      context: ./traccar-scope
+      dockerfile: scripts/installer-templates/Dockerfile.traccar-scope-api
+    restart: unless-stopped
+    env_file:
+      - ./traccar-scope-api.env
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:5124
+      TraccarScopeApi__Auth__AllowUnauthenticatedDevelopment: "false"
+      Traccar__BaseUrl: http://traccar:8082
+    expose:
+      - "5124"
+    networks:
+      - traccar
+
+  web:
+    build:
+      context: ./traccar-scope
+      dockerfile: scripts/installer-templates/Dockerfile.traccar-scope-web
+    restart: unless-stopped
+    depends_on:
+      traccar-scope-api:
+        condition: service_started
+    ports:
+      - "127.0.0.1:8090:80"
+    networks:
+      - traccar
+
+networks:
+  traccar:
+    external: true
+    name: traccar_default

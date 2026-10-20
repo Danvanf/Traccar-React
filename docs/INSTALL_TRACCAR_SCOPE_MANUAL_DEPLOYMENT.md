@@ -166,6 +166,69 @@ Use the same compose-file path for later updates, restarts, and shutdown command
 
 The first successful startup should show the API listening and completing its schema bootstrap. Leave the log view with `Ctrl+C`; that does not stop the container.
 
+## Limestone: move the existing production app to the standard layout
+
+Limestone currently runs the React site and API as an app-only Compose project. The Traccar and PostgreSQL containers, databases, and Docker volumes are separate and must remain in place. The following migration moves only the app checkout and Compose definition; it reuses the existing production environment file and the `traccar_default` network. Do not use `docker compose down -v`.
+
+The target layout is `~/docker/traccar-scope-api/`, with the repository at `traccar-scope/`, the Compose file at `traccar-scope-api.compose.yml`, and the protected runtime file at `traccar-scope-api.env`.
+
+First prepare the new checkout and files while the current production app stays online:
+
+```bash
+mkdir -p ~/docker/traccar-scope-api
+git clone --branch master --single-branch \
+  https://github.com/Danvanf/Traccar-Scope.git \
+  ~/docker/traccar-scope-api/traccar-scope
+cp ~/docker/traccar-scope-api/traccar-scope/scripts/installer-templates/traccar-scope-api.compose.yml \
+  ~/docker/traccar-scope-api/traccar-scope-api.compose.yml
+install -m 600 \
+  ~/docker/vehicle-app/private-renaming-backups/traccar-scope-production-20261019_182510.env \
+  ~/docker/traccar-scope-api/traccar-scope-api.env
+```
+
+If the protected production environment file has a different name, substitute its actual path. Do not print its contents. Confirm the new checkout is current and build both images before stopping the current project:
+
+```bash
+cd ~/docker/traccar-scope-api/traccar-scope
+git pull --ff-only
+cd ~/docker/traccar-scope-api
+sudo docker compose -f ~/docker/traccar-scope-api/traccar-scope-api.compose.yml config --quiet
+sudo docker compose -f ~/docker/traccar-scope-api/traccar-scope-api.compose.yml build
+```
+
+Then switch projects. The old Compose file and environment file are deliberately retained for rollback:
+
+```bash
+old_compose=~/docker/vehicle-app/traccar-react/scripts/installer-templates/compose.limestone-app-only.yaml
+old_env=~/docker/vehicle-app/private-renaming-backups/traccar-scope-production-20261019_182510.env
+sudo env TRACCAR_SCOPE_API_ENV_FILE="$old_env" \
+  docker compose -p traccar-scope-limestone -f "$old_compose" down
+sudo docker compose -f ~/docker/traccar-scope-api/traccar-scope-api.compose.yml up -d --no-build
+sudo docker compose -f ~/docker/traccar-scope-api/traccar-scope-api.compose.yml ps
+sudo docker compose -f ~/docker/traccar-scope-api/traccar-scope-api.compose.yml logs --tail 100 traccar-scope-api
+curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8090/
+curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8090/traccar-scope-api/health
+curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8090/api/health
+```
+
+Verify browser login, historical trips, Named Places, and settings before retiring the old checkout. If the new stack does not come up, stop it and restore the old app project (this uses its already-built images and does not touch either database):
+
+```bash
+sudo docker compose -f ~/docker/traccar-scope-api/traccar-scope-api.compose.yml down
+sudo env TRACCAR_SCOPE_API_ENV_FILE="$old_env" \
+  docker compose -p traccar-scope-limestone -f "$old_compose" up -d --no-build
+```
+
+After successful verification, preserve the old backup directory under the new deployment root, then quarantine the old app tree instead of deleting it immediately:
+
+```bash
+mv ~/docker/vehicle-app/private-renaming-backups \
+  ~/docker/traccar-scope-api/private-backups
+mv ~/docker/vehicle-app ~/docker/vehicle-app-retired
+```
+
+The database containers, database files, Docker volumes, and `~/docker/traccar` are not moved by these steps. Keep `vehicle-app-retired` until a later backup-retention review confirms that its remaining scripts and notes are no longer needed.
+
 ## 6. Check the application database schema
 
 The API bootstraps several application schema additions on startup, but optional features can still require their SQL scripts. Before applying any script to a database with existing data, make and verify a current database backup. Use the read-only migration status report to identify missing objects:
