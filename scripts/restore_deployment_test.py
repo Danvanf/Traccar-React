@@ -527,20 +527,20 @@ class PostgresContainerTarget:
                     emit(process.stdin)
                     process.stdin.close()
                     status = process.wait()
-            except BrokenPipeError:
-                if process.poll() is None:
-                    process.kill()
-                status = process.wait()
-                try:
-                    process.stdin.close()
                 except BrokenPipeError:
-                    pass
-                errors.seek(0)
-                detail = errors.read().strip() or f"psql exited with status {status} while receiving import data"
-                fail(f"PostgreSQL container import failed: {detail}")
+                    if process.poll() is None:
+                        process.kill()
+                    status = process.wait()
+                    try:
+                        process.stdin.close()
+                    except BrokenPipeError:
+                        pass
+                    errors.seek(0)
+                    detail = errors.read().strip() or f"psql exited with status {status} while receiving import data"
+                    fail(f"PostgreSQL container import failed: {detail}")
                 except BaseException:
-                if process.poll() is None:
-                    process.kill()
+                    if process.poll() is None:
+                        process.kill()
                     process.wait()
                     raise
                 if status:
