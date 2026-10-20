@@ -4,6 +4,7 @@ IFS=$'\n\t'
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+WIKI_URL="https://en.wikipedia.org/api/rest_v1/page/summary/Solar_System"
 INSTALL_ROOT="${INSTALL_ROOT:-$(dirname -- "$REPO_ROOT")/traccar-scope-install}"
 DEPLOY_DIR="$INSTALL_ROOT/deploy"
 ENV_FILE="$DEPLOY_DIR/.env"
@@ -126,7 +127,20 @@ for network in sorted(matched or fallback):
   username_suffix="${timestamp_ms: -5}"
   [[ "$username_suffix" =~ ^[0-9]{5}$ ]] || die 'Could not read a millisecond timestamp to form the initial administrator username.'
   app_admin_username="FirstUser${username_suffix}"
-  app_admin_password="$(openssl rand -base64 36 | tr -d '\n')"
+  app_admin_password="$(curl -fsSL --retry 2 --connect-timeout 10 \
+    -A 'TraccarScopeInstaller/1.0 (local deployment)' "$WIKI_URL" |
+    python3 -c 'import json,re,secrets,sys
+data=json.load(sys.stdin)
+words=[]
+for word in re.findall(r"(?<![A-Za-z])[A-Za-z]{4}(?![A-Za-z])", data.get("extract", "")):
+    normalized=word.lower()
+    if normalized not in words:
+        words.append(normalized)
+if len(words) < 3:
+    raise SystemExit("The Solar System article did not provide three distinct four-letter words.")
+picked=secrets.SystemRandom().sample(words, 3)
+print(picked[0].capitalize()+"."+picked[1]+"."+picked[2])')" \
+    || die 'Could not generate the initial password from the Wikipedia Solar System article.'
   api_db_password="$(openssl rand -hex 32)"
   credential_key="$(openssl rand -base64 32 | tr -d '\n')"
   bind_address="${WEB_BIND_ADDRESS:-127.0.0.1}"
