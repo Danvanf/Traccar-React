@@ -1,4 +1,4 @@
-> **Archived snapshot (2026-10-18).** Historical checklist superseded by the saved provider-account/key-ring implementation. It describes the old standalone Bouncie encryption key, which has since been removed.
+> **Archived and closed (2026-10-20).** Superseded by the completed saved provider-account/key-ring implementation. This historical checklist describes the old standalone Bouncie encryption key, which has since been removed. Unchecked boxes below are preserved as a record of the original plan; they are not outstanding work.
 >
 > This file records the original project discussion and its status at that time. Verify claims and commands against the current code and documentation before reusing them.
 

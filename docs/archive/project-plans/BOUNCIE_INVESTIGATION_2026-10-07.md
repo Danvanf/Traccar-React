@@ -1,4 +1,4 @@
-> **Archived snapshot (2026-10-18).** Historical investigation. Its support/query-contract follow-up was unresolved as of the capture date; current status has not been verified here.
+> **Archived and closed (2026-10-20).** The support/query-contract question was left unresolved, and no further follow-up is planned. This is a historical finding, not an active task.
 >
 > This file records the original project discussion and its status at that time. Verify claims and commands against the current code and documentation before reusing them.
 

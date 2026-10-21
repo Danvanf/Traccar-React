@@ -1,4 +1,4 @@
-> **Archived snapshot (2026-10-18).** Historical profile-expansion checkpoint superseded by current device profiles and catalogs.
+> **Archived and closed (2026-10-20).** This historical profile-expansion checkpoint is superseded by current device profiles and catalogs. Its unresolved research notes are not active tasks from this snapshot.
 >
 > This file records the original project discussion and its status at that time. Verify claims and commands against the current code and documentation before reusing them.
 

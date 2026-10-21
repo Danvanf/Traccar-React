@@ -2,7 +2,7 @@
 
 ## Product identity
 
-The selected product name is **Traccar Scope**. Source code, project names, installers, and active documentation use the Traccar Scope names. The one-time development data and runtime cutover is complete. See [the renaming plan](docs/TRACCAR_SCOPE_RENAMING_PLAN.md) for remaining publication and workspace steps. Do not add permanent old-name aliases or compatibility readers.
+The selected product name is **Traccar Scope**. Source code, project names, installers, and active documentation use the Traccar Scope names. The one-time development data and runtime cutover is complete. See the [archived renaming plan](docs/archive/project-plans/TRACCAR_SCOPE_RENAMING_PLAN.md) for the completed transition record. Do not add permanent old-name aliases or compatibility readers.
 
 ## Backend status
 

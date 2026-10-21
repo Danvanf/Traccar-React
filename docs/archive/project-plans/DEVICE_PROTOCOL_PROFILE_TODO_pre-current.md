@@ -1,4 +1,4 @@
-> **Archived snapshot (2026-10-18).** Older snapshot of the device-profile TODO. Current open work and status live in docs/DEVICE_PROTOCOL_PROFILE_TODO.md and docs/TELEMETRY_DISCOVERY_AND_FIELD_EDITING_PLAN.md.
+> **Archived and superseded (2026-10-20).** This older device-profile plan is closed. Current open work and status live in docs/DEVICE_PROTOCOL_PROFILE_TODO.md and docs/TELEMETRY_DISCOVERY_AND_FIELD_EDITING_PLAN.md. Unchecked boxes below are preserved as a record of the original plan; they are not outstanding work from this archived plan.
 >
 > This file records the original project discussion and its status at that time. Verify claims and commands against the current code and documentation before reusing them.
 

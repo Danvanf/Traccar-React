@@ -1,8 +1,10 @@
 # Deployment test data transfer
 
+> **Archived as complete (2026-10-20).** The transfer utility was exercised end to end on the disposable Flyer5 installation. The Limestone export was validated and restored into Traccar 6.16.0 using MySQL for Traccar history and PostgreSQL/TimescaleDB for Traccar Scope API data. Imported counts matched the archive: 163,099 positions, 778 events, 527 trips, 57,539 route points, 13 named places, and the other checked configuration/history tables. The app started, login worked, and trips were available back to January 20; settings and named places were present. The Microsoft 365 account was not included by design. No transfer-plan work remains. The unchecked/open-check wording below is historical and was superseded by this closeout.
+
 Design and implementation plan for reproducing the developer system's user experience on a fresh Traccar + Traccar Scope installation without redirecting physical trackers.
 
-Implementation progress (2026-10-16): the source status/export endpoints and admin-only download panel are implemented using the existing development API bypass. The export passed a runtime check against the live source: Traccar 6.14.5, four devices, 172,491 positions, 739 events, and 240,105 total records across 24 JSONL data files. All manifest record counts and SHA-256 checksums matched. The temporary 23,023,092-byte archive was inspected by manifest and entry metadata only, then deleted; no copy was retained. The offline restore utility is implemented at `scripts/restore_deployment_test.py`. It validates the package, checks target Traccar version/devices and database emptiness, requires an explicit device-ID map, refuses Timescale hypertables, supports PostgreSQL or MySQL for Traccar history and PostgreSQL for app data, restores IDs and app rows in dependency order, and resets sequences. Eight synthetic package/mapping/preflight tests pass, including MySQL and PostgreSQL preflight checks that stop before writes. A real database import against Traccar 6.16.0 remains outstanding.
+Implementation progress (2026-10-16): the source status/export endpoints and admin-only download panel were implemented using the existing development API bypass. The first runtime export check used Traccar 6.14.5, four devices, 172,491 positions, and 739 events; all manifest counts and SHA-256 checksums matched. The offline restore utility at `scripts/restore_deployment_test.py` validates packages, checks target Traccar version/devices and database emptiness, requires an explicit device-ID map, refuses Timescale hypertables for Traccar history, supports PostgreSQL or MySQL for Traccar history and PostgreSQL for app data, restores IDs and app rows in dependency order, and resets sequences. Its initial synthetic package/mapping/preflight checks passed. A real import against a Traccar 6.16.0 target was completed on 2026-10-20; see the closeout above.
 
 ## Goal
 
@@ -72,15 +74,17 @@ Do not copy or restore `traccar.xml`, app environment files, source base URLs, e
 1. **Inventory and contract**: finalize the allowlisted app tables and required references against the live Traccar Scope API schema; record exact source Traccar release and confirm historical positions are obtainable through the configured API.
 2. **Export**: complete. The existing development API bypass gates the admin-only status/export endpoints and Settings panel. The ZIP manifest, JSONL checksums/counts, date validation, audit logging, and live-source package integrity have been verified.
 3. **Restore prototype**: implemented as an offline Python 3 utility for a disposable Linux target. It requires pre-created destination devices, explicit ID mapping, supported target Traccar 6.14.5 or 6.16.0, empty history/allowlisted app tables, and operator confirmation. Back up the target and verify rollback before using the real export.
-4. **End-to-end test**: export three months from Limestone, restore to the new server, compare record counts and IDs through the translation maps, and walk through a regular user's login, map, history, graph, status cards, and profile editor.
-5. **Operationalize**: document server provisioning and cleanup. Add incremental/delta packages only if repeated refreshes become useful; they are not needed for the first reproduction test.
+4. **End-to-end test — complete 2026-10-20**: exported from Limestone and restored to the disposable Flyer5 host. The target used Traccar 6.16.0 with MySQL history and PostgreSQL/TimescaleDB app data. The archive counts and imported row counts matched, and the user verified login, trips/history, named places, and settings. The Microsoft 365 account was intentionally excluded.
+5. **Operationalize — complete for the first reproduction test**: server provisioning and cleanup are covered by the install guides and restore utility instructions below. Incremental/delta packages remain optional future work if repeated refreshes become useful; they are not required for the completed transfer test.
 
-## Open implementation checks
+## Closeout results (2026-10-20)
 
-- Record the target Traccar release. The archive must be from 6.14.5; the target must be 6.14.5 or 6.16.0. The utility enforces these supported versions and checks the history table schema before import.
-- Confirm the target Traccar Scope API schema is migrated and compatible. The utility checks included table presence and emptiness, and PostgreSQL rejects incompatible columns/constraints transactionally; a real schema/import test remains outstanding.
-- Run the importer against the disposable Linux host, validate counts and application behavior, and confirm restore/rollback before using it for the first deployment test.
-- Confirm archive storage/encryption before copying it to another host. The test archive was deleted after validation; future retained packages contain precise GPS and raw telemetry and should be protected like a database backup.
+- Target Traccar 6.16.0 was accepted by the version/schema preflight; destination devices were explicitly mapped.
+- The restored MySQL Traccar history counts matched the package: 163,099 positions and 778 events.
+- The restored Traccar Scope API counts matched: 2 vehicles, 9 device bindings, 527 trips, 57,539 route points, 2 tags, 448 trip events, 13 named places, 2 telemetry profiles, 11 profile revisions, 1 source-mapping revision, and 371 external trip identities.
+- The user verified the app could log in and display historical trips, named places, and settings. Trips were available back to January 20.
+- The export package was handled as sensitive location data. A working copy was used on Flyer5 for the restore; remove that copy when it is no longer needed. Target backups were created before import; the initial MySQL backup attempt was incomplete due to container permissions and was corrected before execution.
+- The Microsoft 365 account was not restored because account credentials are intentionally excluded from the transfer format.
 
 ## Offline restore utility
 
