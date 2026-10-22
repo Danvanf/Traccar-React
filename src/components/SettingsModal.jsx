@@ -32,6 +32,7 @@ function SettingsModal({
   canEditGeneralSettings = false,
   onSaveGlobalGeneralSettings,
   closeModal,
+  fallbackFocusRef,
   refreshDevices,
   profileOptions,
   bundledProfileOptions = [],
@@ -157,6 +158,39 @@ function SettingsModal({
   vehicleAuth,
 }) {
   const modalRef = useRef(null)
+  const isAdmin = vehicleAuth?.role === 'admin' || !vehicleAuth?.enabled
+  const isRegularUser = vehicleAuth?.authenticated && vehicleAuth?.role !== 'admin'
+  useEffect(() => {
+    const opener = document.activeElement
+    modalRef.current?.querySelector('h3')?.focus()
+    return () => {
+      if (opener?.isConnected && opener.getClientRects().length && getComputedStyle(opener).visibility !== 'hidden') {
+        opener.focus({ preventScroll: true })
+      } else {
+        fallbackFocusRef?.current?.focus?.()
+      }
+    }
+  }, [fallbackFocusRef])
+  useEffect(() => {
+    if (isPickingLocation) return undefined
+    const containTab = (event) => {
+      if (event.key !== 'Tab') return
+      const root = modalRef.current
+      if (!root) return
+      const controls = [...root.querySelectorAll('button, input, select, textarea, a[href], [tabindex]')]
+        .filter((element) => !element.disabled && element.tabIndex >= 0 && element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden')
+      const first = controls[0]
+      const last = controls[controls.length - 1]
+      if (!first) { event.preventDefault(); root.querySelector('h3')?.focus(); return }
+      if (event.shiftKey ? document.activeElement === first || !controls.includes(document.activeElement) : document.activeElement === last || !root.contains(document.activeElement)) {
+        event.preventDefault()
+        const target = event.shiftKey ? last : first
+        target.focus()
+      }
+    }
+    document.addEventListener('keydown', containTab)
+    return () => document.removeEventListener('keydown', containTab)
+  }, [isPickingLocation])
   const [traccarPasswordDraft, setTraccarPasswordDraft] = useState('')
   const [globalGeneralStatus, setGlobalGeneralStatus] = useState('')
   const saveGeneralSettings = async () => {
@@ -466,13 +500,13 @@ function SettingsModal({
   }
 
   return (
-    <div className="settings-backdrop" style={isPickingLocation ? { display: 'none' } : undefined} onClick={closeModal}>
-      <section ref={modalRef} className="settings-modal" onClick={(event) => {
+    <div className="settings-backdrop" data-settings-role={isRegularUser ? 'regular' : (vehicleAuth?.role === 'admin' ? 'admin' : 'local')} style={isPickingLocation ? { display: 'none' } : undefined} onClick={closeModal}>
+      <section ref={modalRef} className="settings-modal" data-settings-role={isRegularUser ? 'regular' : (vehicleAuth?.role === 'admin' ? 'admin' : 'local')} role="dialog" aria-modal="true" aria-labelledby="settings-title" onClick={(event) => {
         event.stopPropagation()
         const heading = event.target.closest('.profile-editor > h4')
         if (heading) heading.parentElement.classList.toggle('settings-panel-collapsed')
       }}>
-        <h3>Settings</h3>
+        <h3 id="settings-title" tabIndex={-1}>Settings</h3>
         <AdminAccessPanel baseUrl={traccarScopeApiBaseUrl} isAdmin={vehicleAuth?.role === 'admin'} vehicles={bindingVehicles} devices={bindingDevices} />
         {importRecovery && (
           <div className="settings-conflict-banner" role="status" aria-live="polite">
@@ -517,8 +551,8 @@ function SettingsModal({
         )}
         <div className="profile-editor">
         <h4>General</h4>
-        <p className="profile-editor-help">These settings are shared by all users. Only administrators can change them.</p>
-        <label>
+        {isAdmin ? <p className="profile-editor-help">These settings are shared by all users. Only administrators can change them.</p> : <p className="profile-editor-help">Personal display preferences</p>}
+        <label className="settings-admin-only">
           API Base URL
           <input
             type="text"
@@ -528,7 +562,7 @@ function SettingsModal({
             disabled={!canEditGeneralSettings}
           />
         </label>
-        <label>
+        <label className="settings-admin-only">
           Traccar Scope API Base URL
           <input
             type="text"
@@ -538,7 +572,7 @@ function SettingsModal({
             disabled={!canEditGeneralSettings}
           />
         </label>
-        <label>
+        <label className="settings-admin-only">
           Shared Traccar Username
           <input
             type="text"
@@ -549,7 +583,7 @@ function SettingsModal({
             disabled={!canEditGeneralSettings}
           />
         </label>
-        <label>
+        <label className="settings-admin-only">
           Shared Traccar Password
           <input
             type="password"
@@ -562,7 +596,7 @@ function SettingsModal({
           />
         </label>
         <div className="settings-grid">
-          <label>
+          <label className="settings-admin-only">
             Poll Interval (ms)
             <input
               type="number"
@@ -573,7 +607,7 @@ function SettingsModal({
               disabled={!canEditGeneralSettings}
             />
           </label>
-          <label>
+          <label className="settings-admin-only">
             Realtime Hours
             <input
               type="number"
@@ -584,7 +618,7 @@ function SettingsModal({
               disabled={!canEditGeneralSettings}
             />
           </label>
-          <label>
+          <label className="settings-admin-only">
             Movement Threshold (m)
             <input
               type="number"
@@ -594,22 +628,22 @@ function SettingsModal({
               disabled={!canEditGeneralSettings}
             />
           </label>
-          <label>
+          <label className="settings-personal-only">
             Display Units
-            <select value={settings.displayUnits || 'imperial'} onChange={(event) => updateSetting('displayUnits', event.target.value)} disabled={!canEditGeneralSettings}>
+            <select value={settings.displayUnits || 'imperial'} onChange={(event) => updateSetting('displayUnits', event.target.value)}>
               <option value="imperial">Imperial</option>
               <option value="metric">Metric</option>
             </select>
           </label>
-          <label>
+          <label className="settings-personal-only">
             Theme
-            <select value={settings.theme} onChange={(event) => updateSetting('theme', event.target.value)} disabled={!canEditGeneralSettings}>
+            <select value={settings.theme} onChange={(event) => updateSetting('theme', event.target.value)}>
               <option value="auto">Auto</option>
               <option value="light">Light</option>
               <option value="dark">Dark</option>
             </select>
           </label>
-          <label>
+          <label className="settings-admin-only">
             Device Source
             <select
               value={settings.useBackendVehicleCatalog ? 'backend' : 'traccar'}
@@ -636,7 +670,7 @@ function SettingsModal({
         {vehicleAuth?.role === 'admin' && <DeploymentTestTransferPanel baseUrl={traccarScopeApiBaseUrl} isAdmin />}
         <hr className="settings-divider" />
 
-        <div className="profile-editor">
+        <div className="profile-editor settings-admin-only">
           <h4>Vehicle Catalog</h4>
           <p className="profile-editor-help">Define the app-owned vehicle here. Traccar device names and historical device bindings are managed separately.</p>
           <label>
@@ -724,7 +758,7 @@ function SettingsModal({
           </div>
         </div>
 
-        <div className="profile-editor">
+        <div className="profile-editor settings-admin-only">
           <h4>Speed Bands</h4>
           <p className="profile-editor-help">Configure independent Imperial speed colors for this vehicle. Bands are limited to ten.</p>
           <label>Vehicle
@@ -754,7 +788,7 @@ function SettingsModal({
 
         <hr className="settings-divider" />
 
-        <div className="profile-editor">
+        <div className="profile-editor settings-admin-only">
           <h4>Named Places ({namedPlaces.length})</h4>
           <p className="profile-editor-help">
             Save reusable map locations per vehicle for enrichment and later trip classification workflows.
@@ -909,7 +943,7 @@ function SettingsModal({
 
         <hr className="settings-divider" />
 
-        <div className="profile-editor">
+        <div className="profile-editor settings-admin-only">
           <h4>Trip Tags</h4>
           <p className="profile-editor-help">
             Create reusable tags for trips. Tag assignment UI will use these labels in follow-on steps.
@@ -959,11 +993,11 @@ function SettingsModal({
           )}
         </div>
 
-        {enrichmentStatus && <div className="profile-editor-status">{enrichmentStatus}</div>}
+        {enrichmentStatus && !isRegularUser && <div className="profile-editor-status">{enrichmentStatus}</div>}
 
         <hr className="settings-divider" />
 
-        <div className="profile-editor">
+        <div className="profile-editor settings-admin-only">
           <h4>Device Protocol Profile Editor</h4>
           <p className="profile-editor-help">
             Profiles describe how a device protocol exposes telemetry. The vehicle selects which profile it uses, while the mappings and unit conversions remain device/protocol-specific. Choose “None (no profile)” for devices without a supported protocol profile.
@@ -1133,7 +1167,7 @@ function SettingsModal({
           )}
         </div>
 
-        <div className="profile-editor">
+        <div className="profile-editor settings-admin-only">
           <h4>Bouncie REST Import</h4>
           <p className="profile-editor-help">
             Connect a Bouncie account to backfill its trip history. Connect opens Bouncie's normal sign-in and consent window, then the registered callback completes the exchange automatically. Imports run sequentially in small windows to avoid stressing Bouncie.

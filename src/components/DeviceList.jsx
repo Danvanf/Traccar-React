@@ -17,10 +17,11 @@ function DeviceList({
       <summary>Devices ({devices.length}, {selectionLabel})</summary>
       <ul>
         {devices.map((device) => (
-          <li key={device.id} className={selectedDeviceId === device.id ? 'selected-device' : ''} onClick={() => onSelectDevice(device.id)}>
+          <li key={device.id} className={selectedDeviceId === device.id ? 'selected-device' : ''}>
             <label className="checkbox-row">
               <input
                 type="checkbox"
+                aria-label={`Show ${device.name} on map`}
                 checked={deviceVisibility[device.id] !== false}
                 onChange={(event) => {
                   const checked = event.target.checked
@@ -28,8 +29,15 @@ function DeviceList({
                 }}
               />
               <span className="color-dot" style={{ background: deviceColors[device.id] || '#777' }} />
-              <span>{device.name}</span>
             </label>
+            <button
+              type="button"
+              className="device-list-select"
+              aria-pressed={selectedDeviceId === device.id}
+              onClick={() => onSelectDevice(device.id)}
+            >
+              {device.name}
+            </button>
           </li>
         ))}
       </ul>

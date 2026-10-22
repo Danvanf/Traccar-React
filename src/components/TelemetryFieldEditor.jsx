@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { compatibleTelemetryUnits, getTelemetryUnit, getTelemetryUnitGroups, TELEMETRY_QUANTITY_OPTIONS } from '../lib/telemetryUnits'
 import { formatTelemetrySample } from '../lib/telemetrySamples'
 
@@ -46,6 +46,14 @@ function mappingForUnit(mapping, value) {
   return next
 }
 
+function stableValue(value) {
+  if (Array.isArray(value)) return value.map(stableValue)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stableValue(value[key])]))
+  }
+  return value
+}
+
 export default function TelemetryFieldEditor({
   profile,
   candidateMappings = [],
@@ -70,11 +78,16 @@ export default function TelemetryFieldEditor({
   onDismissSuggestion,
   onDismissAllSuggestions,
   onRestoreDismissedSuggestions,
+  registerCloseAttempt,
   onClose,
 }) {
   const existingMapping = profile?.getAttributeInfo?.(fieldKey) || {}
-  const [draftLabel, setDraftLabel] = useState(personalLabel || existingMapping.label || '')
-  const [draftMapping, setDraftMapping] = useState({ ...existingMapping, label: existingMapping.label || '' })
+  const initialDraftLabel = personalLabel || existingMapping.label || ''
+  const initialDraftMapping = { ...existingMapping, label: existingMapping.label || '' }
+  const [draftLabel, setDraftLabel] = useState(initialDraftLabel)
+  const [draftMapping, setDraftMapping] = useState(initialDraftMapping)
+  const savedDraftRef = useRef({ draftLabel: initialDraftLabel, draftMapping: initialDraftMapping })
+  const closeAttemptRef = useRef(null)
   const [personalBusy, setPersonalBusy] = useState(false)
   const [sharedBusy, setSharedBusy] = useState(false)
   const [scopeConfirmed, setScopeConfirmed] = useState(false)
@@ -83,6 +96,20 @@ export default function TelemetryFieldEditor({
   const [canUndoDismissal, setCanUndoDismissal] = useState(false)
   const [showTextSample, setShowTextSample] = useState(false)
   const sourceUnitChoice = unitSelectionFor(draftMapping)
+  const hasUnsavedDraft = draftLabel !== savedDraftRef.current.draftLabel
+    || JSON.stringify(stableValue(draftMapping)) !== JSON.stringify(stableValue(savedDraftRef.current.draftMapping))
+  const requestClose = () => {
+    if (personalBusy || sharedBusy) return false
+    if (hasUnsavedDraft && !window.confirm('Discard the unsaved field edits and return to the graph?')) return false
+    onClose()
+    return true
+  }
+  closeAttemptRef.current = requestClose
+  useEffect(() => {
+    if (!registerCloseAttempt) return undefined
+    registerCloseAttempt(() => closeAttemptRef.current?.() ?? true)
+    return () => registerCloseAttempt(null)
+  }, [registerCloseAttempt])
   const selectedUnit = getTelemetryUnit(draftMapping.sourceUnit)
   const quantity = selectedUnit?.quantity || draftMapping.quantity || ''
   const displayChoices = compatibleTelemetryUnits(quantity)
@@ -108,8 +135,10 @@ export default function TelemetryFieldEditor({
     setStatus('')
     try {
       const result = await onSavePersonalLabel(draftLabel.trim())
+      savedDraftRef.current = { ...savedDraftRef.current, draftLabel }
       setStatus(result?.message || 'Personal description saved.')
     } catch (error) {
+      savedDraftRef.current = { ...savedDraftRef.current, draftLabel }
       setStatus(`Saved on this device; account sync failed. ${error instanceof Error ? error.message : ''}`.trim())
     } finally {
       setPersonalBusy(false)
@@ -192,7 +221,7 @@ export default function TelemetryFieldEditor({
 
   return (
     <div className="telemetry-field-editor-backdrop" role="presentation" onMouseDown={(event) => {
-      if (event.target === event.currentTarget) onClose()
+      if (event.target === event.currentTarget) requestClose()
     }}>
       <section className="telemetry-field-editor" role="dialog" aria-modal="true" aria-labelledby="telemetry-field-editor-title">
         <header className="telemetry-field-editor-header">
@@ -203,7 +232,7 @@ export default function TelemetryFieldEditor({
             <p className="telemetry-field-editor-device-model">Traccar configured model: {deviceModel || 'not supplied'}</p>
             <p className="telemetry-field-editor-device-model">Documented-match context: {[matchContext.manufacturer && `manufacturer attribute ${matchContext.manufacturer}`, matchContext.decoderVersion && `Traccar server ${matchContext.decoderVersion}`, matchContext.firmwareConflict ? 'conflicting firmware attributes' : matchContext.firmware ? `firmware attribute ${matchContext.firmware}` : 'firmware not supplied', Object.keys(matchContext.configuration || {}).length ? 'telemetry configuration supplied' : 'telemetry configuration not supplied'].filter(Boolean).join(' · ')}</p>
           </div>
-          <button type="button" className="small secondary" onClick={onClose} aria-label="Close field editor">×</button>
+          <button type="button" className="small secondary" onClick={requestClose} aria-label="Close field editor">×</button>
         </header>
 
         <section className="telemetry-field-editor-card" aria-label="Profile mapping card">
@@ -292,7 +321,7 @@ export default function TelemetryFieldEditor({
               )}
         </details>
         {status && <p className="telemetry-field-editor-status" role="status">{status}{canUndoDismissal && <button type="button" className="small secondary" onClick={restoreDismissedSuggestions}>Undo dismissal</button>}</p>}
-        <footer><button type="button" className="small secondary" onClick={onClose}>Return to graph</button></footer>
+        <footer><button type="button" className="small secondary" onClick={requestClose}>Return to graph</button></footer>
       </section>
     </div>
   )

@@ -8,6 +8,10 @@ This folder preserves planning documents and work snapshots that informed the cu
 - [Telemetry discovery and focused field editing plan](../../TELEMETRY_DISCOVERY_AND_FIELD_EDITING_PLAN.md) — current implementation status, unresolved review items, and follow-up.
 - [NEXT_TODO.md](../../../NEXT_TODO.md) — short index to active work.
 
+## Completed plans
+
+- [Mobile layout implementation](MOBILE_LAYOUT_IMPLEMENTATION_PLAN.md) — completed October 22, 2026 by owner agreement; remaining checks and post-mobile work are in [NEXT_TODO.md](../../../NEXT_TODO.md).
+
 ## Archived plans and snapshots
 
 | Archive file | Original location | Current disposition |

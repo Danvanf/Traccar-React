@@ -7,16 +7,18 @@ function monthLabel(dayKey) {
 }
 
 function monthStatusLabel(status, dayCount, monthSummary) {
-  if (monthSummary?.activeDayCount >= 0) return `${monthSummary.activeDayCount} day${monthSummary.activeDayCount === 1 ? '' : 's'}`
   if (status === 'loading') return 'loading...'
-  if (status === 'empty') return '0 days'
-  if (dayCount > 0) return `${dayCount} day${dayCount === 1 ? '' : 's'}`
   if (status === 'error') return 'retry load'
+  if (status === 'empty') return '0 days'
+  if (monthSummary?.activeDayCount >= 0) return `${monthSummary.activeDayCount} day${monthSummary.activeDayCount === 1 ? '' : 's'}`
+  if (dayCount > 0) return `${dayCount} day${dayCount === 1 ? '' : 's'}`
   return 'not loaded'
 }
 
 function HistoryNavigator({
   daySummaries,
+  loading = false,
+  error = '',
   monthKeys = [],
   monthSummaryByKey = {},
   monthLoadState = {},
@@ -26,10 +28,16 @@ function HistoryNavigator({
   refreshHistory,
   loadMonth,
   onReportDays,
-  showTripsButton = false,
-  onShowTrips,
+  daySelectionState = () => false,
+  hasBatchSelection = false,
+  onToggleDay,
+  onReportDay,
+  canGraphDay,
+  renderDayTrips,
   displayUnits = 'imperial',
   floating = false,
+  resizable = true,
+  embedded = false,
   referenceRef,
   onFloat,
   height,
@@ -44,12 +52,13 @@ function HistoryNavigator({
   const resizeCallbacksRef = useRef({ height, onHeightChange, onHeightCommit })
   resizeCallbacksRef.current = { height, onHeightChange, onHeightCommit }
   const [selectionMode, setSelectionMode] = useState(false)
+  const [expandedDays, setExpandedDays] = useState({})
   const [expandedYears, setExpandedYears] = useState({})
   const [expandedMonths, setExpandedMonths] = useState({})
 
   useEffect(() => {
     const node = panelRef.current
-    if (floating || !node || typeof ResizeObserver === 'undefined') return undefined
+    if (floating || embedded || !node || typeof ResizeObserver === 'undefined') return undefined
     let timer
     let lastHeight = resizeCallbacksRef.current.height
     const observer = new ResizeObserver((entries) => {
@@ -64,8 +73,12 @@ function HistoryNavigator({
     })
     observer.observe(node)
     return () => { observer.disconnect(); window.clearTimeout(timer) }
-  }, [floating])
-  const panelStyle = floating ? { height: '100%', minHeight: 0, maxHeight: 'none', resize: 'none' } : (height ? { height: `${height}px` } : undefined)
+  }, [embedded, floating])
+  const panelStyle = floating
+    ? { height: '100%', minHeight: 0, maxHeight: 'none', resize: 'none' }
+    : embedded
+      ? { height: 'auto', minHeight: '240px', maxHeight: 'none', resize: 'none' }
+      : (height ? { height: `${height}px` } : undefined)
 
   const dayGroups = useMemo(() => daySummaries.reduce((months, day) => {
     const month = day.dayKey.slice(0, 7)
@@ -134,7 +147,17 @@ function HistoryNavigator({
   }, [effectiveMonthKeys, yearGroups])
 
   if (effectiveMonthKeys.length === 0) {
-    return <section ref={setPanelElement} style={panelStyle} className={`history-navigator${floating ? ' floating-history-content' : ''}`}><div className={`history-navigator-header${floating ? ' floating-panel-handle' : ''}`}><h2>History</h2><div className="panel-header-actions"><button type="button" className="small secondary" onClick={refreshHistory}>Refresh</button>{!floating && <button type="button" className="small secondary" onClick={onFloat} title="Float History panel" aria-label="Float History">↗</button>}</div></div><div className="history-empty">No activity in the current history window.</div>{showTripsButton && <button type="button" className="small secondary history-show-trips-button" onClick={onShowTrips}>Show Trips</button>}<PanelResizeHandle panelRef={panelRef} floating={floating} onHeightChange={onHeightChange} onHeightCommit={onHeightCommit} /></section>
+    return <section ref={setPanelElement} style={panelStyle} className={`history-navigator${floating ? ' floating-history-content' : ''}`}>
+      <div className={`history-navigator-header${floating ? ' floating-panel-handle' : ''}`}>
+        <h2>Trips</h2>
+        <div className="panel-header-actions">
+          <button type="button" className="small secondary" disabled={loading} onClick={refreshHistory}>{error ? 'Retry history' : 'Refresh'}</button>
+          {!floating && !embedded && <button type="button" className="small secondary" onClick={onFloat} title="Float History panel" aria-label="Float History">↗</button>}
+        </div>
+      </div>
+      <div className="history-empty" role="status">{loading ? 'Loading history…' : error ? `Could not load history: ${error}` : 'No activity in the current history window.'}</div>
+      {resizable && <PanelResizeHandle panelRef={panelRef} floating={floating || embedded} onHeightChange={onHeightChange} onHeightCommit={onHeightCommit} />}
+    </section>
   }
 
   const renderMonth = (monthKey) => {
@@ -151,18 +174,33 @@ function HistoryNavigator({
           const nextOpen = event.currentTarget.open
           setExpandedMonths((previous) => ({ ...previous, [monthKey]: nextOpen }))
           if (nextOpen && (status === 'idle' || status === 'error')) {
-            loadMonth?.(monthKey)
+            loadMonth?.(monthKey)?.catch(() => {})
           }
         }}
       >
         <summary>{monthLabel(`${monthKey}-01`)} <span>{monthStatusLabel(status, days.length, monthSummary)}</span></summary>
         <div className="history-day-list">
+          {status === 'error' && <div className="history-empty" role="status">
+            <p>Could not load this month.</p>
+            <button type="button" className="small secondary" onClick={() => loadMonth?.(monthKey, { force: true })?.catch(() => {})}>Retry {monthLabel(`${monthKey}-01`)}</button>
+          </div>}
           {days.length > 0 ? days.map((day) => (
-            <button key={day.dayKey} type="button" className={`history-day ${selectedDayKeys.includes(day.dayKey) || selectedDayKey === day.dayKey ? 'active' : ''}`} onClick={(event) => setSelectedDayKey(day.dayKey, { ctrlKey: event.ctrlKey, metaKey: event.metaKey, shiftKey: event.shiftKey, toggle: selectionMode })}>
+            <div key={day.dayKey} className="history-day-group">
+            <div className="history-day-row">
+            {selectionMode && <input type="checkbox" aria-label={`Select day ${day.dayKey}`} checked={daySelectionState(day.dayKey) === true} ref={(node) => { if (node) node.indeterminate = daySelectionState(day.dayKey) === 'mixed' }} onChange={() => onToggleDay(day.dayKey)} />}
+            <button type="button" className={`history-day ${selectedDayKeys.includes(day.dayKey) || selectedDayKey === day.dayKey ? 'active' : ''}`} aria-expanded={expandedDays[day.dayKey] ?? (selectedDayKey === day.dayKey || selectedDayKeys.includes(day.dayKey))} onClick={(event) => {
+              const expanded = expandedDays[day.dayKey] ?? (selectedDayKey === day.dayKey || selectedDayKeys.includes(day.dayKey))
+              setExpandedDays((previous) => ({ ...previous, [day.dayKey]: !expanded }))
+              if (!expanded || event.ctrlKey || event.metaKey || event.shiftKey) setSelectedDayKey(day.dayKey, { ctrlKey: event.ctrlKey || (selectionMode && !selectedDayKeys.includes(day.dayKey) && selectedDayKey !== day.dayKey), metaKey: event.metaKey, shiftKey: event.shiftKey })
+            }}>
               <span className="history-day-date"><strong>{new Date(`${day.dayKey}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short' })}</strong><small>{new Date(`${day.dayKey}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</small></span>
               <span className="history-day-summary"><span>{day.tripCount} trips, {Math.round((day.distanceM || 0) / (displayUnits === 'metric' ? 1000 : 1609.344))} {displayUnits === 'metric' ? 'km' : 'mi'}, {Math.round((day.durationSeconds || 0) / 60)} min</span><span>{Math.round((day.maxSpeedMph || 0) * (displayUnits === 'metric' ? 1.609344 : 1))} {displayUnits === 'metric' ? 'km/h' : 'mph'}, {Math.round(day.eventCount || 0)} events</span></span>
             </button>
-          )) : <div className="history-empty">{status === 'loading' ? 'Loading month...' : (status === 'empty' ? 'No activity in this month.' : 'Expand to load this month.')}</div>}
+            <button type="button" className="trip-graph-button history-day-graph" aria-label={`Graph day ${day.dayKey}`} title="Graph this day" disabled={!canGraphDay?.(day.dayKey)} onClick={() => onReportDay?.(day.dayKey)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h16" /><path d="m7 15 3-4 3 2 5-7" /></svg></button>
+            </div>
+            {(expandedDays[day.dayKey] ?? (selectedDayKey === day.dayKey || selectedDayKeys.includes(day.dayKey))) && <div className="history-day-trips">{renderDayTrips?.(day.dayKey, selectionMode)}</div>}
+            </div>
+          )) : status !== 'error' && <div className="history-empty">{status === 'loading' ? 'Loading month...' : (status === 'empty' ? 'No activity in this month.' : 'Expand to load this month.')}</div>}
         </div>
       </details>
     )
@@ -171,12 +209,14 @@ function HistoryNavigator({
   return (
     <section ref={setPanelElement} style={panelStyle} className={`history-navigator${floating ? ' floating-history-content' : ''}`}>
       <div className={`history-navigator-header${floating ? ' floating-panel-handle' : ''}`}>
-        <div><h2>History</h2><p>Recent days</p></div>
-        <div className="panel-header-actions"><button type="button" className="small secondary" onClick={refreshHistory} title="Refresh history">↻</button>{!floating && <button type="button" className="small secondary" onClick={onFloat} title="Float History panel" aria-label="Float History">↗</button>}</div>
+        <div><h2>Trips</h2><p>Recent days</p></div>
+        <div className="panel-header-actions"><button type="button" className="small secondary" onClick={refreshHistory} disabled={loading} title="Refresh history" aria-label="Refresh history">↻</button>{!floating && !embedded && <button type="button" className="small secondary" onClick={onFloat} title="Float History panel" aria-label="Float History">↗</button>}</div>
       </div>
+      {loading && <p className="history-empty" role="status">Loading history…</p>}
+      {!loading && error && <p className="history-empty error" role="status">Could not load history: {error}</p>}
         <div className="history-selection-tools">
-        <button type="button" className={`small secondary ${selectionMode ? 'active' : ''}`} onClick={() => setSelectionMode((value) => !value)}>{selectionMode ? 'Done' : 'Select days'}</button>
-        <button type="button" className="small secondary" onClick={onReportDays} disabled={!selectedDayKey && selectedDayKeys.length === 0}>Graph selected days</button>
+        <button type="button" className={`small secondary ${selectionMode ? 'active' : ''}`} onClick={() => setSelectionMode((value) => !value)}>{selectionMode ? 'Done' : 'Select'}</button>
+        <button type="button" className="small secondary" onClick={() => onReportDays(selectionMode)} disabled={selectionMode ? !hasBatchSelection : (!selectedDayKey && selectedDayKeys.length === 0)}>Graph selected</button>
       </div>
       <div className="history-month-list">
         {useYearView
@@ -201,8 +241,7 @@ function HistoryNavigator({
           })
           : effectiveMonthKeys.map((monthKey) => renderMonth(monthKey))}
       </div>
-      {showTripsButton && <button type="button" className="small secondary history-show-trips-button" onClick={onShowTrips}>Show Trips</button>}
-      <PanelResizeHandle panelRef={panelRef} floating={floating} onHeightChange={onHeightChange} onHeightCommit={onHeightCommit} />
+      {resizable && <PanelResizeHandle panelRef={panelRef} floating={floating || embedded} onHeightChange={onHeightChange} onHeightCommit={onHeightCommit} />}
     </section>
   )
 }

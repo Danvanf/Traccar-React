@@ -37,13 +37,6 @@ body[data-theme='light'] {
   color: var(--panel-text);
 }
 
-.trip-panel-flyout { z-index: 1300; width: 300px; min-height: 0; max-height: 70vh; overflow: hidden; display: flex; flex-direction: column; background: var(--panel-bg) !important; opacity: 1; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
-.trip-panel-flyout, .trip-panel-flyout h2, .trip-panel-flyout h3, .trip-panel-flyout label, .trip-panel-flyout strong { color: var(--panel-text); }
-.trip-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.trip-panel-heading h2 { margin: 0; }
-.trip-panel-drag-handle { cursor: grab; user-select: none; touch-action: none; }
-.trip-panel-drag-handle:active { cursor: grabbing; }
-.trip-panel-show-button { width: 100%; margin-top: 8px; }
 
 .panel-header {
   display: grid;
@@ -412,7 +405,6 @@ body[data-theme='light'] {
 .device-list,
 .day-panel,
 .history-navigator,
-.trip-panel,
   .notifications-panel,
 .export-panel {
   background: var(--card);
@@ -454,7 +446,6 @@ body[data-theme='light'] {
 .history-live:hover { border-color: var(--primary); background: rgba(42, 157, 143, 0.3); }
 .history-live.active { border-color: var(--primary); background: rgba(42, 157, 143, 0.38); }
 .history-month-list { flex: 1 1 0; min-height: 0; max-height: none; overflow-y: auto; padding-right: 3px; }
-.history-show-trips-button { flex: 0 0 auto; width: 100%; margin-top: 8px; }
 .history-month-list details { border-top: 1px solid var(--card-border); }
 .history-month-list summary { cursor: pointer; padding: 8px 3px; font-size: 13px; font-weight: 700; list-style-position: inside; }
 .history-month-list summary span { float: right; color: var(--muted); font-size: 11px; font-weight: 500; }
@@ -647,10 +638,27 @@ h2 {
 .device-list li {
   display: flex;
   align-items: center;
+  gap: 8px;
   min-height: 30px;
 }
 
 .device-list li.selected-device { background: rgba(234, 88, 12, 0.16); border-radius: 8px; }
+
+.device-list-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 5px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--panel-text);
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.device-list-select:hover,
+.device-list-select[aria-pressed='true'] { background: rgba(255, 255, 255, 0.08); }
 
 .checkbox-row {
   display: flex;
@@ -1473,7 +1481,6 @@ a.report-location-cell { color:#9bdcff; text-decoration:underline; }
 }
 
 @media (max-width: 1100px) {
-  .trip-panel-flyout { width: min(300px, calc(100vw - 32px)); }
   .speed-band-key, .track-place-key { left: 14px; }
 }
 
@@ -1507,3 +1514,27 @@ a.report-location-cell { color:#9bdcff; text-decoration:underline; }
 .map-panel.map-location-picker { position: fixed; inset: 12px; z-index: 2100; }
 .map-location-picker .map-canvas { min-height: 0; cursor: crosshair; }
 .map-location-picker .leaflet-interactive { cursor: crosshair; }
+
+/* One hierarchy: months contain days; expanded days contain their trips. */
+.floating-history-panel { width: min(360px, calc(100vw - 16px)); }
+.trips-workspace { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+.trips-workspace-scroll { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+.trips-workspace .history-navigator { flex: 1; min-height: 0; }
+.history-day-row { display: flex; align-items: center; gap: 4px; }
+.history-day-row .history-day { flex: 1; min-width: 0; }
+.history-day-graph { flex: 0 0 32px; }
+.history-day-trips { margin: 3px 0 10px 12px; padding-left: 8px; border-left: 2px solid var(--card-border); }
+.history-day-trips .trip-list { max-height: none; overflow: visible; }
+/* Regular users see personal settings and per-user alerts. */
+.settings-modal[data-settings-role="regular"] .settings-admin-only { display: none !important; }
+.settings-modal[data-settings-role="regular"] .settings-global-grid > .settings-admin-only { display: none !important; }
+.settings-modal[data-settings-role="regular"] .settings-admin-only { display: none !important; }
+.settings-modal[data-settings-role="regular"] .settings-personal-only select { width: 100%; }
+.settings-modal[data-settings-role="regular"] .settings-personal-only { display: grid; }
+.settings-modal[data-settings-role="regular"] .settings-admin-only + .settings-divider,
+.settings-modal[data-settings-role="regular"] .settings-divider { display: none; }
+.settings-modal[data-settings-role="regular"] .profile-editor:has(> h4) { margin-bottom: 16px; }
+@media (max-width: 63.99rem) {
+  .settings-modal[data-settings-role="admin"] .settings-admin-only { display: none !important; }
+  .settings-modal[data-settings-role="admin"]::after { content: "Administrator settings require a wider screen (1024px or more). Personal settings and alerts remain available."; display: block; margin: 12px 0; padding: 12px; border: 1px solid var(--card-border); border-radius: 8px; }
+}

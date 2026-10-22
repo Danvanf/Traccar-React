@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { fetchUserProfile, saveUserProfile } from '../lib/traccarScopeApi'
 
 function AccessSource({ direct, groups = [], administrator = false }) {
@@ -21,13 +21,42 @@ function AccessSection({ title, entries, emptyText, renderEntry }) {
   )
 }
 
-export default function UserProfilePanel({ baseUrl, devices = [], onClose }) {
+export default function UserProfilePanel({ baseUrl, devices = [], onClose, embedded = false, registerCloseAttempt }) {
   const [profile, setProfile] = useState(null)
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '' })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [closeRequested, setCloseRequested] = useState(false)
+  const closeAttemptRef = useRef(null)
+  const keepEditingRef = useRef(null)
+  const firstNameRef = useRef(null)
+  const hasUnsavedChanges = profile && ['firstName', 'lastName', 'email'].some((key) => form[key] !== (profile[key] || ''))
+
+  const requestClose = () => {
+    if (saving) {
+      setMessage('Wait for the profile save to finish before closing.')
+      return false
+    }
+    if (hasUnsavedChanges) {
+      setCloseRequested(true)
+      return false
+    }
+    onClose()
+    return true
+  }
+  closeAttemptRef.current = requestClose
+
+  useEffect(() => {
+    if (!registerCloseAttempt) return undefined
+    registerCloseAttempt(() => closeAttemptRef.current?.() ?? true)
+    return () => registerCloseAttempt(null)
+  }, [registerCloseAttempt])
+
+  useEffect(() => {
+    if (closeRequested) keepEditingRef.current?.focus()
+  }, [closeRequested])
 
   useEffect(() => {
     let active = true
@@ -45,10 +74,11 @@ export default function UserProfilePanel({ baseUrl, devices = [], onClose }) {
   }, [baseUrl])
 
   useEffect(() => {
-    const onKeyDown = (event) => { if (event.key === 'Escape') onClose() }
+    if (embedded) return undefined
+    const onKeyDown = (event) => { if (event.key === 'Escape') closeAttemptRef.current?.() }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
+  }, [embedded, onClose])
 
   const deviceNames = useMemo(() => new Map(devices.map((device) => [String(device.id), device.name || device.uniqueId || `Device ${device.id}`])), [devices])
   const isAdministrator = profile?.role?.toLowerCase() === 'admin'
@@ -66,6 +96,7 @@ export default function UserProfilePanel({ baseUrl, devices = [], onClose }) {
       const updated = await fetchUserProfile(baseUrl)
       setProfile(updated)
       setForm({ firstName: updated.firstName || '', lastName: updated.lastName || '', email: updated.email || '' })
+      setCloseRequested(false)
       setMessage('Your profile was saved.')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save your profile.')
@@ -80,17 +111,26 @@ export default function UserProfilePanel({ baseUrl, devices = [], onClose }) {
     setForm((current) => ({ ...current, [field]: event.target.value }))
   }
 
-  return (
-    <div className="user-profile-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
-      <section className="user-profile-dialog" role="dialog" aria-modal="true" aria-labelledby="user-profile-title">
+  const content = <>
         <header className="user-profile-header">
           <div>
             <h2 id="user-profile-title">Your profile</h2>
             <p>Manage your contact details and review your current access.</p>
           </div>
-          <button type="button" className="secondary user-profile-close" onClick={onClose} aria-label="Close profile">×</button>
+          <button type="button" className="secondary user-profile-close" onClick={requestClose} disabled={saving} aria-label="Close profile">×</button>
         </header>
 
+        {closeRequested && <section className="user-profile-close-confirmation" role="group" aria-label="Unsaved profile changes">
+          <p>You have unsaved profile changes. Keep editing or discard them?</p>
+          <div className="user-profile-close-actions">
+            <button ref={keepEditingRef} type="button" className="secondary" onClick={() => {
+              setCloseRequested(false)
+              firstNameRef.current?.focus()
+            }}>Keep editing</button>
+            <button type="button" disabled={saving} onClick={onClose}>Discard changes</button>
+          </div>
+        </section>}
+        {saving && closeRequested && <p role="status">Wait for the profile save to finish before closing.</p>}
         {loading && <p className="user-profile-notice" role="status">Loading profile…</p>}
         {error && <p className="user-profile-notice error" role="alert">{error}</p>}
 
@@ -104,7 +144,7 @@ export default function UserProfilePanel({ baseUrl, devices = [], onClose }) {
 
           <form className="user-profile-form" onSubmit={save}>
             <h3>Contact details</h3>
-            <label>First name<input value={form.firstName} onChange={updateField('firstName')} maxLength={100} autoComplete="given-name" disabled={loading || saving} /></label>
+            <label>First name<input ref={firstNameRef} value={form.firstName} onChange={updateField('firstName')} maxLength={100} autoComplete="given-name" disabled={loading || saving} /></label>
             <label>Last name<input value={form.lastName} onChange={updateField('lastName')} maxLength={100} autoComplete="family-name" disabled={loading || saving} /></label>
             <label className="user-profile-email-field">Email address<input type="email" value={form.email} onChange={updateField('email')} maxLength={320} autoComplete="email" disabled={loading || saving} /></label>
             <p className="user-profile-form-hint">Email alert delivery addresses are managed separately in Settings.</p>
@@ -137,7 +177,12 @@ export default function UserProfilePanel({ baseUrl, devices = [], onClose }) {
           </div>
           <p className="user-profile-access-note">Access assignments are managed by your administrator. Contact them if something is missing.</p>
         </>}
-      </section>
+  </>
+
+  if (embedded) return <section className="user-profile-dialog user-profile-dialog-embedded" aria-labelledby="user-profile-title">{content}</section>
+  return (
+    <div className="user-profile-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) requestClose() }}>
+      <section className="user-profile-dialog" role="dialog" aria-modal="true" aria-labelledby="user-profile-title">{content}</section>
     </div>
   )
 }

@@ -7,3 +7,15 @@ export function createRequestGate() {
     isCurrent(token) { return token === generation },
   }
 }
+
+// Stale failures are ignored just like stale successes; current failures remain actionable.
+export async function readCurrentRequest(gate, read) {
+  const token = gate.current()
+  try {
+    const value = await read()
+    return gate.isCurrent(token) ? { current: true, value } : { current: false }
+  } catch (error) {
+    if (!gate.isCurrent(token)) return { current: false }
+    throw error
+  }
+}

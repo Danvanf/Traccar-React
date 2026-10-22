@@ -1,16 +1,21 @@
+import { isTripSelected, toggleTripSelection, toggleDaySelection } from './lib/tripSelection'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { autoUpdate, offset, shift, useFloating } from '@floating-ui/react-dom'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import './App.css'
-import HistoryNavigator from './components/HistoryNavigator'
+import './components/layout/layout.css'
+import HistoryContent from './components/HistoryContent'
+import MapContainer from './components/layout/MapContainer'
+import AppLayout from './components/layout/AppLayout'
+import MoreMenu from './components/layout/MoreMenu'
 import DeviceList from './components/DeviceList'
+import TripContent from './components/TripContent'
 const DeviceProtocolProfileEditor = lazy(() => import('./components/DeviceProtocolProfileEditor'))
 const ExportPanel = lazy(() => import('./components/ExportPanel'))
 const SettingsModal = lazy(() => import('./components/SettingsModal'))
 import StatusCard from './components/StatusCard'
-import TripPanel from './components/TripPanel'
+import TripsWorkspace from './components/TripsWorkspace'
 import VehicleStatusCard from './components/VehicleStatusCard'
 import MovableMapKey from './components/MovableMapKey'
 import MovablePanel from './components/MovablePanel'
@@ -26,7 +31,8 @@ import { mergeSelectedProfileProperties } from './lib/profileImport'
 import { metersBetween, toHistoryPosition } from './lib/geo'
 import { loadProfileDefinitionsWithStatus, saveProfileDefinitions } from './lib/profileStore'
 import { DEFAULT_SETTINGS, PALETTE, readSettings, saveSettings } from './lib/settings'
-import { createRequestGate } from './lib/requestGate'
+import { createRequestGate, readCurrentRequest } from './lib/requestGate'
+import { createDayLoadCache } from './lib/dayLoadCache'
 import { getExportRangePreset, getRangeFromMode, toDateInputValue, toLocalInputValue } from './lib/time'
 import { createTraccarApi } from './lib/traccarApi'
 import { appendSourceMappingRevision, profileWithSourceMappings } from './lib/telemetrySourceMappings'
@@ -108,12 +114,12 @@ function getDefaultVehicleStatusPosition() {
   return { left: Math.max(8, window.innerWidth - 288), top: VEHICLE_STATUS_DEFAULT_TOP }
 }
 
-function fitBoundsWithPanelOffset(map, bounds, padding) {
+function fitBoundsWithPanelOffset(map, bounds, padding, compact = false) {
   const fittedZoom = map.getBoundsZoom(L.latLngBounds(bounds), false, L.point(padding).multiplyBy(2))
   const zoom = Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), fittedZoom) - 1)
   map.fitBounds(bounds, { padding, maxZoom: zoom })
   // Move the fitted content right to leave room for the floating Trips panel.
-  map.panBy([-MAP_CONTENT_SHIFT_PX, 0], { animate: false })
+  if (!compact) map.panBy([-MAP_CONTENT_SHIFT_PX, 0], { animate: false })
 }
 
 function isIgnitionOn(point) {
@@ -471,7 +477,6 @@ function App() {
   const [globalSettingsApiBaseUrl, setGlobalSettingsApiBaseUrl] = useState(() => readSettings().traccarScopeApiBaseUrl)
   const [vehicleAuth, setVehicleAuth] = useState({ checking: true, enabled: false, authenticated: false, username: null, role: null })
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
-  const [isUserProfileOpen, setIsUserProfileOpen] = useState(false)
   const [isVehicleQueryOpen, setIsVehicleQueryOpen] = useState(false)
   const userMenuRef = useRef(null)
   const userMenuButtonRef = useRef(null)
@@ -490,17 +495,10 @@ function App() {
   const [bouncieCoverage, setBouncieCoverage] = useState([])
   const [bouncieBusy, setBouncieBusy] = useState(false)
   const [status, setStatus] = useState('Ready')
-  const { refs: tripFlyoutRefs, floatingStyles: tripFlyoutStyles } = useFloating({
-    placement: 'right-start',
-    strategy: 'fixed',
-    middleware: [offset({ mainAxis: 10, crossAxis: -1 }), shift({ padding: 16 })],
-    whileElementsMounted: autoUpdate,
-  })
-  const [showTripsPanel, setShowTripsPanel] = useState(false)
+  const [isCompactLayout, setIsCompactLayout] = useState(() => !window.matchMedia('(min-width: 64rem)').matches)
+  const [activeTask, setActiveTask] = useState(null)
   const [historyPanelPosition, setHistoryPanelPosition] = useState(() => ({ left: 8, top: Math.round(window.innerHeight * 255 / 1205) }))
   const [notificationsPanelPosition, setNotificationsPanelPosition] = useState(() => ({ left: 8, top: Math.round(window.innerHeight * 714 / 1205), height: 200 }))
-  const [tripFlyoutPosition, setTripFlyoutPosition] = useState(null)
-  const [tripFlyoutTemporaryPosition, setTripFlyoutTemporaryPosition] = useState(null)
   const [vehicleStatusPosition, setVehicleStatusPosition] = useState(getDefaultVehicleStatusPosition)
   const [vehicleStatusCollapsed, setVehicleStatusCollapsed] = useState(true)
   const [speedBandKeyPosition, setSpeedBandKeyPosition] = useState(null)
@@ -525,6 +523,7 @@ function App() {
   const [historyRoutePoints, setHistoryRoutePoints] = useState([])
   const [notifications, setNotifications] = useState([])
   const [notificationsLoading, setNotificationsLoading] = useState(false)
+  const [notificationsError, setNotificationsError] = useState('')
   const [notificationsRefreshNonce, setNotificationsRefreshNonce] = useState(0)
   const [timeMode, setTimeMode] = useState('history')
   const [customFrom, setCustomFrom] = useState(() => toLocalInputValue(new Date(Date.now() - 24 * 60 * 60 * 1000)))
@@ -546,11 +545,11 @@ function App() {
   }, [notificationSelectedDays])
   const [daySelectionAnchor, setDaySelectionAnchor] = useState(null)
   const [selectedTripId, setSelectedTripId] = useState(null)
+  const [batchSelection, setBatchSelection] = useState({ days: [], tripIds: [], excludedTripIds: [] })
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isProfileMappingEditorOpen, setIsProfileMappingEditorOpen] = useState(false)
   const profileMappingReturnScrollRef = useRef(null)
   const profileMappingReturnFocusRef = useRef(false)
-  const [isDataTransferOpen, setIsDataTransferOpen] = useState(false)
   const [operationsReport, setOperationsReport] = useState(null)
   const [operationsReportBusy, setOperationsReportBusy] = useState(false)
   const [isPickingLocation, setIsPickingLocation] = useState(false)
@@ -646,15 +645,15 @@ function App() {
   const [selectedTripRoutePoints, setSelectedTripRoutePoints] = useState([])
   const [graphGroups, setGraphGroups] = useState(null)
   const tripSelectionGate = useRef(createRequestGate())
+  const historyLoadGate = useRef(createRequestGate())
+  const [historyIndexLoading, setHistoryIndexLoading] = useState(false)
+  const [historyIndexError, setHistoryIndexError] = useState('')
   const [tripEditorBusy, setTripEditorBusy] = useState(false)
   const tripWritePending = useRef(false)
   const autoCalculatedDaysRef = useRef(new Set())
-  // The point cache contains one selected day at a time. This tracks which
-  // day is currently in that cache; revisiting an earlier day must fetch it
-  // again after another day replaced the points.
-  const loadedPointDaysRef = useRef(new Set())
+  // Completed days remain cached as selected-day point responses merge into history.
   const loadedHistoryMonthsRef = useRef(new Set())
-  const pointLoadRequestRef = useRef(0)
+  const pointDayLoadsRef = useRef(createDayLoadCache())
   const startupLoadRef = useRef(false)
   const initialCurrentLocationsLoadedRef = useRef(false)
   const initialEarlierHistoryStartedRef = useRef(false)
@@ -688,17 +687,32 @@ function App() {
     URL.revokeObjectURL(url)
   }, [operationsReport])
 
+  const clearTripSelection = useCallback(() => {
+    tripSelectionGate.current.begin()
+    setSelectedTrip(null)
+    setSelectedTripId(null)
+    setSelectedBackendTripId(null)
+    setSelectedTripRoutePoints([])
+    setSelectedTripMaxSpeedMph(null)
+    setTripEditorTags([])
+    setSelectedTripEvents([])
+    setTripNoteDraft('')
+    setTagToAdd('')
+    setTripEditorLoading(false)
+    setTripEditorStatus('')
+  }, [])
+
   const selectDay = useCallback((dayKey, { ctrlKey = false, metaKey = false, shiftKey = false, toggle = false } = {}) => {
+    pointDayLoadsRef.current.invalidate()
+    clearTripSelection()
     setNotifications([])
     if (!dayKey) {
       setSelectedDayKey(null)
       setSelectedDayKeys([])
+    setBatchSelection({ days: [], tripIds: [], excludedTripIds: [] })
       setDaySelectionAnchor(null)
       return
     }
-    // Selecting a day is an explicit request to inspect its trips. Reopen the
-    // flyout even when the user previously hid it manually.
-    setShowTripsPanel(true)
     const modifierToggle = ctrlKey || metaKey || toggle
     const currentSelection = selectedDayKeys.length > 0 ? selectedDayKeys : (selectedDayKey ? [selectedDayKey] : [])
     let nextSelection
@@ -720,17 +734,14 @@ function App() {
     const nextAnchor = nextSelection.at(-1) || null
     setDaySelectionAnchor(nextAnchor)
     setSelectedDayKey(nextAnchor)
-    setSelectedTrip(null)
-    setSelectedTripId(null)
-    setSelectedBackendTripId(null)
-    setSelectedTripRoutePoints([])
-    setSelectedTripMaxSpeedMph(null)
-    setTripEditorStatus('')
     mapAutoFitRef.current = true
-  }, [daySelectionAnchor, historyDaySummaries, selectedDayKey, selectedDayKeys])
+  }, [clearTripSelection, daySelectionAnchor, historyDaySummaries, selectedDayKey, selectedDayKeys])
 
   const mapElementRef = useRef(null)
   const mapRef = useRef(null)
+  const layoutActionsRef = useRef(null)
+  const graphEditorCloseAttemptRef = useRef(null)
+  const profileCloseAttemptRef = useRef(null)
   const markerLayerRef = useRef(null)
   const trailLayerRef = useRef(null)
   const selectedTripLayerRef = useRef(null)
@@ -749,6 +760,7 @@ function App() {
 
   const updateSetting = useCallback((key, value) => {
     if (key === 'traccarScopeApiBaseUrl') {
+      setBatchSelection({ days: [], tripIds: [], excludedTripIds: [] })
       tripSelectionGate.current.begin()
       setSelectedBackendTripId(null)
       setTripEditorTags([])
@@ -871,6 +883,13 @@ function App() {
     } finally { setBouncieBusy(false) }
   }, [settings.traccarScopeApiBaseUrl])
 
+  const selectDevice = useCallback((deviceId) => {
+    if (selectedTrip && Number(selectedTrip.deviceId) !== Number(deviceId)) clearTripSelection()
+    setDeviceListSelectedId(deviceId)
+    setStatusDeviceId(deviceId)
+    setSelectedMapPoint(null)
+  }, [clearTripSelection, selectedTrip])
+
   const selectStatusPoint = useCallback((deviceId, point) => {
     const candidates = historyByDevice[deviceId] || []
     const nearest = candidates
@@ -879,9 +898,10 @@ function App() {
     const mergedPoint = nearest
       ? { ...nearest, ...point, attributes: { ...(nearest.attributes || {}), ...(point.attributes || {}) } }
       : point
-    setStatusDeviceId(deviceId)
+    selectDevice(deviceId)
     setSelectedMapPoint({ deviceId, point: mergedPoint })
-  }, [historyByDevice])
+    if (isCompactLayout) layoutActionsRef.current?.openDeviceStatus()
+  }, [historyByDevice, isCompactLayout, selectDevice])
 
   const fitMapToVisibleDevices = useCallback(() => {
     const map = mapRef.current
@@ -912,12 +932,12 @@ function App() {
 
     if (bounds.length > 0) {
       programmaticMapMoveRef.current = true
-      fitBoundsWithPanelOffset(map, bounds, [20, 20])
+      fitBoundsWithPanelOffset(map, bounds, [20, 20], isCompactLayout)
       setTimeout(() => {
         programmaticMapMoveRef.current = false
       }, 0)
     }
-  }, [deviceVisibility, devices, historyByDevice, selectedDayKey, selectedDayKeys])
+  }, [deviceVisibility, devices, historyByDevice, isCompactLayout, selectedDayKey, selectedDayKeys])
 
   useEffect(() => {
     saveSettings(settings)
@@ -1254,7 +1274,7 @@ function App() {
         'map-action-transfer',
         'Import/Export data',
         '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V3m0 0L7 8m5-5 5 5M5 14v6h14v-6"/><path d="M8 17h8"/></svg>',
-        () => setIsDataTransferOpen(true),
+        () => setActiveTask('data-transfer'),
       )
       createButton(
         'map-action-reset-positions',
@@ -1301,6 +1321,27 @@ function App() {
       setMapReady(false)
     }
   }, [vehicleAuth.checking, vehicleAuth.enabled, vehicleAuth.authenticated])
+
+  useEffect(() => {
+    const map = mapRef.current
+    const element = mapElementRef.current
+    if (!map || !element || typeof ResizeObserver === 'undefined') return undefined
+
+    let frameId = 0
+    const observer = new ResizeObserver((entries) => {
+      const { width, height } = entries[0]?.contentRect || {}
+      if (width < 1 || height < 1) return
+      window.cancelAnimationFrame(frameId)
+      frameId = window.requestAnimationFrame(() => {
+        if (mapRef.current === map) map.invalidateSize({ pan: false, debounceMoveend: true })
+      })
+    })
+    observer.observe(element)
+    return () => {
+      observer.disconnect()
+      window.cancelAnimationFrame(frameId)
+    }
+  }, [mapReady])
 
   useEffect(() => {
     const map = mapRef.current
@@ -1532,12 +1573,12 @@ function App() {
     const fitBounds = selectedTripBounds.length > 0 ? selectedTripBounds : bounds
     if (fitBounds.length > 0 && mapAutoFitRef.current) {
       programmaticMapMoveRef.current = true
-      fitBoundsWithPanelOffset(map, fitBounds, [20, 20])
+      fitBoundsWithPanelOffset(map, fitBounds, [20, 20], isCompactLayout)
       setTimeout(() => {
         programmaticMapMoveRef.current = false
       }, 0)
     }
-  }, [activeBindings, deviceColors, deviceVisibility, devices, historyByDevice, historyRoutePoints, mapPopupFieldsByVehicle, profileContextFor, profileContextWithSourceMappings, selectStatusPoint, selectedDayKey, selectedDayKeys, selectedTrip, selectedTripEvents, selectedTripRoutePoints, selectedTripVehicleId, settings.displayUnits, speedBandsForVehicle])
+  }, [activeBindings, deviceColors, deviceVisibility, devices, historyByDevice, historyRoutePoints, isCompactLayout, mapPopupFieldsByVehicle, profileContextFor, profileContextWithSourceMappings, selectStatusPoint, selectedDayKey, selectedDayKeys, selectedTrip, selectedTripEvents, selectedTripRoutePoints, selectedTripVehicleId, settings.displayUnits, speedBandsForVehicle])
 
   const focusTripEvent = useCallback((event) => {
     const latitude = Number(event?.latitude)
@@ -1568,10 +1609,10 @@ function App() {
     })
     if (bounds.length > 0) {
       programmaticMapMoveRef.current = true
-      fitBoundsWithPanelOffset(mapRef.current, bounds, [30, 30])
+      fitBoundsWithPanelOffset(mapRef.current, bounds, [30, 30], isCompactLayout)
       setTimeout(() => { programmaticMapMoveRef.current = false }, 0)
     }
-  }, [historyByDevice, selectedDayKey, selectedDayKeys, selectedTrip])
+  }, [historyByDevice, isCompactLayout, selectedDayKey, selectedDayKeys, selectedTrip])
 
   useEffect(() => {
     const selectedDays = selectedDayKeys.length > 0 ? selectedDayKeys : (selectedDayKey ? [selectedDayKey] : [])
@@ -1696,67 +1737,6 @@ function App() {
       .catch(() => { if (active) setVehicleAuth({ checking: false, enabled: false, authenticated: false, username: null, role: null }) })
     return () => { active = false }
   }, [settings.traccarScopeApiBaseUrl])
-
-  const tripFlyoutPreferenceKey = useMemo(() => {
-    if (vehicleAuth.checking) return null
-    const userKey = vehicleAuth.authenticated && vehicleAuth.username
-      ? vehicleAuth.username.trim().toLowerCase()
-      : 'local'
-    return `traccarScopeApi:tripFlyoutPosition:${userKey}`
-  }, [vehicleAuth.authenticated, vehicleAuth.checking, vehicleAuth.username])
-
-  useEffect(() => {
-    if (!tripFlyoutPreferenceKey) return
-    let active = true
-    const applyPosition = (saved) => {
-      if (!active) return
-      const left = Number(saved?.left)
-      const top = Number(saved?.top)
-      const height = Number(saved?.height)
-      const position = { ...(Number.isFinite(left) && Number.isFinite(top) ? { left, top } : {}), ...(Number.isFinite(height) && height > 0 ? { height } : {}) }
-      setTripFlyoutPosition(Object.keys(position).length ? position : null)
-    }
-    try {
-      const saved = JSON.parse(localStorage.getItem(tripFlyoutPreferenceKey) || 'null')
-      applyPosition(saved)
-    } catch {
-      applyPosition(null)
-    }
-
-    if (vehicleAuth.authenticated) {
-      fetchUserPreference(settings.traccarScopeApiBaseUrl, 'trips-panel-position')
-        .then((saved) => { if (saved) applyPosition(saved) })
-        .catch(() => {})
-    }
-    return () => { active = false }
-  }, [settings.traccarScopeApiBaseUrl, tripFlyoutPreferenceKey, vehicleAuth.authenticated])
-
-  const persistTripFlyoutPosition = useCallback((position) => {
-    setTripFlyoutPosition(position)
-    if (tripFlyoutPreferenceKey) {
-      localStorage.setItem(tripFlyoutPreferenceKey, JSON.stringify(position))
-    }
-    if (vehicleAuth.authenticated) {
-      saveUserPreference(settings.traccarScopeApiBaseUrl, 'trips-panel-position', position).catch(() => {})
-    }
-  }, [settings.traccarScopeApiBaseUrl, tripFlyoutPreferenceKey, vehicleAuth.authenticated])
-
-  useEffect(() => {
-    if (!graphGroups || !showTripsPanel) {
-      setTripFlyoutTemporaryPosition(null)
-      return undefined
-    }
-    const timer = window.setTimeout(() => {
-      const graph = document.querySelector('.telemetry-graph-card')
-      const trips = document.querySelector('.trip-panel-flyout')
-      if (!graph || !trips) return
-      const graphRect = graph.getBoundingClientRect()
-      const tripsRect = trips.getBoundingClientRect()
-      const overlaps = tripsRect.right > graphRect.left && tripsRect.left < graphRect.right && tripsRect.bottom > graphRect.top && tripsRect.top < graphRect.bottom
-      if (overlaps) setTripFlyoutTemporaryPosition({ left: Math.max(20, Math.floor(graphRect.left - tripsRect.width - 20)), top: Math.round(tripsRect.top) })
-    }, 0)
-    return () => window.clearTimeout(timer)
-  }, [graphGroups, showTripsPanel])
 
   const vehicleStatusPreferenceKey = useMemo(() => {
     if (vehicleAuth.checking) return null
@@ -1918,9 +1898,6 @@ function App() {
       persistMapKeyPosition('historyPanelPosition', 'history-panel-position', { ...historyPanelPosition, ...position }, setHistoryPanelPosition)
     } else if (windowId === 'notifications') {
       persistMapKeyPosition('notificationsPanelPosition', 'notifications-panel-position', { ...notificationsPanelPosition, ...position }, setNotificationsPanelPosition)
-    } else if (windowId === 'trips') {
-      setTripFlyoutTemporaryPosition(null)
-      persistTripFlyoutPosition({ ...position, ...(tripFlyoutPosition?.height ? { height: tripFlyoutPosition.height } : {}) })
     } else if (windowId === 'vehicleStatus') {
       persistVehicleStatusPosition(position)
     } else if (windowId === 'trackPlaces') {
@@ -1932,16 +1909,13 @@ function App() {
     historyPanelPosition,
     notificationsPanelPosition,
     persistMapKeyPosition,
-    persistTripFlyoutPosition,
     persistVehicleStatusPosition,
-    tripFlyoutPosition,
   ])
 
   const resolveWindowOverlaps = useCallback((frontWindowId) => {
     const windowSelectors = {
       history: '.floating-history-panel',
       notifications: '.floating-notifications-panel',
-      trips: '.trip-panel-flyout',
       vehicleStatus: '.vehicle-status-card',
       trackPlaces: '.track-place-key',
       speedBands: '.speed-band-key',
@@ -2013,7 +1987,6 @@ function App() {
     const draggableHandles = [
       ['.floating-history-panel', '.floating-panel-handle', 'history'],
       ['.floating-notifications-panel', '.floating-panel-handle', 'notifications'],
-      ['.trip-panel-flyout', '.trip-panel-drag-handle', 'trips'],
       ['.vehicle-status-card', '.vehicle-status-drag-handle', 'vehicleStatus'],
       ['.track-place-key', '.map-key-drag-handle', 'trackPlaces'],
       ['.speed-band-key', '.map-key-drag-handle', 'speedBands'],
@@ -2060,7 +2033,6 @@ function App() {
   }, [
     mapKeyPreferenceKey,
     persistMapKeyPosition,
-    persistTripFlyoutPosition,
     settings.traccarScopeApiBaseUrl,
     speedBandKeyPosition,
     trackPlaceKeyPosition,
@@ -2250,15 +2222,15 @@ function App() {
     return matchingDevice?.id ?? devices[0]?.id ?? ''
   }, [devices, profileContextFor, selectedProfileId])
 
-  const openSelectedDaysGraph = useCallback(() => {
-    const days = selectedDayKeys.length > 0 ? selectedDayKeys : (selectedDayKey ? [selectedDayKey] : [])
-    const groups = visibleTrips
-      .filter((trip) => days.length === 0 || days.includes(trip.dayKey))
+  const openSelectedDaysGraph = useCallback((dayKey) => {
+    const days = typeof dayKey === 'string' ? [dayKey] : (selectedDayKeys.length > 0 ? selectedDayKeys : (selectedDayKey ? [selectedDayKey] : []))
+    const groups = trips
+      .filter((trip) => dayKey === 'batch' ? isTripSelected(batchSelection, trip) : days.includes(trip.dayKey))
       .sort((a, b) => a.start - b.start)
        .map((trip) => ({ id: trip.savedTripId || trip.tripId, vehicleId: trip.vehicleId, deviceId: trip.deviceId, profileContext: profileContextFor({ vehicleId: trip.vehicleId, deviceId: trip.deviceId, at: trip.start }), label: `${trip.start.toLocaleTimeString()} – ${trip.end.toLocaleTimeString()}`, points: trip.points || [] }))
       .filter((group) => group.points.length > 0)
     setGraphGroups(groups)
-  }, [profileContextFor, selectedDayKey, selectedDayKeys, visibleTrips])
+  }, [batchSelection, profileContextFor, selectedDayKey, selectedDayKeys, trips])
 
   const recalculateTripSet = useCallback(async (candidateTrips, { force = false } = {}) => {
     // v5 makes ignition transitions the preferred trip boundary, retaining
@@ -2315,13 +2287,16 @@ function App() {
   const refreshHistoryMetadata = useCallback(async () => {
     if (historyDayRows.length === 0) return
     try {
-      const rows = await fetchTripDaySummaries(settings.traccarScopeApiBaseUrl, {
+      const result = await readCurrentRequest(historyLoadGate.current, () => fetchTripDaySummaries(settings.traccarScopeApiBaseUrl, {
         from: historyWindow.from,
         to: historyWindow.to,
-      })
-      historyDayRowsRef.current = rows
-      setHistoryDayRows(rows)
-      setHistoryDaySummaries(summarizeSavedTrips(rows))
+      }))
+      if (!result.current) return
+      const rows = result.value
+      const mergedRows = mergeHistoryRows(historyDayRowsRef.current, rows)
+      historyDayRowsRef.current = mergedRows
+      setHistoryDayRows(mergedRows)
+      setHistoryDaySummaries(summarizeSavedTrips(mergedRows))
     } catch {
       // The loaded trips remain usable if a metadata refresh is transiently unavailable.
     }
@@ -2881,7 +2856,9 @@ function App() {
   const loadHistorySummaries = useCallback(async (fromDate, toDate, label, { merge = false, selectFirstDay = false } = {}) => {
     setError('')
     setStatus(`Loading ${label} summary...`)
-    const rows = await fetchTripDaySummaries(settings.traccarScopeApiBaseUrl, { from: fromDate, to: toDate })
+    const result = await readCurrentRequest(historyLoadGate.current, () => fetchTripDaySummaries(settings.traccarScopeApiBaseUrl, { from: fromDate, to: toDate }))
+    if (!result.current) return null
+    const rows = result.value
     const mergedRows = merge ? mergeHistoryRows(historyDayRowsRef.current, rows) : rows
     const nextSummaries = summarizeSavedTrips(mergedRows)
     historyDayRowsRef.current = mergedRows
@@ -2913,6 +2890,7 @@ function App() {
     }
     let active = true
     setNotificationsLoading(true)
+    setNotificationsError('')
     fetchTripEventNotifications(settings.traccarScopeApiBaseUrl, { from, to })
       .then((rows) => {
         if (!active) return
@@ -2929,7 +2907,11 @@ function App() {
           return selected.has(dayKey)
         }))
       })
-      .catch(() => { if (active) setNotifications([]) })
+      .catch((err) => {
+        if (!active) return
+        setNotifications([])
+        setNotificationsError(err instanceof Error ? err.message : 'Unable to load notifications.')
+      })
       .finally(() => { if (active) setNotificationsLoading(false) })
     return () => { active = false }
   }, [notificationSelectedDays, notificationsRefreshNonce, settings.traccarScopeApiBaseUrl])
@@ -2937,6 +2919,7 @@ function App() {
   const loadHistoryMonth = useCallback(async (monthKey, { force = false, selectFirstDay = false } = {}) => {
     if (!/^\d{4}-\d{2}$/.test(monthKey)) return
     if (!force && loadedHistoryMonthsRef.current.has(monthKey)) return
+    const generation = historyLoadGate.current.current()
     setHistoryMonthLoadState((previous) => ({ ...previous, [monthKey]: 'loading' }))
     loadedHistoryMonthsRef.current.add(monthKey)
     const [year, month] = monthKey.split('-').map(Number)
@@ -2945,9 +2928,12 @@ function App() {
     through.setMilliseconds(-1)
     try {
       const result = await loadHistorySummaries(from, through, `${monthKey} history`, { merge: true, selectFirstDay })
+      if (!result || !historyLoadGate.current.isCurrent(generation)) return
       setHistoryMonthLoadState((previous) => ({ ...previous, [monthKey]: result.rows.length > 0 ? 'loaded' : 'empty' }))
     } catch (err) {
+      if (!historyLoadGate.current.isCurrent(generation)) return
       loadedHistoryMonthsRef.current.delete(monthKey)
+      setError(err instanceof Error ? err.message : 'Unable to load this history month.')
       setHistoryMonthLoadState((previous) => ({ ...previous, [monthKey]: 'error' }))
       throw err
     }
@@ -2977,12 +2963,13 @@ function App() {
   }, [bouncieStatus?.import, loadHistorySummaries])
 
   const loadHistoryRange = useCallback(
-    async (fromDate, toDate, label, { merge = false, pointOnly = false, requestId = null, onPositionsLoaded } = {}) => {
+    async (fromDate, toDate, label, { merge = false, pointOnly = false, isPointRequestCurrent = () => true, onPositionsLoaded } = {}) => {
       setError('')
       setStatus(`Loading ${label}...`)
 
       const workingDevices = devices.length > 0 ? devices : await loadDevices()
 
+      if (pointOnly && !isPointRequestCurrent()) return
       if (!workingDevices.length) {
         setHistoryByDevice({})
         setStatus('No devices found in Traccar')
@@ -3008,7 +2995,7 @@ function App() {
       )
 
       const nextHistory = Object.fromEntries(histories)
-      if (pointOnly && requestId !== pointLoadRequestRef.current) return
+      if (pointOnly && !isPointRequestCurrent()) return
       const pointCount = Object.values(nextHistory).reduce((acc, points) => acc + points.length, 0)
 
       setHistoryByDevice((previous) => {
@@ -3090,6 +3077,7 @@ function App() {
           }
         }
       }
+      if (pointOnly && !isPointRequestCurrent()) return
       if (label !== 'recent device history' || !initialEarlierHistoryStartedRef.current) {
         setStatus(`Loaded ${workingDevices.length} devices and ${pointCount} points; trips synchronized (${imported} new, ${skipped} already saved)`)
       }
@@ -3110,17 +3098,22 @@ function App() {
   useEffect(() => {
     const requestedDays = selectedDayKeys.length > 0 ? selectedDayKeys : (selectedDayKey ? [selectedDayKey] : [])
     if (requestedDays.length === 0 || daySummaries.length === 0) return
-    const daysToLoad = requestedDays.filter((dayKey) => !loadedPointDaysRef.current.has(dayKey))
-    if (daysToLoad.length === 0) return
-    const requestId = pointLoadRequestRef.current + 1
-    pointLoadRequestRef.current = requestId
-    daysToLoad.forEach((dayKey) => loadedPointDaysRef.current.add(dayKey))
-    Promise.all(daysToLoad.map((dayKey) => {
+    const cache = pointDayLoadsRef.current
+    requestedDays.forEach((dayKey) => {
+      const request = cache.reserve(dayKey)
+      if (!request) return
       const dayStart = new Date(`${dayKey}T00:00:00`)
       const dayEnd = new Date(`${dayKey}T23:59:59.999`)
-      return loadHistoryRange(dayStart, dayEnd, `day ${dayKey}`, { pointOnly: true, merge: true, requestId })
-    })).catch(() => {
-      daysToLoad.forEach((dayKey) => loadedPointDaysRef.current.delete(dayKey))
+      loadHistoryRange(dayStart, dayEnd, `day ${dayKey}`, {
+        pointOnly: true,
+        merge: true,
+        isPointRequestCurrent: () => cache.isCurrent(request),
+        onPositionsLoaded: () => cache.complete(request),
+      }).then(() => cache.fail(request)).catch((err) => {
+        if (!cache.fail(request)) return
+        setError(err instanceof Error ? err.message : `Unable to load points for ${dayKey}.`)
+        setStatus(`Could not load points for ${dayKey}. Select the day again to retry.`)
+      })
     })
   }, [daySummaries.length, loadHistoryRange, selectedDayKey, selectedDayKeys])
 
@@ -3157,22 +3150,32 @@ function App() {
   }, [apiFetch, settings.realtimeHours])
 
   const applyTimeRange = useCallback(async () => {
+    const generation = historyLoadGate.current.begin()
+    pointDayLoadsRef.current.invalidate()
+    clearTripSelection()
+    setHistoryIndexLoading(true)
+    setHistoryIndexError('')
+    setError('')
     setSelectedDayKey(null)
     setSelectedDayKeys([])
+    setBatchSelection({ days: [], tripIds: [], excludedTripIds: [] })
     setDaySelectionAnchor(null)
-    setShowTripsPanel(false)
     historyDayRowsRef.current = []
     setHistoryDayRows([])
     setHistoryDaySummaries([])
     loadedHistoryMonthsRef.current.clear()
     setHistoryMonthLoadState({})
+    setHistorySpan({ earliestStartedAt: null, latestEndedAt: null, tripCount: 0 })
+    setHistoryMonthSummaryByKey({})
 
     try {
       setStatus('Loading history index...')
-      const [span, monthSummaries] = await Promise.all([
+      const result = await readCurrentRequest(historyLoadGate.current, () => Promise.all([
         fetchTripHistorySpan(settings.traccarScopeApiBaseUrl),
         fetchTripHistoryMonthSummaries(settings.traccarScopeApiBaseUrl),
-      ])
+      ]))
+      if (!result.current) return
+      const [span, monthSummaries] = result.value
       setHistorySpan(span)
       setHistoryMonthSummaryByKey(Object.fromEntries(monthSummaries
         .filter((row) => row?.monthKey)
@@ -3194,10 +3197,15 @@ function App() {
 
       await loadHistoryMonth(latestMonthKey)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown history load error')
+      if (!historyLoadGate.current.isCurrent(generation)) return
+      const message = err instanceof Error ? err.message : 'Unknown history load error'
+      setError(message)
+      setHistoryIndexError(message)
       setStatus('History load failed')
+    } finally {
+      if (historyLoadGate.current.isCurrent(generation)) setHistoryIndexLoading(false)
     }
-  }, [loadHistoryMonth, settings.traccarScopeApiBaseUrl])
+  }, [clearTripSelection, loadHistoryMonth, settings.traccarScopeApiBaseUrl])
 
   useEffect(() => {
     if (startupLoadRef.current || vehicleAuth.checking) return
@@ -3228,7 +3236,8 @@ function App() {
       return keys
     }
     const recentDayKeys = dayKeysInRange(recentFrom, through)
-    recentDayKeys.forEach((dayKey) => loadedPointDaysRef.current.add(dayKey))
+    const cache = pointDayLoadsRef.current
+    const recentRequests = recentDayKeys.map((dayKey) => cache.reserve(dayKey, { selection: false })).filter(Boolean)
 
     let earlierHistoryLoadStarted = false
     const startEarlierHistory = () => {
@@ -3237,10 +3246,13 @@ function App() {
       initialEarlierHistoryStartedRef.current = true
       const earlierThrough = new Date(recentFrom.getTime() - 1)
       const earlierDayKeys = dayKeysInRange(historyFrom, earlierThrough)
-      earlierDayKeys.forEach((dayKey) => loadedPointDaysRef.current.add(dayKey))
+      const earlierRequests = earlierDayKeys.map((dayKey) => cache.reserve(dayKey, { selection: false })).filter(Boolean)
       window.setTimeout(() => {
-        loadHistoryRange(historyFrom, earlierThrough, 'earlier device history', { merge: true }).catch(() => {
-          earlierDayKeys.forEach((dayKey) => loadedPointDaysRef.current.delete(dayKey))
+        loadHistoryRange(historyFrom, earlierThrough, 'earlier device history', {
+          merge: true,
+          onPositionsLoaded: () => earlierRequests.forEach((request) => cache.complete(request)),
+        }).then(() => earlierRequests.forEach((request) => cache.fail(request))).catch(() => {
+          earlierRequests.forEach((request) => cache.fail(request))
           setStatus('Recent history is available, but earlier positions could not be loaded.')
         })
       }, 350)
@@ -3248,9 +3260,12 @@ function App() {
 
     loadHistoryRange(recentFrom, through, 'recent device history', {
       merge: true,
-      onPositionsLoaded: startEarlierHistory,
-    }).catch(() => {
-      recentDayKeys.forEach((dayKey) => loadedPointDaysRef.current.delete(dayKey))
+      onPositionsLoaded: () => {
+        recentRequests.forEach((request) => cache.complete(request))
+        startEarlierHistory()
+      },
+    }).then(() => recentRequests.forEach((request) => cache.fail(request))).catch(() => {
+      recentRequests.forEach((request) => cache.fail(request))
       initialCurrentLocationsLoadedRef.current = false
     })
   }, [devices.length, loadHistoryRange])
@@ -3282,17 +3297,21 @@ function App() {
       return
     }
 
-    const bounds = L.latLngBounds(trip.points)
-    mapAutoFitRef.current = true
-    programmaticMapMoveRef.current = true
-    fitBoundsWithPanelOffset(map, bounds, [30, 30])
-    setTimeout(() => {
-      programmaticMapMoveRef.current = false
-    }, 0)
     const selection = tripSelectionGate.current.begin()
     const isCurrent = () => tripSelectionGate.current.isCurrent(selection)
+    const bounds = L.latLngBounds(trip.points)
+    mapAutoFitRef.current = false
+    window.requestAnimationFrame(() => {
+      if (mapRef.current !== map || !isCurrent()) return
+      programmaticMapMoveRef.current = true
+      map.invalidateSize({ pan: false, debounceMoveend: true })
+      mapAutoFitRef.current = true
+      fitBoundsWithPanelOffset(map, bounds, [30, 30], isCompactLayout)
+      window.setTimeout(() => { programmaticMapMoveRef.current = false }, 0)
+    })
     setSelectedTripId(trip.tripId)
     setSelectedTrip(trip)
+    setDeviceListSelectedId(trip.deviceId)
     setStatusDeviceId(trip.deviceId)
     const firstPoint = trip.points[0]
     const firstPointMetadata = Array.isArray(firstPoint) ? (firstPoint[2] || {}) : firstPoint
@@ -3384,6 +3403,8 @@ function App() {
         }
       }
 
+      if (!isCurrent()) return
+
       // Enable writes only after this selection's complete metadata has loaded.
       setSelectedBackendTripId(savedTrip.id)
       if (isCurrent() && routeRows.length > 0) {
@@ -3419,7 +3440,7 @@ function App() {
     } finally {
       if (isCurrent()) setTripEditorLoading(false)
     }
-  }, [activeBindings, devices, namedPlaces, settings.movementThresholdM, settings.traccarScopeApiBaseUrl])
+  }, [activeBindings, devices, isCompactLayout, namedPlaces, settings.movementThresholdM, settings.traccarScopeApiBaseUrl])
 
   const editSelectedTrip = useCallback(async (action, successMessage, reloadTags = false) => {
     if (!selectedBackendTripId || tripEditorLoading || tripWritePending.current) return
@@ -4168,8 +4189,10 @@ function App() {
   const graphProfile = graphGroups?.[0]
     ? (graphGroups[0].profileContext || profileContextFor({ vehicleId: graphGroups[0].vehicleId, deviceId: graphGroups[0].deviceId })).profile
     : null
-  const renderHistoryPanel = (floating = true) => <HistoryNavigator
+  const renderHistoryPanel = (floating = true, compact = false, onTripSelected = () => {}) => <HistoryContent
     daySummaries={daySummaries}
+    loading={historyIndexLoading}
+    error={historyIndexError}
     monthKeys={historyMonthKeys}
     monthSummaryByKey={historyMonthSummaryByKey}
     monthLoadState={historyMonthLoadState}
@@ -4178,30 +4201,214 @@ function App() {
     setSelectedDayKey={selectDay}
     refreshHistory={applyTimeRange}
     loadMonth={loadHistoryMonth}
-    onReportDays={openSelectedDaysGraph}
+    onReportDays={(selectionMode) => openSelectedDaysGraph(selectionMode || batchSelection.days.length > 0 || batchSelection.tripIds.length > 0 ? 'batch' : undefined)}
+    daySelectionState={(dayKey) => {
+      const dayTrips = trips.filter((trip) => trip.dayKey === dayKey)
+      const count = dayTrips.filter((trip) => isTripSelected(batchSelection, trip)).length
+      if (count > 0 && count < dayTrips.length) return 'mixed'
+      return dayTrips.length > 0 ? count === dayTrips.length : batchSelection.days.includes(dayKey)
+    }}
+    hasBatchSelection={trips.some((trip) => isTripSelected(batchSelection, trip))}
+    onToggleDay={(dayKey) => {
+      setBatchSelection((previous) => toggleDaySelection(previous, dayKey, trips))
+      if (!selectedDayKeys.includes(dayKey) && selectedDayKey !== dayKey) selectDay(dayKey, { ctrlKey: true })
+    }}
+    onReportDay={openSelectedDaysGraph}
+    canGraphDay={(dayKey) => trips.some((trip) => trip.dayKey === dayKey && trip.points?.length > 0)}
+    renderDayTrips={(dayKey, selectionMode) => renderDayTrips(dayKey, onTripSelected, selectionMode)}
     displayUnits={settings.displayUnits}
     floating={floating}
-    referenceRef={tripFlyoutRefs.setReference}
-    showTripsButton={!showTripsPanel && Boolean(selectedDayKey || selectedDayKeys.length > 0)}
-    onShowTrips={() => setShowTripsPanel(true)}
+    embedded={compact}
+    resizable={false}
     height={historyPanelPosition?.height}
     onHeightChange={(height) => setHistoryPanelPosition((current) => ({ ...current, height }))}
     onHeightCommit={(height) => persistMapKeyPosition('historyPanelPosition', 'history-panel-position', { ...historyPanelPosition, height }, setHistoryPanelPosition)}
   />
-  const renderNotificationsPanel = (floating = true) => <NotificationsPanel
+  const renderNotificationsPanel = (floating = true, embedded = false) => <NotificationsPanel
     notifications={notifications}
     selectedTripEvents={selectedTripEvents}
     onSelectTripEvent={focusTripEvent}
     loading={notificationsLoading}
+    error={notificationsError}
+    onRetry={() => setNotificationsRefreshNonce((value) => value + 1)}
     rangeLabel={notificationsRangeLabel}
     displayUnits={settings.displayUnits}
     floating={floating}
+    embedded={embedded}
     height={notificationsPanelPosition?.height}
     onHeightChange={(height) => setNotificationsPanelPosition((current) => ({ ...current, height }))}
     onHeightCommit={(height) => persistMapKeyPosition('notificationsPanelPosition', 'notifications-panel-position', { ...notificationsPanelPosition, height }, setNotificationsPanelPosition)}
   />
-  const savedTripPanelPosition = tripFlyoutTemporaryPosition || tripFlyoutPosition
-  const hasSavedTripPanelPosition = Number.isFinite(savedTripPanelPosition?.left) && Number.isFinite(savedTripPanelPosition?.top)
+  const renderMobileDevices = ({ onDeviceSelected }) => <DeviceList
+    devices={devices}
+    deviceVisibility={deviceVisibility}
+    setDeviceVisibility={persistDeviceVisibility}
+    deviceColors={deviceColors}
+    selectedDeviceId={deviceListSelectedId}
+    onSelectDevice={(deviceId) => {
+      selectDevice(deviceId)
+      onDeviceSelected()
+    }}
+    expanded
+    onExpandedChange={() => {}}
+  />
+  const renderDayTrips = (dayKey, onTripSelected, selectionMode) => <TripContent
+      selectionMode={selectionMode}
+      isTripSelected={(trip) => isTripSelected(batchSelection, trip)}
+      onToggleTrip={(trip) => setBatchSelection((previous) => toggleTripSelection(previous, trip))}
+      visibleTrips={trips}
+      selectedDayKey={dayKey}
+      selectedDayKeys={[dayKey]}
+      devices={devices}
+      selectedTripId={selectedTripId}
+      focusTrip={(trip) => {
+        onTripSelected()
+        focusTrip(trip)
+      }}
+      selectedTrip={selectedTrip?.dayKey === dayKey ? selectedTrip : null}
+      selectedTripMaxSpeedMph={selectedTripMaxSpeedMph}
+      displayUnits={settings.displayUnits}
+      tripEditorLoading={tripEditorLoading}
+      tripEditorDisabled={!selectedBackendTripId || tripEditorLoading || tripEditorBusy}
+      tripEditorStatus={tripEditorStatus}
+      tripEditorTags={tripEditorTags}
+      availableTripTags={tripEditorAvailableTags}
+      tagToAdd={tagToAdd}
+      setTagToAdd={setTagToAdd}
+      addSelectedTripTag={addSelectedTripTag}
+      removeSelectedTripTag={removeSelectedTripTag}
+      noteDraft={tripNoteDraft}
+      setNoteDraft={setTripNoteDraft}
+      saveSelectedTripNote={saveSelectedTripNote}
+      openTripGraph={openTripGraph}
+    />
+  const renderTrips = ({ onTripSelected = () => {}, desktop = false } = {}) => renderHistoryPanel(desktop, !desktop, onTripSelected)
+  const renderMobileStatus = () => <div className="scope-status-content">
+    <StatusCard status={status} sessionState={sessionState} error={error} />
+    <VehicleStatusCard
+      position={null}
+      onPositionChange={() => {}}
+      onPositionCommit={() => {}}
+      collapsed={vehicleStatusCollapsed}
+      onCollapsedChange={persistVehicleStatusCollapsed}
+      device={statusDevice}
+      vehicleId={statusVehicleId}
+      point={statusPoint}
+      historyPoints={statusDevice ? (historyByDevice[statusDevice.id] || []) : []}
+      profile={profileContextWithSourceMappings({ vehicleId: statusVehicleId, deviceId: statusDevice?.id, at: statusPoint?.timestamp }).profile}
+      cardFields={statusCardFieldsByVehicle[statusVehicleId] || DEFAULT_STATUS_CARD_FIELDS}
+    />
+  </div>
+  const mobileMoreItems = [
+    { label: 'Status', content: renderMobileStatus() },
+    { label: 'Notifications', onSelect: () => setActiveTask('notifications') },
+    { label: 'Reports and data transfer', onSelect: () => setActiveTask('data-transfer') },
+    { label: 'Settings and Named Places', description: 'Settings work best on a larger screen; this window scrolls on mobile.', onSelect: () => setIsSettingsOpen(true) },
+    { label: 'My profile', onSelect: () => setActiveTask('profile') },
+    { label: 'Sign out', onSelect: logoutVehicleSession },
+  ]
+  const mobileMore = <MoreMenu items={mobileMoreItems} />
+  const dataTransferContent = <>
+    <Suspense fallback={<p role="status">Loading data transfer tools…</p>}><ExportPanel
+      devices={devices}
+      exportDeviceId={exportDeviceId}
+      setExportDeviceId={setExportDeviceId}
+      exportRangePreset={exportRangePreset}
+      setExportRangePreset={setExportRangePreset}
+      exportStartDate={exportStartDate}
+      setExportStartDate={setExportStartDate}
+      exportEndDate={exportEndDate}
+      setExportEndDate={setExportEndDate}
+      exportHeaderMode={exportHeaderMode}
+      setExportHeaderMode={setExportHeaderMode}
+      exportRangeData={exportRangeData}
+      exportMessage={exportMessage}
+      importDataFile={importDataFile}
+      dataImportMessage={dataImportMessage}
+    /></Suspense>
+    {vehicleAuth.role === 'admin' && <section className="operations-report-card">
+      <h3>Admin / Operations Reports</h3>
+      <div className="operations-report-buttons">
+        {['daily', 'growth', 'maintenance', 'retention-preview'].map((report) => (
+          <button key={report} type="button" className={`small secondary report-button${operationsReport?.report === report ? ' active' : ''}`} disabled={operationsReportBusy} onClick={() => runOperationsReport(report)}>
+            {report === 'retention-preview' ? 'Retention Preview' : `${report[0].toUpperCase()}${report.slice(1)} Report`}
+          </button>
+        ))}
+      </div>
+      {operationsReport && (
+        <div className="operations-report-output">
+          <div className="operations-report-toolbar">
+            <strong>{operationsReport.report === 'retention-preview' ? 'Retention Preview' : `${operationsReport.report[0].toUpperCase()}${operationsReport.report.slice(1)} Report`}</strong>
+            <span>Generated {new Date(operationsReport.generatedAtUtc).toLocaleString()}</span>
+            <button type="button" className="small secondary" onClick={downloadOperationsReport}>Download JSON</button>
+          </div>
+          <table className="operations-report-table">
+            <thead><tr>{Object.keys(operationsReport.rows?.[0] || {}).map((key) => <th key={key}>{key.replaceAll('_', ' ')}</th>)}</tr></thead>
+            <tbody>{(operationsReport.rows || []).map((row, rowIndex) => (
+              <tr key={rowIndex}>{Object.entries(row).map(([key, value]) => <td key={key}>{value == null ? '—' : typeof value === 'number' ? value.toLocaleString() : String(value)}</td>)}</tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )}
+    </section>}
+  </>
+  const registerProfileCloseAttempt = useCallback((attempt) => {
+    profileCloseAttemptRef.current = attempt
+  }, [])
+  const registerGraphEditorCloseAttempt = useCallback((attempt) => {
+    graphEditorCloseAttemptRef.current = attempt
+  }, [])
+  const closeGraph = useCallback(() => {
+    const closeEditor = graphEditorCloseAttemptRef.current
+    if (closeEditor && !closeEditor()) return
+    graphEditorCloseAttemptRef.current = null
+    setGraphGroups(null)
+    setActiveTask(null)
+  }, [])
+  const renderGraphViewer = (embedded = false) => graphGroups && <Suspense fallback={<p role="status">Loading telemetry graph…</p>}><TelemetryGraphViewer embedded={embedded} groups={graphGroups} profile={graphProfile} fetchGpsPositions={fetchGpsPositionsForExport} namedPlaces={namedPlaces} vehicleMetadata={bindingVehicles.find((vehicle) => vehicle.id === graphGroups[0]?.vehicleId)} deviceMetadata={devices.find((device) => Number(device.id) === Number(graphGroups[0]?.deviceId))} vehicleMetadataList={bindingVehicles} deviceMetadataList={devices} traccarServerVersion={traccarServer?.baseUrl === settings.traccarScopeApiBaseUrl ? traccarServer.version : ''} title={graphGroups.length === 1 ? 'Trip Telemetry Graph' : 'Selected Days Telemetry Graph'} profileOptions={profileOptions} profileVehicleCounts={Object.fromEntries(profileOptions.map((item) => [item.id, bindingVehicles.filter((vehicle) => vehicle.id === item.id).length]))} userName={vehicleAuth.username || ''} isAuthenticated={vehicleAuth.authenticated} canEditSharedProfiles={!vehicleAuth.enabled || (vehicleAuth.authenticated && vehicleAuth.role === 'admin')} traccarScopeApiBaseUrl={settings.traccarScopeApiBaseUrl} onSaveSharedMapping={saveGraphFieldMapping} onSourceMappingSaved={updateSourceMappingRevision} resolvePointProfileContext={(group, at) => profileContextWithSourceMappings({ vehicleId: group.vehicleId, deviceId: group.deviceId, at })} registerEditorCloseAttempt={registerGraphEditorCloseAttempt} onClose={closeGraph} /></Suspense>
+  const activeTaskPresentation = activeTask === 'notifications'
+    ? { title: 'Notifications', content: renderNotificationsPanel(false, true) }
+    : activeTask === 'profile'
+      ? { title: 'My profile', desktop: true, content: <Suspense fallback={<p role="status">Loading profile…</p>}><UserProfilePanel embedded registerCloseAttempt={registerProfileCloseAttempt} baseUrl={settings.traccarScopeApiBaseUrl} devices={devices} onClose={() => setActiveTask(null)} /></Suspense> }
+      : activeTask === 'data-transfer'
+        ? { title: 'Import / Export Data', desktop: true, content: dataTransferContent }
+        : graphGroups
+        ? { title: graphGroups.length === 1 ? 'Trip Telemetry Graph' : 'Selected Days Telemetry Graph', desktop: true, wide: true, content: renderGraphViewer(true) }
+        : null
+  const closeTask = () => {
+    if (activeTask === 'profile' && profileCloseAttemptRef.current) {
+      profileCloseAttemptRef.current()
+      return
+    }
+    if (!activeTask && graphGroups) {
+      closeGraph()
+      return
+    }
+    setActiveTask(null)
+  }
+  const deviceName = statusDevice?.name || devices.find((device) => device.id === deviceListSelectedId)?.name || ''
+  const accountControls = <div className="global-auth-controls" ref={userMenuRef}>
+    {SHOW_EXPERIMENTAL_ASK && <button type="button" className="global-ask-vehicles is-experimental" title="Experimental feature enabled only in this development browser" onClick={() => setIsVehicleQueryOpen(true)}>Ask</button>}
+    {vehicleAuth.enabled && vehicleAuth.authenticated && <>
+      <button
+        ref={userMenuButtonRef}
+        type="button"
+        className="global-auth-username"
+        aria-haspopup="menu"
+        aria-expanded={isUserMenuOpen}
+        aria-controls="global-user-menu"
+        onClick={() => setIsUserMenuOpen((open) => !open)}
+      >
+        <span>{vehicleAuth.username}</span>
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 6 5 5 5-5" /></svg>
+      </button>
+      {isUserMenuOpen && <div className="global-user-menu" id="global-user-menu" role="menu">
+        <button type="button" role="menuitem" onClick={() => { setIsUserMenuOpen(false); setActiveTask('profile') }}>My profile</button>
+        <div className="global-user-menu-divider" />
+        <button type="button" role="menuitem" className="global-user-menu-signout" onClick={() => { setIsUserMenuOpen(false); setActiveTask(null); logoutVehicleSession() }}>Sign out</button>
+      </div>}
+    </>}
+  </div>
 
   if (vehicleAuth.checking) {
     return <main className="auth-screen"><div className="auth-card"><h1>Traccar Scope</h1><p>Checking application access…</p></div></main>
@@ -4213,30 +4420,33 @@ function App() {
 
   return (
     <main className="app-shell">
-      <div className="global-auth-controls" ref={userMenuRef}>
-        {SHOW_EXPERIMENTAL_ASK && <button type="button" className="global-ask-vehicles is-experimental" title="Experimental feature enabled only in this development browser" onClick={() => setIsVehicleQueryOpen(true)}>Ask</button>}
-        {vehicleAuth.enabled && vehicleAuth.authenticated && <>
-        <button
-          ref={userMenuButtonRef}
-          type="button"
-          className="global-auth-username"
-          aria-haspopup="menu"
-          aria-expanded={isUserMenuOpen}
-          aria-controls="global-user-menu"
-          onClick={() => setIsUserMenuOpen((open) => !open)}
-        >
-          <span>{vehicleAuth.username}</span>
-          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 6 5 5 5-5" /></svg>
-        </button>
-        {isUserMenuOpen && <div className="global-user-menu" id="global-user-menu" role="menu">
-          <button type="button" role="menuitem" onClick={() => { setIsUserMenuOpen(false); setIsUserProfileOpen(true) }}>My profile</button>
-          <div className="global-user-menu-divider" />
-          <button type="button" role="menuitem" className="global-user-menu-signout" onClick={() => { setIsUserMenuOpen(false); setIsUserProfileOpen(false); logoutVehicleSession() }}>Sign out</button>
-        </div>}
-        </>}
-      </div>
+      <AppLayout
+        map={<MapContainer elementRef={mapElementRef} className="scope-map-canvas" />}
+        mapOverlay={{
+          onZoomIn: () => mapRef.current?.zoomIn(),
+          onZoomOut: () => mapRef.current?.zoomOut(),
+          onFit: resetMapAutoFit,
+          isAutoFitPaused,
+          onCancelLocation: () => setIsPickingLocation(false),
+        }}
+        mapPicking={isPickingLocation}
+        deviceName={deviceName}
+        connectionState={sessionState}
+        pointTimestamp={statusPoint?.timestamp}
+        announcement={error}
+        devices={renderMobileDevices}
+        trips={renderTrips}
+        status={renderMobileStatus()}
+        more={mobileMore}
+        accountControls={accountControls}
+        onCompactChange={setIsCompactLayout}
+        layoutActionsRef={layoutActionsRef}
+        task={activeTaskPresentation}
+        onTaskClose={closeTask}
+        desktopContent={
+          <>
+      {!isCompactLayout && accountControls}
       {SHOW_EXPERIMENTAL_ASK && isVehicleQueryOpen && createPortal(<Suspense fallback={null}><AskVehiclesPanel baseUrl={settings.traccarScopeApiBaseUrl} displayUnits={settings.displayUnits} onClose={() => setIsVehicleQueryOpen(false)} /></Suspense>, document.body)}
-      {isUserProfileOpen && createPortal(<Suspense fallback={null}><UserProfilePanel baseUrl={settings.traccarScopeApiBaseUrl} devices={devices} onClose={() => setIsUserProfileOpen(false)} /></Suspense>, document.body)}
         {importRecovery && createPortal((
           <section className="import-conflict-badge map-import-conflict" role="status" aria-live="polite">
             <div className="import-conflict-badge-header">
@@ -4289,44 +4499,8 @@ function App() {
           </section>
         ), document.body)}
 
-        {showTripsPanel && createPortal(<TripPanel
-          floatingRef={tripFlyoutRefs.setFloating}
-          style={hasSavedTripPanelPosition
-            ? { position: 'fixed', left: `${savedTripPanelPosition.left}px`, top: `${savedTripPanelPosition.top}px` }
-            : tripFlyoutStyles}
-          position={hasSavedTripPanelPosition ? savedTripPanelPosition : null}
-          onPositionChange={(position) => { setTripFlyoutTemporaryPosition(null); setTripFlyoutPosition((current) => ({ ...current, ...position })) }}
-          onPositionCommit={(position) => commitMovableWindowPosition('trips', position, () => persistTripFlyoutPosition({ ...position, ...(tripFlyoutPosition?.height ? { height: tripFlyoutPosition.height } : {}) }))}
-          onHide={() => setShowTripsPanel(false)}
-          visibleTrips={visibleTrips}
-          selectedDayKey={selectedDayKey}
-          selectedDayKeys={selectedDayKeys}
-          devices={devices}
-          selectedTripId={selectedTripId}
-          focusTrip={focusTrip}
-          selectedTrip={selectedTrip}
-          selectedTripMaxSpeedMph={selectedTripMaxSpeedMph}
-          displayUnits={settings.displayUnits}
-          tripEditorLoading={tripEditorLoading}
-          tripEditorDisabled={!selectedBackendTripId || tripEditorLoading || tripEditorBusy}
-          tripEditorStatus={tripEditorStatus}
-          tripEditorTags={tripEditorTags}
-          availableTripTags={tripEditorAvailableTags}
-          tagToAdd={tagToAdd}
-          setTagToAdd={setTagToAdd}
-          addSelectedTripTag={addSelectedTripTag}
-          removeSelectedTripTag={removeSelectedTripTag}
-          noteDraft={tripNoteDraft}
-          setNoteDraft={setTripNoteDraft}
-          saveSelectedTripNote={saveSelectedTripNote}
-          openTripGraph={openTripGraph}
-          panelHeight={tripFlyoutPosition?.height}
-          onPanelHeightChange={(height) => setTripFlyoutPosition((current) => ({ ...current, height }))}
-          onPanelHeightCommit={(height) => persistTripFlyoutPosition({ ...tripFlyoutPosition, height })}
-        />, document.body)}
-
-      {createPortal(<MovablePanel className="floating-history-panel" position={historyPanelPosition} onPositionChange={(position) => setHistoryPanelPosition((current) => ({ ...current, ...position }))} onPositionCommit={(position) => commitMovableWindowPosition('history', position, () => persistMapKeyPosition('historyPanelPosition', 'history-panel-position', { ...historyPanelPosition, ...position }, setHistoryPanelPosition))}>{renderHistoryPanel(true)}</MovablePanel>, document.body)}
-      {createPortal(<MovablePanel className="floating-notifications-panel" position={notificationsPanelPosition} onPositionChange={(position) => setNotificationsPanelPosition((current) => ({ ...current, ...position }))} onPositionCommit={(position) => commitMovableWindowPosition('notifications', position, () => persistMapKeyPosition('notificationsPanelPosition', 'notifications-panel-position', { ...notificationsPanelPosition, ...position }, setNotificationsPanelPosition))}>{renderNotificationsPanel(true)}</MovablePanel>, document.body)}
+      {!isCompactLayout && createPortal(<MovablePanel className="floating-history-panel" position={historyPanelPosition} onPositionChange={(position) => setHistoryPanelPosition((current) => ({ ...current, ...position }))} onPositionCommit={(position) => commitMovableWindowPosition('history', position, () => persistMapKeyPosition('historyPanelPosition', 'history-panel-position', { ...historyPanelPosition, ...position }, setHistoryPanelPosition))}><TripsWorkspace onHeightChange={(height) => setHistoryPanelPosition((current) => ({ ...current, height }))} onHeightCommit={(height) => persistMapKeyPosition('historyPanelPosition', 'history-panel-position', { ...historyPanelPosition, height }, setHistoryPanelPosition)}>{renderTrips({ desktop: true })}</TripsWorkspace></MovablePanel>, document.body)}
+      {!isCompactLayout && createPortal(<MovablePanel className="floating-notifications-panel" position={notificationsPanelPosition} onPositionChange={(position) => setNotificationsPanelPosition((current) => ({ ...current, ...position }))} onPositionCommit={(position) => commitMovableWindowPosition('notifications', position, () => persistMapKeyPosition('notificationsPanelPosition', 'notifications-panel-position', { ...notificationsPanelPosition, ...position }, setNotificationsPanelPosition))}>{renderNotificationsPanel(true)}</MovablePanel>, document.body)}
 
       <section className={`map-panel${isPickingLocation ? ' map-location-picker' : ''}`}>
         <h1 className="map-app-title">Traccar Scope</h1>
@@ -4335,7 +4509,7 @@ function App() {
           <strong>Track locations</strong>
           {[['track_start', 'Start', '#22c55e'], ['track_finish', 'Finish', '#ef4444'], ['track_start_finish', 'Start / finish', '#f59e0b'], ['track_split', 'Split', '#38bdf8'], ['drag_start', 'Drag start', '#a78bfa'], ['drag_finish', 'Drag finish', '#f472b6'], ['track_other', 'Other', '#94a3b8']].map(([type, label, color]) => namedPlaces.some((place) => place.placeType === type) && <span key={type}><i style={{ backgroundColor: color }} />{label}</span>)}
         </MovableMapKey>}
-        {!hiddenMapPanels.status && <div className="map-status-card">
+        {!isCompactLayout && !hiddenMapPanels.status && <div className="map-status-card">
           <button type="button" className="map-panel-close" title="Hide status panel" aria-label="Hide status panel" onClick={() => setHiddenMapPanels((current) => ({ ...current, status: true }))}>×</button>
           <StatusCard
             status={status}
@@ -4344,19 +4518,19 @@ function App() {
           />
         </div>}
         </div>
-        <div className="map-device-list">
+        {!isCompactLayout && <div className="map-device-list">
           <DeviceList
             devices={devices}
             deviceVisibility={deviceVisibility}
             setDeviceVisibility={persistDeviceVisibility}
             deviceColors={deviceColors}
             selectedDeviceId={deviceListSelectedId}
-            onSelectDevice={setDeviceListSelectedId}
+            onSelectDevice={selectDevice}
             expanded={deviceListExpanded}
             onExpandedChange={persistDeviceListExpanded}
           />
-        </div>
-        <VehicleStatusCard
+        </div>}
+        {!isCompactLayout && <VehicleStatusCard
           style={vehicleStatusPosition
             ? { position: 'fixed', left: `${vehicleStatusPosition.left}px`, top: `${vehicleStatusPosition.top}px`, right: 'auto' }
             : undefined}
@@ -4371,10 +4545,8 @@ function App() {
           historyPoints={statusDevice ? (historyByDevice[statusDevice.id] || []) : []}
       profile={profileContextWithSourceMappings({ vehicleId: statusVehicleId, deviceId: statusDevice?.id, at: statusPoint?.timestamp }).profile}
           cardFields={statusCardFieldsByVehicle[statusVehicleId] || DEFAULT_STATUS_CARD_FIELDS}
-        />
+        />}
         <VehicleStatsPanel baseUrl={settings.traccarScopeApiBaseUrl} vehicleId={statusVehicleId || null} traccarApi={apiFetch} profileMap={profileMap} bindings={activeBindings} profileAssignments={historicalProfileAssignments} sourceMappingRevisionsByDevice={sourceMappingRevisionsByDevice} displayUnits={settings.displayUnits} updateSetting={updateSetting} />
-        <div ref={mapElementRef} className="map-canvas" />
-
         {!hiddenMapPanels.speedBands && <MovableMapKey className="speed-band-key" closeLabel="Hide speed bands key" onHide={() => setHiddenMapPanels((current) => ({ ...current, speedBands: true }))} position={speedBandKeyPosition} onPositionChange={setSpeedBandKeyPosition} onPositionCommit={(position) => commitMovableWindowPosition('speedBands', position, () => persistMapKeyPosition('speedBandKeyPosition', 'speed-bands-key-position', position, setSpeedBandKeyPosition))}>
           <div aria-label="Speed bands" title="Double-click to edit speed bands" onDoubleClick={() => { localStorage.setItem('openSpeedBandsPanel', 'true'); setIsSettingsOpen(true) }}>
             <strong>Speed bands</strong>
@@ -4386,6 +4558,7 @@ function App() {
 
       {isSettingsOpen && (
         <Suspense fallback={null}><SettingsModal
+          fallbackFocusRef={layoutActionsRef}
           isPickingLocation={isPickingLocation}
           startLocationPicker={startLocationPicker}
           settings={settings}
@@ -4545,62 +4718,10 @@ function App() {
         /></Suspense>
       )}
 
-      {isDataTransferOpen && (
-        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
-          if (event.target === event.currentTarget) setIsDataTransferOpen(false)
-        }}>
-          <div className="data-transfer-modal" role="dialog" aria-modal="true" aria-label="Import and export data">
-            <div className="modal-header">
-              <h2>Import / Export Data</h2>
-              <button type="button" className="small secondary" onClick={() => setIsDataTransferOpen(false)} aria-label="Close">×</button>
-            </div>
-            <Suspense fallback={null}><ExportPanel
-              devices={devices}
-              exportDeviceId={exportDeviceId}
-              setExportDeviceId={setExportDeviceId}
-              exportRangePreset={exportRangePreset}
-              setExportRangePreset={setExportRangePreset}
-              exportStartDate={exportStartDate}
-              setExportStartDate={setExportStartDate}
-              exportEndDate={exportEndDate}
-              setExportEndDate={setExportEndDate}
-              exportHeaderMode={exportHeaderMode}
-              setExportHeaderMode={setExportHeaderMode}
-              exportRangeData={exportRangeData}
-              exportMessage={exportMessage}
-              importDataFile={importDataFile}
-              dataImportMessage={dataImportMessage}
-            /></Suspense>
-            <section className="operations-report-card">
-              <h3>Admin / Operations Reports</h3>
-              <div className="operations-report-buttons">
-                {['daily', 'growth', 'maintenance', 'retention-preview'].map((report) => (
-                  <button key={report} type="button" className={`small secondary report-button${operationsReport?.report === report ? ' active' : ''}`} disabled={operationsReportBusy} onClick={() => runOperationsReport(report)}>
-                    {report === 'retention-preview' ? 'Retention Preview' : `${report[0].toUpperCase()}${report.slice(1)} Report`}
-                  </button>
-                ))}
-              </div>
-              {operationsReport && (
-                <div className="operations-report-output">
-                  <div className="operations-report-toolbar">
-                    <strong>{operationsReport.report === 'retention-preview' ? 'Retention Preview' : `${operationsReport.report[0].toUpperCase()}${operationsReport.report.slice(1)} Report`}</strong>
-                    <span>Generated {new Date(operationsReport.generatedAtUtc).toLocaleString()}</span>
-                    <button type="button" className="small secondary" onClick={downloadOperationsReport}>Download JSON</button>
-                  </div>
-                  <table className="operations-report-table">
-                    <thead><tr>{Object.keys(operationsReport.rows?.[0] || {}).map((key) => <th key={key}>{key.replaceAll('_', ' ')}</th>)}</tr></thead>
-                    <tbody>{(operationsReport.rows || []).map((row, rowIndex) => (
-                      <tr key={rowIndex}>{Object.entries(row).map(([key, value]) => <td key={key}>{value == null ? '—' : typeof value === 'number' ? value.toLocaleString() : String(value)}</td>)}</tr>
-                    ))}</tbody>
-                  </table>
-                </div>
-              )}
-            </section>
-          </div>
-        </div>
-      )}
 
-      {graphGroups && <Suspense fallback={null}><TelemetryGraphViewer groups={graphGroups} profile={graphProfile} fetchGpsPositions={fetchGpsPositionsForExport} namedPlaces={namedPlaces} vehicleMetadata={bindingVehicles.find((vehicle) => vehicle.id === graphGroups[0]?.vehicleId)} deviceMetadata={devices.find((device) => Number(device.id) === Number(graphGroups[0]?.deviceId))} vehicleMetadataList={bindingVehicles} deviceMetadataList={devices} traccarServerVersion={traccarServer?.baseUrl === settings.traccarScopeApiBaseUrl ? traccarServer.version : ''} title={graphGroups.length === 1 ? 'Trip Telemetry Graph' : 'Selected Days Telemetry Graph'} profileOptions={profileOptions} profileVehicleCounts={Object.fromEntries(profileOptions.map((item) => [item.id, bindingVehicles.filter((vehicle) => vehicle.id === item.id).length]))} userName={vehicleAuth.username || ''} isAuthenticated={vehicleAuth.authenticated} canEditSharedProfiles={!vehicleAuth.enabled || (vehicleAuth.authenticated && vehicleAuth.role === 'admin')} traccarScopeApiBaseUrl={settings.traccarScopeApiBaseUrl} onSaveSharedMapping={saveGraphFieldMapping} onSourceMappingSaved={updateSourceMappingRevision} resolvePointProfileContext={(group, at) => profileContextWithSourceMappings({ vehicleId: group.vehicleId, deviceId: group.deviceId, at })} onClose={() => setGraphGroups(null)} /></Suspense>}
+          </>
+        }
+      />
     </main>
   )
 }

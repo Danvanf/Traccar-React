@@ -1,0 +1,615 @@
+.app-shell {
+  position: relative;
+  display: block;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.scope-layout {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--map-bg);
+  color: var(--panel-text);
+}
+
+.scope-workspace { display: contents; }
+
+.scope-map-area {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.scope-map-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.scope-map-area[data-location-picker='true'],
+.scope-map-area[data-location-picker='true'] .leaflet-interactive { cursor: crosshair; }
+
+.scope-desktop-content {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  pointer-events: none;
+}
+
+.scope-desktop-content > * { pointer-events: auto; }
+.map-panel { background: transparent; pointer-events: none; }
+.map-panel > * { pointer-events: auto; }
+.map-panel.map-location-picker { position: relative; inset: auto; z-index: auto; }
+
+@media (max-width: 63.999rem) {
+  .app-shell {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    padding: 0;
+  }
+
+  .scope-layout {
+    position: fixed;
+    inset: 0;
+    height: 100vh;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    isolation: isolate;
+    box-sizing: border-box;
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+
+  .scope-layout *,
+  .scope-layout *::before,
+  .scope-layout *::after { box-sizing: border-box; }
+
+  .scope-topbar {
+    position: relative;
+    z-index: 3;
+    flex: 0 0 auto;
+    min-height: calc(56px + env(safe-area-inset-top, 0px));
+    padding: calc(8px + env(safe-area-inset-top, 0px)) 12px 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--panel-bg);
+    border-bottom: 1px solid var(--card-border);
+  }
+
+  .scope-topbar-title {
+    display: grid;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--panel-text);
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+
+  .scope-topbar-status { color: var(--muted); font-size: 12px; line-height: 1.3; }
+  .scope-topbar-product { color: var(--muted); font-size: 11px; }
+  .scope-topbar-title strong { font-size: 15px; line-height: 1.25; }
+
+  .scope-topbar .global-auth-controls {
+    position: relative;
+    inset: auto;
+    z-index: 4;
+    flex: 0 0 auto;
+    gap: 0;
+  }
+
+  .scope-topbar .global-auth-username { max-width: min(35vw, 170px); }
+  .scope-topbar .global-ask-vehicles { display: none; }
+  .scope-topbar .global-user-menu { top: calc(100% + 6px); }
+
+  .scope-workspace {
+    position: relative;
+    z-index: 1;
+    flex: 1 1 0;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .scope-map-area {
+    position: relative;
+    flex: 1 1 0;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+  .scope-map-overlay {
+    position: absolute;
+    /* Leaflet panes use z-index values up to 1000. Keep app controls above them. */
+    z-index: 1100;
+    inset: 12px 12px auto auto;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    pointer-events: none;
+  }
+
+  .scope-map-overlay > * { pointer-events: auto; }
+  .scope-map-overlay button {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 8px 11px;
+    border: 1px solid var(--card-border);
+    border-radius: 9px;
+    background: var(--panel-bg);
+    color: var(--panel-text);
+    box-shadow: 0 3px 12px rgba(0, 0, 0, .25);
+    font: inherit;
+    font-weight: 700;
+  }
+
+  .scope-map-overlay button[aria-label='Zoom in'],
+  .scope-map-overlay button[aria-label='Zoom out'] { width: 44px; padding: 4px; font-size: 22px; }
+  .scope-map-area .leaflet-top.leaflet-right { top: 58px; }
+  .scope-map-area .leaflet-control-zoom,
+  .scope-map-area .map-action-control { display: none; }
+
+  .scope-layout[data-sheet-size='full'] .scope-map-area { flex: 0 0 0; visibility: hidden; }
+
+  .scope-sheet {
+    z-index: 2;
+    flex: 0 0 46%;
+    min-height: 0;
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--card-border);
+    border-bottom: 0;
+    border-radius: 16px 16px 0 0;
+    background: var(--panel-bg);
+    box-shadow: 0 -6px 20px rgba(0, 0, 0, .22);
+  }
+
+  .scope-layout[data-sheet-size='peek'] .scope-sheet { flex: 0 0 auto; }
+  .scope-layout[data-sheet-size='full'] .scope-sheet { flex-basis: 100%; }
+
+  .scope-sheet-header {
+    flex: 0 0 auto;
+    min-height: 64px;
+    padding: 8px 12px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    background: var(--panel-bg);
+    border-bottom: 1px solid var(--card-border);
+  }
+
+  .scope-sheet-heading { flex: 1 1 120px; min-width: 0; }
+  .scope-sheet-heading h2 { margin: 0; font-size: 16px; overflow-wrap: anywhere; }
+  .scope-sheet-heading p { margin: 2px 0 0; color: var(--muted); font-size: 11px; }
+
+  .scope-sheet-body {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior-y: contain;
+    touch-action: pan-y pinch-zoom;
+    padding: 10px 12px calc(16px + env(safe-area-inset-bottom, 0px));
+    scroll-padding-block: 16px;
+  }
+
+  .scope-sheet-body[hidden] { display: none; }
+  .scope-sheet-body .device-list { max-height: none; overflow: visible; }
+  .scope-sheet-body .device-list ul { max-height: none; overflow: visible; }
+  .scope-sheet-body .history-month-list,
+  .scope-sheet-body .trip-list,
+  .scope-sheet-body .notifications-list { max-height: none; overflow: visible; }
+  .scope-sheet-body .history-navigator,
+  .scope-sheet-body .notifications-panel {
+    width: 100%;
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+    border: 0;
+    box-shadow: none;
+  }
+  .scope-sheet-body .history-navigator { min-height: 240px; }
+  .scope-sheet-body .history-month-list { flex: 0 0 auto; min-height: 100px; overflow: visible; }
+  .scope-sheet-body .trip-editor { position: static; max-height: none; overflow: visible; }
+  .scope-sheet-body .panel-bottom-resize-handle,
+  .scope-task-body .panel-bottom-resize-handle { display: none; }
+  .scope-status-content { display: grid; gap: 10px; }
+  .scope-status-content .status-card { margin: 0; }
+  .scope-status-content .vehicle-status-card { position: relative; inset: auto; width: 100%; cursor: default; }
+
+  .scope-navigation {
+    position: relative;
+    z-index: 3;
+    flex: 0 0 auto;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    min-height: calc(56px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    border-top: 1px solid var(--card-border);
+    background: var(--panel-bg);
+  }
+
+  .scope-navigation button {
+    min-width: 44px;
+    min-height: 44px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .scope-navigation button[aria-pressed='true'] { color: var(--panel-text); box-shadow: inset 0 3px var(--primary); }
+  .scope-layout button { min-width: 44px; min-height: 44px; }
+  .scope-layout input,
+  .scope-layout select,
+  .scope-layout textarea { max-width: 100%; font-size: 1rem; }
+
+  .scope-desktop-content { display: contents; }
+  .scope-desktop-content .map-panel,
+  .scope-desktop-content .global-auth-controls,
+  .scope-desktop-content .speed-band-key,
+  .scope-desktop-content .track-place-key { display: none; }
+  .scope-desktop-content .settings-backdrop,
+  .scope-desktop-content .modal-backdrop,
+  .scope-desktop-content .profile-mapping-backdrop,
+  .scope-desktop-content .graph-backdrop { display: grid; }
+
+  .scope-more-menu { display: grid; gap: 8px; }
+  .scope-more-item-copy { display: grid; gap: 3px; min-width: 0; }
+  .scope-more-item-copy small { color: var(--muted); font-size: 11px; font-weight: 400; }
+  .scope-more-menu button {
+    width: 100%;
+    min-height: 48px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border: 1px solid var(--card-border);
+    border-radius: 9px;
+    background: var(--panel-bg-soft);
+    color: var(--panel-text);
+    font: inherit;
+    text-align: left;
+  }
+  .scope-more-back { margin-bottom: 10px; }
+
+  .scope-task-dialog[open] {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 0;
+    background: var(--panel-bg);
+    color: var(--panel-text);
+  }
+
+  .scope-task-dialog::backdrop { background: rgba(0, 0, 0, .58); }
+
+  .scope-task-header {
+    flex: 0 0 auto;
+    min-height: calc(56px + env(safe-area-inset-top, 0px));
+    padding: calc(8px + env(safe-area-inset-top, 0px)) 12px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: 1px solid var(--card-border);
+  }
+
+  .scope-task-header h2 { min-width: 0; margin: 0; font-size: 18px; overflow-wrap: anywhere; }
+
+  .scope-task-body {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    padding: 12px 12px calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .scope-task-body > * { min-width: 0; }
+
+  .scope-task-body .notifications-panel {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .scope-task-body .notifications-list,
+  .scope-task-body .operations-report-output {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .scope-task-body .user-profile-dialog-embedded {
+    width: 100%;
+    max-height: none;
+    overflow: visible;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .scope-task-body .user-profile-access-section ul { max-height: none; overflow: visible; }
+
+  .scope-task-body .telemetry-graph-embedded {
+    min-width: 0;
+    color: var(--panel-text);
+  }
+
+  .scope-task-body .telemetry-graph-embedded .telemetry-graph-card {
+    width: 100%;
+    max-height: none;
+    overflow: visible;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+    box-shadow: none;
+  }
+
+  .settings-modal {
+    max-height: calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    overscroll-behavior: contain;
+  }
+}
+
+.user-profile-close-confirmation {
+  padding: 12px;
+  margin-block: 12px;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--panel-bg-soft);
+}
+.user-profile-close-confirmation p { margin: 0 0 12px; }
+.user-profile-close-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.scope-layout .scope-announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+@media (min-width: 64rem) {
+  .scope-task-dialog[open] {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    width: min(900px, calc(100vw - 32px));
+    max-height: min(92dvh, 900px);
+    padding: 0;
+    margin: auto;
+    overflow: hidden;
+    border: 1px solid var(--card-border);
+    border-radius: 14px;
+    background: var(--panel-bg);
+    color: var(--panel-text);
+    box-shadow: 0 20px 55px rgba(0, 0, 0, .45);
+  }
+  .scope-task-dialog::backdrop { background: rgba(2, 6, 23, .68); }
+  .scope-task-header {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--card-border);
+  }
+  .scope-task-header h2 { margin: 0; font-size: 20px; }
+  .scope-task-body { min-height: 0; overflow: auto; padding: 20px; }
+  .scope-task-body .user-profile-dialog-embedded {
+    width: 100%;
+    max-height: none;
+    overflow: visible;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .scope-task-body .user-profile-access-section ul { max-height: none; overflow: visible; }
+}
+.scope-layout :is(button, a, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.scope-navigation button:focus-visible { outline-offset: -3px; }
+@media (max-width: 63.999rem) {
+  /* Keep the full name in accessible text while reserving space for map/actions. */
+  .scope-topbar-title strong,
+  .scope-sheet-heading h2 {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+  .scope-navigation button { overflow-wrap: anywhere; padding-inline: 4px; }
+}
+.scope-task-header > button { flex: 0 0 auto; }
+
+@media (max-width: 63.999rem) {
+  .scope-map-area { container-type: size; container-name: scope-map; }
+  .scope-map-action-icon { display: block; }
+  .scope-layout[data-sheet-size='peek'] .scope-sheet-heading h2 { -webkit-line-clamp: 1; }
+  .scope-layout[data-sheet-size='peek'] .scope-sheet-heading p { display: none; }
+}
+@media (max-width: 63.999rem) and (max-height: 450px) {
+  .scope-topbar-product { display: none; }
+}
+@container scope-map (max-height: 260px) {
+  .scope-map-overlay {
+    inset: 6px 6px auto auto;
+    max-width: calc(100% - 12px);
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+
+}
+@media (max-width: 63.999rem) {
+  .scope-workspace { container-type: size; container-name: scope-workspace; }
+  .scope-sheet-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+  .scope-layout[data-sheet-size='peek'] .scope-sheet-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+@container scope-workspace (max-height: 320px) {
+  .scope-sheet-heading h2 { -webkit-line-clamp: 1; }
+  .scope-sheet-heading p { display: none; }
+}
+@media (max-width: 63.999rem) {
+  .scope-layout[data-location-picker='true'] .scope-topbar,
+  .scope-layout[data-location-picker='true'] .scope-sheet,
+  .scope-layout[data-location-picker='true'] .scope-navigation { display: none; }
+  .scope-location-picker-bar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    padding: 8px 12px;
+    background: var(--panel-bg);
+    border-bottom: 1px solid var(--card-border);
+  }
+  .scope-location-picker-bar { padding-top: calc(8px + env(safe-area-inset-top, 0px)); }
+  .scope-location-picker-bar > span { flex: 1 1 200px; font-size: 14px; line-height: 1.3; }
+  .scope-location-picker-bar > button { flex: 0 0 auto; }
+}
+/* A graph keeps the same component and editor draft across the breakpoint. */
+@media (min-width: 64rem) {
+  .scope-task-dialog-wide[open] { width: min(1160px, calc(100vw - 40px)); }
+  .scope-task-dialog-wide .telemetry-graph-card {
+    width: 100%;
+    max-height: none;
+    overflow: visible;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+    box-shadow: none;
+  }
+}
+
+.scope-task-body .telemetry-graph-embedded { position: relative; min-width: 0; }
+.scope-task-body .telemetry-share-actions {
+  position: static;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+@media (max-width: 63.999rem) {
+  .scope-task-body .telemetry-graph-header > div { min-width: 0; max-width: 100%; }
+  .scope-task-body .telemetry-graph-header-actions { flex-wrap: wrap; }
+  .scope-task-body .telemetry-graph-header h2 { overflow-wrap: anywhere; }
+}
+@media (max-width: 520px) {
+  .scope-task-body .telemetry-graph-controls { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 63.999rem) {
+  .scope-task-body .telemetry-field-editor { grid-template-columns: minmax(0, 1fr); }
+  .scope-task-body .telemetry-field-editor * { min-width: 0; }
+  .scope-task-body .telemetry-field-editor :is(input:not([type='radio']):not([type='checkbox']), select, textarea) { width: 100%; max-width: 100%; }
+  .scope-task-body .telemetry-field-editor :is(h2, h3, p, label, button) { overflow-wrap: anywhere; }
+  .scope-task-body .telemetry-field-editor-header > button { flex: 0 0 auto; }
+}
+@media (max-width: 520px) {
+  .scope-task-body .telemetry-field-editor-candidate-row { grid-template-columns: minmax(0, 1fr); }
+  .scope-task-body .telemetry-field-editor-candidate-row > .small { grid-column: 1; grid-row: auto; justify-self: start; }
+  .scope-task-body .telemetry-field-editor-form { grid-template-columns: minmax(0, 1fr); }
+}
+.scope-layout .scope-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 63.999rem) {
+  .scope-map-overlay button {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    flex: 0 0 44px;
+  }
+}
+.scope-layout-diagnostics {
+  position: fixed;
+  z-index: 2147483647;
+  top: calc(8px + env(safe-area-inset-top, 0px));
+  left: 8px;
+  max-width: min(380px, calc(100vw - 16px));
+  background: #fff;
+  color: #111;
+  border: 2px solid #111;
+  border-radius: 8px;
+  padding: 4px;
+}
+.scope-layout-diagnostics button { color: #111; background: #eee; }
+.scope-layout-diagnostics > div { max-height: 70vh; overflow: auto; padding: 8px; }
+.scope-layout-diagnostics textarea { width: 100%; font: 12px monospace; color: #111; background: #fff; }
+
+/* Opt-in development experiment for the reported iPhone fixed-shell painting issue. */
+@media (max-width: 63.999rem) {
+  .app-shell:has(.scope-layout[data-debug-flow='true']),
+  .scope-layout[data-debug-flow='true'] { position: relative; inset: auto; }
+}
