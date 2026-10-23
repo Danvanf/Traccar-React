@@ -34,12 +34,24 @@ function VehicleStatusCard({
   useEffect(() => {
     if (!position) return undefined
     const keepInViewport = () => {
+      if (Number.isFinite(position.right)) {
+        const width = panelRef.current?.offsetWidth || 280
+        const height = panelRef.current?.offsetHeight || 100
+        const right = Math.max(8, Math.min(position.right, Math.max(8, window.innerWidth - width - 8)))
+        const top = Math.max(8, Math.min(position.top, Math.max(8, window.innerHeight - height - 8)))
+        if (right !== position.right || top !== position.top) onPositionCommit({ ...position, right, top })
+        return
+      }
       const next = clampPosition(position.left, position.top)
       if (next.left !== position.left || next.top !== position.top) onPositionCommit(next)
     }
     keepInViewport()
     window.addEventListener('resize', keepInViewport)
-    return () => window.removeEventListener('resize', keepInViewport)
+    window.visualViewport?.addEventListener('resize', keepInViewport)
+    return () => {
+      window.removeEventListener('resize', keepInViewport)
+      window.visualViewport?.removeEventListener('resize', keepInViewport)
+    }
   }, [clampPosition, onPositionCommit, position])
 
   const startDragging = useCallback((event) => {

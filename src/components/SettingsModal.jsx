@@ -214,6 +214,7 @@ function SettingsModal({
   const [statusCardInventoryError, setStatusCardInventoryError] = useState('')
   const [statusCardInventoryLoading, setStatusCardInventoryLoading] = useState(false)
   const [statusCardFieldSearch, setStatusCardFieldSearch] = useState('')
+  const [showReceivedStatusCardFieldsOnly, setShowReceivedStatusCardFieldsOnly] = useState(false)
   const [vehicleEmailSender, setVehicleEmailSender] = useState('')
   const [vehicleEmailSenderStatus, setVehicleEmailSenderStatus] = useState('')
   const [bundledProfileDialogOpen, setBundledProfileDialogOpen] = useState(false)
@@ -224,8 +225,14 @@ function SettingsModal({
   const [selectedBundledProperties, setSelectedBundledProperties] = useState({})
   const selectedStatusProfile = profileOptions.find((profile) => profile.id === vehicleProfileId)
   const availableStatusCardFieldOptions = useMemo(() => getStatusCardFieldOptions(selectedStatusProfile, statusCardInventory?.fields || []), [selectedStatusProfile, statusCardInventory?.fields])
+  const receivedStatusCardFields = useMemo(() => new Set((statusCardInventory?.fields || []).map((entry) => {
+    const key = String(entry?.key ?? entry?.fieldKey ?? '').trim()
+    if (!key) return ''
+    return String(selectedStatusProfile?.attributeMap?.[key]?.statusCardField || key).trim()
+  }).filter(Boolean)), [selectedStatusProfile, statusCardInventory?.fields])
   const statusCardFieldOptions = useMemo(() => availableStatusCardFieldOptions
-    .filter(({ field, label, key }) => `${field} ${label} ${key}`.toLocaleLowerCase().includes(statusCardFieldSearch.trim().toLocaleLowerCase())), [availableStatusCardFieldOptions, statusCardFieldSearch])
+    .filter(({ field }) => !showReceivedStatusCardFieldsOnly || receivedStatusCardFields.has(field))
+    .filter(({ field, label, key }) => `${field} ${label} ${key}`.toLocaleLowerCase().includes(statusCardFieldSearch.trim().toLocaleLowerCase())), [availableStatusCardFieldOptions, receivedStatusCardFields, showReceivedStatusCardFieldsOnly, statusCardFieldSearch])
   const trackNameSuggestions = [...new Map((namedPlaces || [])
     .map((place) => String(place.trackName || '').trim())
     .filter(Boolean)
@@ -351,12 +358,14 @@ function SettingsModal({
     if (!vehicleDeviceId || !traccarScopeApiBaseUrl) {
       setStatusCardInventory(null)
       setStatusCardInventoryError('')
+      setShowReceivedStatusCardFieldsOnly(false)
       return undefined
     }
     let active = true
     setStatusCardInventory(null)
     setStatusCardInventoryError('')
     setStatusCardInventoryLoading(true)
+    setShowReceivedStatusCardFieldsOnly(false)
     fetchTelemetryFieldInventory(traccarScopeApiBaseUrl, vehicleDeviceId)
       .then((inventory) => { if (active) setStatusCardInventory(inventory) })
       .catch((error) => { if (active) setStatusCardInventoryError(error instanceof Error ? error.message : 'Could not load fields observed on this vehicle.') })
@@ -725,16 +734,21 @@ function SettingsModal({
               'Vehicle history field inventory will load automatically.'
             )}</small>}
             <label className="status-card-field-search">Filter available fields<input type="search" value={statusCardFieldSearch} onChange={(event) => setStatusCardFieldSearch(event.target.value)} placeholder="Field name or received key" /></label>
-            <small className="profile-editor-help">{statusCardFieldSearch ? `${statusCardFieldOptions.length} of ${availableStatusCardFieldOptions.length} field choices match this filter.` : `${availableStatusCardFieldOptions.length} field choices available. When an observed AVL key matches a profile field, they share one choice.`}</small>
+            <label className="status-card-received-filter" title="Filter to fields observed in this vehicle's history">
+              <input type="checkbox" role="switch" aria-label="Show only fields received in this vehicle's history" aria-checked={showReceivedStatusCardFieldsOnly} checked={showReceivedStatusCardFieldsOnly} disabled={statusCardInventory?.status !== 'complete'} onChange={(event) => setShowReceivedStatusCardFieldsOnly(event.target.checked)} />
+              <span className="status-card-received-filter-track" aria-hidden="true" />
+              <span>Show only received fields</span>
+            </label>
+            <small className="profile-editor-help">{statusCardFieldSearch || showReceivedStatusCardFieldsOnly ? `${statusCardFieldOptions.length} of ${availableStatusCardFieldOptions.length} field choices match the current filters.` : `${availableStatusCardFieldOptions.length} field choices available. Green labels indicate fields observed in this vehicle's history.`} When an observed AVL key matches a profile field, they share one choice.</small>
             <div className="status-card-field-grid" data-vehicle-id={vehicleEditId}>
-               {statusCardFieldOptions.map(({ field, label }) => <div key={field} className="status-card-field-option">
-                 <label className="checkbox-row"><input type="checkbox" aria-checked={cardFields.includes(field)} checked={cardFields.includes(field)} onChange={() => toggleCardField(field)} />{label}</label>
+               {statusCardFieldOptions.map(({ field, label, key }) => { const received = receivedStatusCardFields.has(field); return <div key={field} className={`status-card-field-option${received ? ' is-received' : ''}`}>
+                 <label className="checkbox-row"><input type="checkbox" aria-checked={cardFields.includes(field)} checked={cardFields.includes(field)} onChange={() => toggleCardField(field)} /><span className={received ? 'status-card-field-label is-received' : 'status-card-field-label'} title={received ? `Received in this vehicle's history (${key})` : undefined}>{label}</span></label>
                  <label className="status-card-popup-switch" title={`Show ${label} on map point popups`}>
                    <input type="checkbox" role="switch" aria-label={`Show ${label} on map point popups`} aria-checked={mapPopupFields.includes(field)} checked={mapPopupFields.includes(field)} onChange={() => toggleMapPopupField(field)} />
                    <span className="status-card-popup-switch-track" aria-hidden="true" />
                  </label>
-               </div>)}
-                {statusCardFieldOptions.length === 0 && <span className="profile-editor-help">No available fields match this filter. Choose a device profile or clear the filter.</span>}
+               </div>})}
+                {statusCardFieldOptions.length === 0 && <span className="profile-editor-help">{showReceivedStatusCardFieldsOnly ? 'No received fields match the current filter.' : 'No available fields match this filter. Choose a device profile or clear the filter.'}</span>}
             </div>
             {cardFieldsStatus && <div className="profile-editor-status">{cardFieldsStatus}</div>}
             <div className="actions"><button type="button" className="secondary" onClick={saveCardFields}>Save Status Card Fields</button></div>

@@ -20,7 +20,7 @@ Mobile layout implementation was closed by owner agreement on October 22, 2026. 
 - [ ] Finish the combined long-name/many-trip/loading/empty/denied/API-failure/session-expiry matrix. Existing phone, browser, and automated results are recorded separately; do not repeat passing checks without a reason.
 - [ ] Complete desktop regression for movable panels, map gestures, exports, public shares, graph editing, notes, and Settings.
 - [ ] Profile network requests across layout transitions to confirm no duplicate fetches. Source and browser checks already observe one map and mutually exclusive feature mounts.
-- [ ] Review user-facing product instructions/screenshots for any updates needed after mobile layout; installation behavior was not changed by this task.
+- [x] Reviewed and refreshed the product Wiki on October 22, 2026: added the Mobile guide, documented unified Trips and mixed day/trip selection, updated Settings/Reports/map instructions, and replaced obsolete core screenshots. Private source captures and filtering notes remain outside the Wiki checkout; installation behavior was not changed.
 
 ## Post-mobile implementation work
 

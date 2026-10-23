@@ -105,13 +105,19 @@ const MAX_INT32 = 2147483647
 const METERS_PER_YARD = 0.9144
 const YARDS_PER_METER = 1 / METERS_PER_YARD
 const MAP_CONTENT_SHIFT_PX = 50
-const VEHICLE_STATUS_DEFAULT_TOP = 300
+const VEHICLE_STATUS_DEFAULT_TOP = 62
+const VEHICLE_STATUS_DEFAULT_RIGHT = 50
+const TRIPS_PANEL_DEFAULT_LEFT = 8
+const TRIPS_PANEL_DEFAULT_TOP = 150
+const TRIPS_PANEL_DEFAULT_HEIGHT = 422
+const FLOATING_PANEL_STACK_GAP = 15
+const NOTIFICATIONS_PANEL_DEFAULT_TOP = TRIPS_PANEL_DEFAULT_TOP + TRIPS_PANEL_DEFAULT_HEIGHT + FLOATING_PANEL_STACK_GAP
 const INITIAL_MAP_HISTORY_DAYS = 7
 const SHOW_EXPERIMENTAL_ASK = import.meta.env.DEV
   && new URLSearchParams(window.location.search).get('experimentalAsk') === 'true'
 
 function getDefaultVehicleStatusPosition() {
-  return { left: Math.max(8, window.innerWidth - 288), top: VEHICLE_STATUS_DEFAULT_TOP }
+  return { right: VEHICLE_STATUS_DEFAULT_RIGHT, top: VEHICLE_STATUS_DEFAULT_TOP }
 }
 
 function fitBoundsWithPanelOffset(map, bounds, padding, compact = false) {
@@ -497,10 +503,12 @@ function App() {
   const [status, setStatus] = useState('Ready')
   const [isCompactLayout, setIsCompactLayout] = useState(() => !window.matchMedia('(min-width: 64rem)').matches)
   const [activeTask, setActiveTask] = useState(null)
-  const [historyPanelPosition, setHistoryPanelPosition] = useState(() => ({ left: 8, top: Math.round(window.innerHeight * 255 / 1205) }))
-  const [notificationsPanelPosition, setNotificationsPanelPosition] = useState(() => ({ left: 8, top: Math.round(window.innerHeight * 714 / 1205), height: 200 }))
+  const [historyPanelPosition, setHistoryPanelPosition] = useState(() => ({ left: TRIPS_PANEL_DEFAULT_LEFT, top: TRIPS_PANEL_DEFAULT_TOP, height: TRIPS_PANEL_DEFAULT_HEIGHT }))
+  const [notificationsPanelPosition, setNotificationsPanelPosition] = useState(() => ({ left: TRIPS_PANEL_DEFAULT_LEFT, top: NOTIFICATIONS_PANEL_DEFAULT_TOP, height: 200 }))
   const [vehicleStatusPosition, setVehicleStatusPosition] = useState(getDefaultVehicleStatusPosition)
   const [vehicleStatusCollapsed, setVehicleStatusCollapsed] = useState(true)
+  const [statusControlElement, setStatusControlElement] = useState(null)
+  const [isStatusOpen, setIsStatusOpen] = useState(false)
   const [speedBandKeyPosition, setSpeedBandKeyPosition] = useState(null)
   const [trackPlaceKeyPosition, setTrackPlaceKeyPosition] = useState(null)
   const [hiddenMapPanels, setHiddenMapPanels] = useState({})
@@ -748,6 +756,8 @@ function App() {
   const eventMarkerRefs = useRef({})
   const namedPlaceLayerRef = useRef(null)
   const namedPlacesControlRef = useRef(null)
+  const statusControlRef = useRef(null)
+  const statusPopoverRef = useRef(null)
   const resetAutoZoomControlRef = useRef(null)
   const cancelLocationControlRef = useRef(null)
   const resetMapAutoFitActionRef = useRef(null)
@@ -1230,6 +1240,8 @@ function App() {
     const mapActions = L.control({ position: 'topright' })
     mapActions.onAdd = () => {
       const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control map-action-control')
+      statusPopoverRef.current = L.DomUtil.create('div', 'map-status-popover', container)
+      setStatusControlElement(statusPopoverRef.current)
       const createButton = (className, label, icon, action) => {
         const button = L.DomUtil.create('a', className, container)
         button.href = '#'
@@ -1241,6 +1253,14 @@ function App() {
         L.DomEvent.on(button, 'click', action)
         return button
       }
+      statusControlRef.current = createButton(
+        'map-action-status',
+        'Show connection status',
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>',
+        () => setIsStatusOpen((open) => !open),
+      )
+      statusControlRef.current.setAttribute('aria-haspopup', 'dialog')
+      statusControlRef.current.setAttribute('aria-expanded', 'false')
       namedPlacesControlRef.current = createButton(
         'map-action-named-places',
         'Hide named places from the map',
@@ -1316,11 +1336,37 @@ function App() {
       selectedTripLayerRef.current = null
       namedPlaceLayerRef.current = null
       namedPlacesControlRef.current = null
+      statusControlRef.current = null
+      statusPopoverRef.current = null
+      setStatusControlElement(null)
       resetAutoZoomControlRef.current = null
       cancelLocationControlRef.current = null
       setMapReady(false)
     }
   }, [vehicleAuth.checking, vehicleAuth.enabled, vehicleAuth.authenticated])
+
+  useEffect(() => {
+    const button = statusControlRef.current
+    if (button) {
+      const label = isStatusOpen ? 'Hide connection status' : 'Show connection status'
+      button.title = label
+      button.setAttribute('aria-label', label)
+      button.setAttribute('aria-expanded', String(isStatusOpen))
+      button.classList.toggle('is-active', isStatusOpen)
+    }
+    statusPopoverRef.current?.classList.toggle('is-open', isStatusOpen)
+  }, [mapReady, isStatusOpen])
+
+  useEffect(() => {
+    if (!isStatusOpen) return undefined
+    const closeOnEscape = (event) => {
+      if (event.key !== 'Escape') return
+      setIsStatusOpen(false)
+      statusControlRef.current?.focus({ preventScroll: true })
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [isStatusOpen])
 
   useEffect(() => {
     const map = mapRef.current
@@ -1759,15 +1805,22 @@ function App() {
     let active = true
     const applyPosition = (saved) => {
       if (!active) return
-      const left = Number(saved?.left)
+      const right = Number(saved?.right)
       const top = Number(saved?.top)
+      if (Number.isFinite(right) && Number.isFinite(top)) {
+        setVehicleStatusPosition({ right, top })
+        return
+      }
+      const left = Number(saved?.left)
       if (!Number.isFinite(left) || !Number.isFinite(top)) {
         setVehicleStatusPosition(getDefaultVehicleStatusPosition())
         return
       }
       const previousDefaultLeft = Math.max(8, window.innerWidth - 288)
       const wasPreviousDefault = [53, 245].includes(top) && Math.abs(left - previousDefaultLeft) < 2
-      setVehicleStatusPosition(wasPreviousDefault ? getDefaultVehicleStatusPosition() : { left, top })
+      const wasCapturedDefault = top === VEHICLE_STATUS_DEFAULT_TOP && Math.abs(left - (window.innerWidth - 280 - VEHICLE_STATUS_DEFAULT_RIGHT)) < 2
+      const wasHiddenAtLeft = top === VEHICLE_STATUS_DEFAULT_TOP && left <= 8
+      setVehicleStatusPosition(wasPreviousDefault || wasCapturedDefault || wasHiddenAtLeft ? getDefaultVehicleStatusPosition() : { left, top })
     }
     try {
       applyPosition(JSON.parse(localStorage.getItem(vehicleStatusPreferenceKey) || 'null'))
@@ -1868,21 +1921,49 @@ function App() {
 
   useEffect(() => {
     let active = true
-    const apply = (setter, saved) => {
+    const apply = (setter, saved, storageName, preferenceName, localKey) => {
+      if (storageName === 'speedBandKeyPosition' || storageName === 'trackPlaceKeyPosition') {
+        const selector = storageName === 'speedBandKeyPosition' ? '.speed-band-key' : '.track-place-key'
+        const element = document.querySelector(selector)
+        const defaultRect = element?.getBoundingClientRect()
+        const savedLeft = Number(saved?.left)
+        const savedTop = Number(saved?.top)
+        const oldBottomGap = defaultRect && Number.isFinite(savedTop)
+          ? window.innerHeight - savedTop - defaultRect.height
+          : 0
+        if (defaultRect && Number.isFinite(savedLeft) && Number.isFinite(savedTop)
+          && Math.abs(savedLeft - defaultRect.left) < 3 && oldBottomGap > 20 && oldBottomGap < 120) {
+          const resetMarker = { resetToDefault: true }
+          if (active) setter(null)
+          try { localStorage.setItem(localKey, JSON.stringify(resetMarker)) } catch { /* server preference can still save */ }
+          if (vehicleAuth.authenticated) saveUserPreference(settings.traccarScopeApiBaseUrl, preferenceName, resetMarker).catch(() => {})
+          return
+        }
+      }
+      if (storageName === 'notificationsPanelPosition'
+        && Number(saved?.left) === TRIPS_PANEL_DEFAULT_LEFT
+        && Number(saved?.top) === 637) {
+        saved = { ...saved, top: NOTIFICATIONS_PANEL_DEFAULT_TOP }
+      }
+      if (storageName === 'historyPanelPosition'
+        && Number(saved?.left) === TRIPS_PANEL_DEFAULT_LEFT
+        && Number(saved?.top) === 144) {
+        saved = { ...saved, top: TRIPS_PANEL_DEFAULT_TOP }
+      }
       const left = Number(saved?.left)
       const top = Number(saved?.top)
       const height = Number(saved?.height)
       const next = { ...(Number.isFinite(left) && Number.isFinite(top) ? { left, top } : {}), ...(Number.isFinite(height) && height > 0 ? { height } : {}) }
       if (active) setter(Object.keys(next).length ? next : null)
     }
-    ;[['speedBandKeyPosition', setSpeedBandKeyPosition, 'speed-bands-key-position'], ['trackPlaceKeyPosition', setTrackPlaceKeyPosition, 'track-places-key-position'], ['historyPanelPosition', setHistoryPanelPosition, 'history-panel-position', { left: 8, top: Math.round(window.innerHeight * 255 / 1205) }], ['notificationsPanelPosition', setNotificationsPanelPosition, 'notifications-panel-position', { left: 8, top: Math.round(window.innerHeight * 714 / 1205), height: 200 }]].forEach(([storageName, setter, preferenceName, fallback]) => {
+    ;[['speedBandKeyPosition', setSpeedBandKeyPosition, 'speed-bands-key-position'], ['trackPlaceKeyPosition', setTrackPlaceKeyPosition, 'track-places-key-position'], ['historyPanelPosition', setHistoryPanelPosition, 'history-panel-position', { left: TRIPS_PANEL_DEFAULT_LEFT, top: TRIPS_PANEL_DEFAULT_TOP, height: TRIPS_PANEL_DEFAULT_HEIGHT }], ['notificationsPanelPosition', setNotificationsPanelPosition, 'notifications-panel-position', { left: TRIPS_PANEL_DEFAULT_LEFT, top: NOTIFICATIONS_PANEL_DEFAULT_TOP, height: 200 }]].forEach(([storageName, setter, preferenceName, fallback]) => {
       const localKey = mapKeyPreferenceKey(storageName)
       try {
         const saved = JSON.parse(localStorage.getItem(localKey) || 'null')
-        if (saved) apply(setter, saved)
-        else if (fallback) apply(setter, fallback)
-      } catch { if (fallback) apply(setter, fallback) }
-      if (vehicleAuth.authenticated) fetchUserPreference(settings.traccarScopeApiBaseUrl, preferenceName).then((value) => { if (value && active) apply(setter, value) }).catch(() => {})
+        if (saved) apply(setter, saved, storageName, preferenceName, localKey)
+        else if (fallback) apply(setter, fallback, storageName, preferenceName, localKey)
+      } catch { if (fallback) apply(setter, fallback, storageName, preferenceName, localKey) }
+      if (vehicleAuth.authenticated) fetchUserPreference(settings.traccarScopeApiBaseUrl, preferenceName).then((value) => { if (value && active) apply(setter, value, storageName, preferenceName, localKey) }).catch(() => {})
     })
     return () => { active = false }
   }, [mapKeyPreferenceKey, settings.traccarScopeApiBaseUrl, vehicleAuth.authenticated])
@@ -2007,14 +2088,10 @@ function App() {
   const resetWindowPositions = useCallback(() => {
     setHiddenMapPanels({})
     const resetMarker = (height) => ({ resetToDefault: true, ...(Number.isFinite(height) && height > 0 ? { height } : {}) })
-    const historyDefault = { left: 8, top: Math.round(window.innerHeight * 255 / 1205), height: 422 }
-    const notificationsDefault = { left: 8, top: Math.round(window.innerHeight * 714 / 1205), height: 200 }
+    const historyDefault = { left: TRIPS_PANEL_DEFAULT_LEFT, top: TRIPS_PANEL_DEFAULT_TOP, height: TRIPS_PANEL_DEFAULT_HEIGHT }
+    const notificationsDefault = { left: TRIPS_PANEL_DEFAULT_LEFT, top: NOTIFICATIONS_PANEL_DEFAULT_TOP, height: 200 }
     persistMapKeyPosition('historyPanelPosition', 'history-panel-position', historyDefault, setHistoryPanelPosition)
     persistMapKeyPosition('notificationsPanelPosition', 'notifications-panel-position', notificationsDefault, setNotificationsPanelPosition)
-
-    const tripReset = resetMarker(448)
-    setTripFlyoutTemporaryPosition(null)
-    persistTripFlyoutPosition(tripReset)
 
     const vehicleStatusReset = getDefaultVehicleStatusPosition()
     setVehicleStatusPosition(vehicleStatusReset)
@@ -4505,18 +4582,17 @@ function App() {
       <section className={`map-panel${isPickingLocation ? ' map-location-picker' : ''}`}>
         <h1 className="map-app-title">Traccar Scope</h1>
         <div className="map-bottom-left-panels">
+        {!hiddenMapPanels.speedBands && <MovableMapKey className="speed-band-key" closeLabel="Hide speed bands key" onHide={() => setHiddenMapPanels((current) => ({ ...current, speedBands: true }))} position={speedBandKeyPosition} onPositionChange={setSpeedBandKeyPosition} onPositionCommit={(position) => commitMovableWindowPosition('speedBands', position, () => persistMapKeyPosition('speedBandKeyPosition', 'speed-bands-key-position', position, setSpeedBandKeyPosition))}>
+          <div aria-label="Speed bands" title="Double-click to edit speed bands" onDoubleClick={() => { localStorage.setItem('openSpeedBandsPanel', 'true'); setIsSettingsOpen(true) }}>
+            <strong>Speed bands</strong>
+            <small>Double-click to edit</small>
+            {activeSpeedBands.map((band, index) => { const factor = settings.displayUnits === 'metric' ? 1.609344 : 1; const unit = settings.displayUnits === 'metric' ? 'km/h' : 'mph'; const lower = Math.round((index ? activeSpeedBands[index - 1].upperMph : 0) * factor); const upper = band.upperMph == null ? null : Math.round(band.upperMph * factor); return <span key={`${band.label}-${index}`}><i style={{ backgroundColor: band.color }} />{upper == null ? `${lower}+ ${unit}` : `${lower}–${upper} ${unit}`}</span> })}
+          </div>
+        </MovableMapKey>}
         {!hiddenMapPanels.trackPlaces && namedPlaces.some((place) => place.placeType && place.placeType !== 'general') && <MovableMapKey className="track-place-key" closeLabel="Hide track locations key" onHide={() => setHiddenMapPanels((current) => ({ ...current, trackPlaces: true }))} position={trackPlaceKeyPosition} onPositionChange={setTrackPlaceKeyPosition} onPositionCommit={(position) => commitMovableWindowPosition('trackPlaces', position, () => persistMapKeyPosition('trackPlaceKeyPosition', 'track-places-key-position', position, setTrackPlaceKeyPosition))}>
           <strong>Track locations</strong>
           {[['track_start', 'Start', '#22c55e'], ['track_finish', 'Finish', '#ef4444'], ['track_start_finish', 'Start / finish', '#f59e0b'], ['track_split', 'Split', '#38bdf8'], ['drag_start', 'Drag start', '#a78bfa'], ['drag_finish', 'Drag finish', '#f472b6'], ['track_other', 'Other', '#94a3b8']].map(([type, label, color]) => namedPlaces.some((place) => place.placeType === type) && <span key={type}><i style={{ backgroundColor: color }} />{label}</span>)}
         </MovableMapKey>}
-        {!isCompactLayout && !hiddenMapPanels.status && <div className="map-status-card">
-          <button type="button" className="map-panel-close" title="Hide status panel" aria-label="Hide status panel" onClick={() => setHiddenMapPanels((current) => ({ ...current, status: true }))}>×</button>
-          <StatusCard
-            status={status}
-            sessionState={sessionState}
-            error={error}
-          />
-        </div>}
         </div>
         {!isCompactLayout && <div className="map-device-list">
           <DeviceList
@@ -4532,7 +4608,13 @@ function App() {
         </div>}
         {!isCompactLayout && <VehicleStatusCard
           style={vehicleStatusPosition
-            ? { position: 'fixed', left: `${vehicleStatusPosition.left}px`, top: `${vehicleStatusPosition.top}px`, right: 'auto' }
+            ? {
+              position: 'fixed',
+              ...(Number.isFinite(vehicleStatusPosition.left)
+                ? { left: `${vehicleStatusPosition.left}px`, right: 'auto' }
+                : { left: 'auto', right: `${vehicleStatusPosition.right ?? VEHICLE_STATUS_DEFAULT_RIGHT}px` }),
+              top: `${vehicleStatusPosition.top}px`,
+            }
             : undefined}
           position={vehicleStatusPosition}
           onPositionChange={setVehicleStatusPosition}
@@ -4547,17 +4629,14 @@ function App() {
           cardFields={statusCardFieldsByVehicle[statusVehicleId] || DEFAULT_STATUS_CARD_FIELDS}
         />}
         <VehicleStatsPanel baseUrl={settings.traccarScopeApiBaseUrl} vehicleId={statusVehicleId || null} traccarApi={apiFetch} profileMap={profileMap} bindings={activeBindings} profileAssignments={historicalProfileAssignments} sourceMappingRevisionsByDevice={sourceMappingRevisionsByDevice} displayUnits={settings.displayUnits} updateSetting={updateSetting} />
-        {!hiddenMapPanels.speedBands && <MovableMapKey className="speed-band-key" closeLabel="Hide speed bands key" onHide={() => setHiddenMapPanels((current) => ({ ...current, speedBands: true }))} position={speedBandKeyPosition} onPositionChange={setSpeedBandKeyPosition} onPositionCommit={(position) => commitMovableWindowPosition('speedBands', position, () => persistMapKeyPosition('speedBandKeyPosition', 'speed-bands-key-position', position, setSpeedBandKeyPosition))}>
-          <div aria-label="Speed bands" title="Double-click to edit speed bands" onDoubleClick={() => { localStorage.setItem('openSpeedBandsPanel', 'true'); setIsSettingsOpen(true) }}>
-            <strong>Speed bands</strong>
-            <small>Double-click to edit</small>
-            {activeSpeedBands.map((band, index) => { const factor = settings.displayUnits === 'metric' ? 1.609344 : 1; const unit = settings.displayUnits === 'metric' ? 'km/h' : 'mph'; const lower = Math.round((index ? activeSpeedBands[index - 1].upperMph : 0) * factor); const upper = band.upperMph == null ? null : Math.round(band.upperMph * factor); return <span key={`${band.label}-${index}`}><i style={{ backgroundColor: band.color }} />{upper == null ? `${lower}+ ${unit}` : `${lower}–${upper} ${unit}`}</span> })}
-          </div>
-        </MovableMapKey>}
+        {statusControlElement && isStatusOpen && createPortal(<div className="map-status-window" role="dialog" aria-label="Connection status">
+          <button type="button" className="map-panel-close" title="Close status" aria-label="Close status" onClick={() => setIsStatusOpen(false)}>×</button>
+          <StatusCard status={status} sessionState={sessionState} error={error} />
+        </div>, statusControlElement)}
       </section>
 
       {isSettingsOpen && (
-        <Suspense fallback={null}><SettingsModal
+        createPortal(<Suspense fallback={null}><SettingsModal
           fallbackFocusRef={layoutActionsRef}
           isPickingLocation={isPickingLocation}
           startLocationPicker={startLocationPicker}
@@ -4689,7 +4768,7 @@ function App() {
           forgetBouncieCredentials={forgetBouncieConnection}
           restoreBouncieConnection={restoreBouncieStoredConnection}
           vehicleAuth={vehicleAuth}
-        /></Suspense>
+        /></Suspense>, document.body)
       )}
 
       {isProfileMappingEditorOpen && (

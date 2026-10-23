@@ -864,27 +864,44 @@ h2 {
   color: var(--panel-text);
 }
 
+.map-device-list .device-list ul {
+  max-height: 67px;
+  overflow-y: auto;
+}
+
 .map-bottom-left-panels {
-  position: absolute;
-  left: 14px;
-  bottom: 14px;
-  width: min(320px, calc(100% - 28px));
+  position: fixed;
+  z-index: 1400;
+  left: 8px;
+  bottom: 8px;
+  width: min(360px, calc(100% - 16px));
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 10px;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 4px;
+  flex-wrap: wrap;
   pointer-events: none;
 }
 
 .map-bottom-left-panels > * { pointer-events: auto; }
 
-.map-status-card {
+.map-status-popover {
+  position: absolute;
+  top: 0;
+  right: calc(100% + 8px);
+  z-index: 1500;
+  display: none;
+  width: min(320px, calc(100vw - 80px));
+}
+
+.map-status-popover.is-open { display: block; }
+
+.map-status-window {
   position: relative;
-  z-index: 1200;
   width: 100%;
 }
 
-.map-status-card .status-card {
+.map-status-window .status-card {
   margin: 0;
   padding-right: 30px;
   background: var(--panel-bg);
@@ -924,8 +941,8 @@ h2 {
 
 .leaflet-top.leaflet-right { top: 56px; }
 
-.vehicle-status-card { position: absolute; z-index: 500; top: 300px; right: 8px; width: 280px; padding: 10px; border-radius: 10px; background: rgba(255,255,255,.94); color: #1f2937; box-shadow: 0 4px 16px rgba(0,0,0,.2); font-size: 12px; cursor: pointer; }
-.speed-band-key { position: fixed; z-index: 1200; left: 343px; bottom: 14px; top: auto; display: grid; gap: 3px; padding: 8px 10px; border: 1px solid rgba(255,255,255,.45); border-radius: 8px; background: rgba(19,33,61,.96); color: #fff; font-size: 11px; cursor: pointer; user-select: none; }
+.vehicle-status-card { position: absolute; z-index: 500; top: 62px; right: 50px; width: 280px; padding: 10px; border-radius: 10px; background: rgba(255,255,255,.94); color: #1f2937; box-shadow: 0 4px 16px rgba(0,0,0,.2); font-size: 12px; cursor: pointer; }
+.speed-band-key { position: fixed; z-index: 1200; left: 8px; bottom: 8px; top: auto; display: grid; gap: 3px; padding: 8px 10px; border: 1px solid rgba(255,255,255,.45); border-radius: 8px; background: rgba(19,33,61,.96); color: #fff; font-size: 11px; cursor: pointer; user-select: none; }
 .speed-band-key strong { margin-bottom: 2px; font-size: 12px; }
 .speed-band-key small { color: rgba(255,255,255,.72); font-size: 10px; }
 .speed-band-key span { display: flex; align-items: center; gap: 6px; }
@@ -935,7 +952,8 @@ h2 {
 .track-place-key span { display: flex; align-items: center; gap: 6px; text-transform: capitalize; }
 .track-place-key i { width: 10px; height: 10px; border-radius: 50%; }
 .map-key-drag-handle { cursor: move; touch-action: none; user-select: none; }
-.map-bottom-left-panels .track-place-key { position: relative; left: auto; bottom: auto; max-width: 100%; }
+.map-bottom-left-panels .speed-band-key,
+.map-bottom-left-panels .track-place-key { position: relative; inset: auto; flex: 0 0 auto; max-width: 100%; }
 .track-place-key, .speed-band-key { padding-right: 27px; }
 .map-panel-close { position: absolute; top: 3px; right: 3px; z-index: 1; display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: #ef4444; font: inherit; font-size: 18px; line-height: 1; cursor: pointer; }
 .map-panel-close:hover, .map-panel-close:focus-visible { background: rgba(239, 68, 68, .15); }
@@ -1152,13 +1170,14 @@ a.report-location-cell { color:#9bdcff; text-decoration:underline; }
   background: rgba(0, 0, 0, 0.4);
   display: grid;
   place-items: center;
-  z-index: 2000;
+  z-index: 5000;
 }
 
 .settings-modal {
   width: min(700px, calc(100vw - 24px));
   max-height: calc(100vh - 24px);
   background: var(--panel-bg-soft);
+  color: var(--panel-text);
   border: 1px solid var(--card-border);
   border-radius: 14px;
   padding: 14px;
@@ -1393,6 +1412,19 @@ a.report-location-cell { color:#9bdcff; text-decoration:underline; }
 .status-card-field-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px 12px; margin-top: 8px; }
 .status-card-field-option { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; }
 .status-card-field-option .checkbox-row { flex: 1; min-width: 0; }
+.status-card-field-label { min-width: 0; overflow-wrap: anywhere; }
+.status-card-field-label.is-received { color: #8bd39b; font-weight: 600; }
+body[data-theme='light'] .status-card-field-label.is-received { color: #32764a; }
+.status-card-received-filter { position: relative; display: inline-flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 8px; width: fit-content; cursor: pointer; font-size: 12px; white-space: nowrap; }
+.status-card-received-filter input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.status-card-received-filter-track { position: relative; flex: 0 0 30px; width: 30px; height: 16px; border-radius: 999px; background: #9ca3af; transition: background-color .15s ease; }
+.status-card-received-filter-track::after { content: ''; display: block; width: 12px; height: 12px; margin: 2px; border-radius: 50%; background: #fff; transition: transform .15s ease; }
+.status-card-received-filter input:checked + .status-card-received-filter-track { background: #2563eb; }
+.status-card-received-filter input:checked + .status-card-received-filter-track::after { transform: translateX(14px); }
+.status-card-received-filter input:focus-visible + .status-card-received-filter-track { outline: 2px solid #1d4ed8; outline-offset: 2px; }
+.status-card-received-filter input:disabled ~ .status-card-received-filter-track,
+.status-card-received-filter input:disabled ~ span:last-child { opacity: .55; }
+.status-card-received-filter:has(input:disabled) { cursor: not-allowed; }
 .status-card-popup-switch { position: relative; display: inline-flex; flex: 0 0 30px; width: 30px; height: 18px; align-items: center; cursor: pointer; }
 .status-card-popup-switch input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .status-card-popup-switch-track { width: 30px; height: 16px; border-radius: 999px; background: #9ca3af; transition: background-color .15s ease; }
