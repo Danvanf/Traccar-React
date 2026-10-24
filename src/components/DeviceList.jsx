@@ -7,6 +7,7 @@ function DeviceList({
   onSelectDevice,
   expanded,
   onExpandedChange,
+  showVisibilityControls = true,
 }) {
   const selectedDevices = devices.filter((device) => deviceVisibility[device.id] !== false)
   const selectionLabel = selectedDevices.length < 3
@@ -14,11 +15,11 @@ function DeviceList({
     : `${selectedDevices.length} selected`
   return (
     <details className="device-list" open={expanded} onToggle={(event) => onExpandedChange(event.currentTarget.open)}>
-      <summary>Devices ({devices.length}, {selectionLabel})</summary>
+      <summary>Devices ({devices.length}{showVisibilityControls ? `, ${selectionLabel}` : ''})</summary>
       <ul>
         {devices.map((device) => (
           <li key={device.id} className={selectedDeviceId === device.id ? 'selected-device' : ''}>
-            <label className="checkbox-row">
+            {showVisibilityControls ? <label className="checkbox-row">
               <input
                 type="checkbox"
                 aria-label={`Show ${device.name} on map`}
@@ -29,7 +30,7 @@ function DeviceList({
                 }}
               />
               <span className="color-dot" style={{ background: deviceColors[device.id] || '#777' }} />
-            </label>
+            </label> : <span className="color-dot" aria-hidden="true" style={{ background: deviceColors[device.id] || '#777' }} />}
             <button
               type="button"
               className="device-list-select"

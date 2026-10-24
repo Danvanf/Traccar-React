@@ -733,6 +733,7 @@ h2 {
   font-weight: 700;
   font-size: 13px;
 }
+.trip-mobile-time-range { display: none; }
 
 .trip-meta {
   margin-top: 3px;
@@ -758,11 +759,6 @@ h2 {
 .trip-editor h3 {
   margin: 0;
   font-size: 13px;
-}
-
-.trip-editor-meta {
-  font-size: 11px;
-  color: var(--muted);
 }
 
 .trip-editor-tag-row {

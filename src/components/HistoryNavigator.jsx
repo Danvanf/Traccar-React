@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import PanelResizeHandle from './PanelResizeHandle'
 
 function monthLabel(dayKey) {
@@ -40,6 +41,7 @@ function HistoryNavigator({
   embedded = false,
   referenceRef,
   onFloat,
+  compactHeaderActionsTarget = null,
   height,
   onHeightChange,
   onHeightCommit,
@@ -148,8 +150,8 @@ function HistoryNavigator({
 
   if (effectiveMonthKeys.length === 0) {
     return <section ref={setPanelElement} style={panelStyle} className={`history-navigator${floating ? ' floating-history-content' : ''}`}>
-      <div className={`history-navigator-header${floating ? ' floating-panel-handle' : ''}`}>
-        <h2>Trips</h2>
+      <div className={`history-navigator-header${floating ? ' floating-panel-handle' : ''}${compactHeaderActionsTarget ? ' compact-history-header' : ''}`}>
+        {!compactHeaderActionsTarget && <h2>Recent days</h2>}
         <div className="panel-header-actions">
           <button type="button" className="small secondary" disabled={loading} onClick={refreshHistory}>{error ? 'Retry history' : 'Refresh'}</button>
           {!floating && !embedded && <button type="button" className="small secondary" onClick={onFloat} title="Float History panel" aria-label="Float History">↗</button>}
@@ -208,16 +210,21 @@ function HistoryNavigator({
 
   return (
     <section ref={setPanelElement} style={panelStyle} className={`history-navigator${floating ? ' floating-history-content' : ''}`}>
-      <div className={`history-navigator-header${floating ? ' floating-panel-handle' : ''}`}>
-        <div><h2>Trips</h2><p>Recent days</p></div>
-        <div className="panel-header-actions"><button type="button" className="small secondary" onClick={refreshHistory} disabled={loading} title="Refresh history" aria-label="Refresh history">↻</button>{!floating && !embedded && <button type="button" className="small secondary" onClick={onFloat} title="Float History panel" aria-label="Float History">↗</button>}</div>
+      <div className={`history-navigator-header${floating ? ' floating-panel-handle' : ''}${compactHeaderActionsTarget ? ' compact-history-header' : ''}`}>
+        {!compactHeaderActionsTarget && <h2>Recent days</h2>}
+        {!compactHeaderActionsTarget && <div className="panel-header-actions"><button type="button" className="small secondary" onClick={refreshHistory} disabled={loading} title="Refresh history" aria-label="Refresh history">↻</button>{!floating && !embedded && <button type="button" className="small secondary" onClick={onFloat} title="Float Trips panel" aria-label="Float Trips">↗</button>}</div>}
       </div>
+      {compactHeaderActionsTarget && createPortal(<>
+        <button type="button" className="small secondary history-refresh-button" onClick={refreshHistory} disabled={loading} title="Refresh history" aria-label="Refresh history"><svg className="history-refresh-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5" /><path d="M19 12a7.5 7.5 0 1 1-2-5" /></svg></button>
+        <button type="button" className={`small secondary ${selectionMode ? 'active' : ''}`} onClick={() => setSelectionMode((value) => !value)}>{selectionMode ? 'Done' : 'Select'}</button>
+        <button type="button" className="small secondary history-graph-selected" onClick={() => onReportDays(selectionMode)} disabled={selectionMode ? !hasBatchSelection : (!selectedDayKey && selectedDayKeys.length === 0)} title="Graph selected" aria-label="Graph selected"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h16" /><path d="m7 15 3-4 3 2 5-7" /></svg></button>
+      </>, compactHeaderActionsTarget)}
       {loading && <p className="history-empty" role="status">Loading history…</p>}
       {!loading && error && <p className="history-empty error" role="status">Could not load history: {error}</p>}
-        <div className="history-selection-tools">
+      {!compactHeaderActionsTarget && <div className="history-selection-tools">
         <button type="button" className={`small secondary ${selectionMode ? 'active' : ''}`} onClick={() => setSelectionMode((value) => !value)}>{selectionMode ? 'Done' : 'Select'}</button>
         <button type="button" className="small secondary" onClick={() => onReportDays(selectionMode)} disabled={selectionMode ? !hasBatchSelection : (!selectedDayKey && selectedDayKeys.length === 0)}>Graph selected</button>
-      </div>
+      </div>}
       <div className="history-month-list">
         {useYearView
           ? [...yearGroups.entries()].map(([year, months]) => {

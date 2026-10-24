@@ -11,6 +11,7 @@ import AppLayout from './components/layout/AppLayout'
 import MoreMenu from './components/layout/MoreMenu'
 import DeviceList from './components/DeviceList'
 import TripContent from './components/TripContent'
+import TripEditor from './components/TripEditor'
 const DeviceProtocolProfileEditor = lazy(() => import('./components/DeviceProtocolProfileEditor'))
 const ExportPanel = lazy(() => import('./components/ExportPanel'))
 const SettingsModal = lazy(() => import('./components/SettingsModal'))
@@ -648,7 +649,6 @@ function App() {
   const [tagName, setTagName] = useState('')
   const [tagColor, setTagColor] = useState('')
   const [selectedTrip, setSelectedTrip] = useState(null)
-  const [selectedTripMaxSpeedMph, setSelectedTripMaxSpeedMph] = useState(null)
   const [selectedBackendTripId, setSelectedBackendTripId] = useState(null)
   const [selectedTripRoutePoints, setSelectedTripRoutePoints] = useState([])
   const [graphGroups, setGraphGroups] = useState(null)
@@ -701,7 +701,6 @@ function App() {
     setSelectedTripId(null)
     setSelectedBackendTripId(null)
     setSelectedTripRoutePoints([])
-    setSelectedTripMaxSpeedMph(null)
     setTripEditorTags([])
     setSelectedTripEvents([])
     setTripNoteDraft('')
@@ -3407,7 +3406,6 @@ function App() {
       : null)
     setSelectedBackendTripId(null)
     setSelectedTripRoutePoints([])
-    setSelectedTripMaxSpeedMph(null)
     setTripEditorTags([])
     setSelectedTripEvents([])
     setTagToAdd('')
@@ -3494,13 +3492,6 @@ function App() {
           attributes: {},
         })))
       }
-      const computedMaxSpeedMph = getTripMaxSpeedMph(trip)
-      const persistedMaxSpeedMph = Number(savedTrip.maxSpeedMph)
-      // Older imports may contain a placeholder zero. Prefer the current
-      // telemetry-derived value whenever it is available.
-      setSelectedTripMaxSpeedMph(Number.isFinite(computedMaxSpeedMph) && computedMaxSpeedMph > persistedMaxSpeedMph
-        ? computedMaxSpeedMph
-        : (Number.isFinite(persistedMaxSpeedMph) ? persistedMaxSpeedMph : computedMaxSpeedMph))
       setTripNoteDraft(savedTrip.notes || '')
       setTripEditorTags(mappedTags)
       setSelectedTripEvents(collapseTripEvents(events))
@@ -4266,7 +4257,7 @@ function App() {
   const graphProfile = graphGroups?.[0]
     ? (graphGroups[0].profileContext || profileContextFor({ vehicleId: graphGroups[0].vehicleId, deviceId: graphGroups[0].deviceId })).profile
     : null
-  const renderHistoryPanel = (floating = true, compact = false, onTripSelected = () => {}) => <HistoryContent
+  const renderHistoryPanel = (floating = true, compact = false, onTripSelected = () => {}, compactHeaderActionsTarget = null) => <HistoryContent
     daySummaries={daySummaries}
     loading={historyIndexLoading}
     error={historyIndexError}
@@ -4292,10 +4283,11 @@ function App() {
     }}
     onReportDay={openSelectedDaysGraph}
     canGraphDay={(dayKey) => trips.some((trip) => trip.dayKey === dayKey && trip.points?.length > 0)}
-    renderDayTrips={(dayKey, selectionMode) => renderDayTrips(dayKey, onTripSelected, selectionMode)}
+    renderDayTrips={(dayKey, selectionMode) => renderDayTrips(dayKey, onTripSelected, selectionMode, compact)}
     displayUnits={settings.displayUnits}
     floating={floating}
     embedded={compact}
+    compactHeaderActionsTarget={compactHeaderActionsTarget}
     resizable={false}
     height={historyPanelPosition?.height}
     onHeightChange={(height) => setHistoryPanelPosition((current) => ({ ...current, height }))}
@@ -4326,10 +4318,25 @@ function App() {
       selectDevice(deviceId)
       onDeviceSelected()
     }}
+    showVisibilityControls={false}
     expanded
     onExpandedChange={() => {}}
   />
-  const renderDayTrips = (dayKey, onTripSelected, selectionMode) => <TripContent
+  const tripEditorContent = selectedTrip ? <TripEditor
+    tripEditorLoading={tripEditorLoading}
+    tripEditorDisabled={!selectedBackendTripId || tripEditorLoading || tripEditorBusy}
+    tripEditorStatus={tripEditorStatus}
+    tripEditorTags={tripEditorTags}
+    availableTripTags={tripEditorAvailableTags}
+    tagToAdd={tagToAdd}
+    setTagToAdd={setTagToAdd}
+    addSelectedTripTag={addSelectedTripTag}
+    removeSelectedTripTag={removeSelectedTripTag}
+    noteDraft={tripNoteDraft}
+    setNoteDraft={setTripNoteDraft}
+    saveSelectedTripNote={saveSelectedTripNote}
+  /> : null
+  const renderDayTrips = (dayKey, onTripSelected, selectionMode, compact = false) => <TripContent
       selectionMode={selectionMode}
       isTripSelected={(trip) => isTripSelected(batchSelection, trip)}
       onToggleTrip={(trip) => setBatchSelection((previous) => toggleTripSelection(previous, trip))}
@@ -4342,24 +4349,11 @@ function App() {
         onTripSelected()
         focusTrip(trip)
       }}
-      selectedTrip={selectedTrip?.dayKey === dayKey ? selectedTrip : null}
-      selectedTripMaxSpeedMph={selectedTripMaxSpeedMph}
       displayUnits={settings.displayUnits}
-      tripEditorLoading={tripEditorLoading}
-      tripEditorDisabled={!selectedBackendTripId || tripEditorLoading || tripEditorBusy}
-      tripEditorStatus={tripEditorStatus}
-      tripEditorTags={tripEditorTags}
-      availableTripTags={tripEditorAvailableTags}
-      tagToAdd={tagToAdd}
-      setTagToAdd={setTagToAdd}
-      addSelectedTripTag={addSelectedTripTag}
-      removeSelectedTripTag={removeSelectedTripTag}
-      noteDraft={tripNoteDraft}
-      setNoteDraft={setTripNoteDraft}
-      saveSelectedTripNote={saveSelectedTripNote}
+      tripEditor={!compact && selectedTrip?.dayKey === dayKey ? tripEditorContent : null}
       openTripGraph={openTripGraph}
     />
-  const renderTrips = ({ onTripSelected = () => {}, desktop = false } = {}) => renderHistoryPanel(desktop, !desktop, onTripSelected)
+  const renderTrips = ({ onTripSelected = () => {}, desktop = false, compactHeaderActionsTarget = null } = {}) => renderHistoryPanel(desktop, !desktop, onTripSelected, compactHeaderActionsTarget)
   const renderMobileStatus = () => <div className="scope-status-content">
     <StatusCard status={status} sessionState={sessionState} error={error} />
     <VehicleStatusCard
@@ -4378,7 +4372,6 @@ function App() {
   </div>
   const mobileMoreItems = [
     { label: 'Status', content: renderMobileStatus() },
-    { label: 'Notifications', onSelect: () => setActiveTask('notifications') },
     { label: 'Reports and data transfer', onSelect: () => setActiveTask('data-transfer') },
     { label: 'Settings and Named Places', description: 'Settings work best on a larger screen; this window scrolls on mobile.', onSelect: () => setIsSettingsOpen(true) },
     { label: 'My profile', onSelect: () => setActiveTask('profile') },
@@ -4463,7 +4456,9 @@ function App() {
     }
     setActiveTask(null)
   }
-  const deviceName = statusDevice?.name || devices.find((device) => device.id === deviceListSelectedId)?.name || ''
+  // Keep the mobile title tied to the device the user selected. `statusDevice`
+  // can lag while its eligibility/history data refreshes, so it is only a fallback.
+  const deviceName = devices.find((device) => Number(device.id) === Number(deviceListSelectedId))?.name || statusDevice?.name || ''
   const accountControls = <div className="global-auth-controls" ref={userMenuRef}>
     {SHOW_EXPERIMENTAL_ASK && <button type="button" className="global-ask-vehicles is-experimental" title="Experimental feature enabled only in this development browser" onClick={() => setIsVehicleQueryOpen(true)}>Ask</button>}
     {vehicleAuth.enabled && vehicleAuth.authenticated && <>
@@ -4509,10 +4504,12 @@ function App() {
         mapPicking={isPickingLocation}
         deviceName={deviceName}
         connectionState={sessionState}
-        pointTimestamp={statusPoint?.timestamp}
         announcement={error}
         devices={renderMobileDevices}
         trips={renderTrips}
+        tripEditor={tripEditorContent}
+        hasNotifications={notifications.length + selectedTripEvents.length > 0}
+        onNotificationsClick={() => setActiveTask('notifications')}
         status={renderMobileStatus()}
         more={mobileMore}
         accountControls={accountControls}

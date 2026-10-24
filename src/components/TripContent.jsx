@@ -27,21 +27,8 @@ function TripContent({
   devices,
   selectedTripId,
   focusTrip,
-  selectedTrip,
-  selectedTripMaxSpeedMph,
   displayUnits = 'imperial',
-  tripEditorLoading,
-  tripEditorDisabled,
-  tripEditorStatus,
-  tripEditorTags,
-  availableTripTags,
-  tagToAdd,
-  setTagToAdd,
-  addSelectedTripTag,
-  removeSelectedTripTag,
-  noteDraft,
-  setNoteDraft,
-  saveSelectedTripNote,
+  tripEditor = null,
   openTripGraph,
 }) {
   const filteredTrips = filterTripsForSelectedDays(visibleTrips, selectedDayKey, selectedDayKeys)
@@ -61,9 +48,12 @@ function TripContent({
               className={'trip-item ' + (selectedTripId === trip.tripId ? 'active' : '')}
               onClick={() => focusTrip(trip)}
             >
-              <div className="trip-main">{deviceName}</div>
+              <div className="trip-main">
+                <span>{deviceName}</span>
+                <span className="trip-mobile-time-range">{trip.start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })} - {trip.end.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</span>
+              </div>
               <div className="trip-meta">
-                <span>{trip.start.toLocaleString()} - {trip.end.toLocaleTimeString()}</span>
+                <span className="trip-date-range">{trip.start.toLocaleString()} - {trip.end.toLocaleTimeString()}</span>
                 <span>{Math.round((trip.end - trip.start) / 60000)} min | {formatDistance(trip.distance, displayUnits)} | {Math.round((trip.maxSpeedMph ?? 0) * speedFactor)} {speedUnit} | {Math.round(trip.eventCount ?? 0)} events</span>
               </div>
             </button>
@@ -73,56 +63,7 @@ function TripContent({
       })}
       {filteredTrips.length === 0 && <div className="trip-empty">No trips in the selected filter.</div>}
     </div>
-
-    {selectedTrip && (
-      <div className="trip-editor">
-        <div className="trip-editor-meta">
-          {selectedTrip.start.toLocaleString()} - {selectedTrip.end.toLocaleTimeString()}
-          {Number.isFinite(selectedTripMaxSpeedMph) && ' · Max: ' + (selectedTripMaxSpeedMph * speedFactor).toFixed(1) + ' ' + speedUnit}
-        </div>
-        {tripEditorLoading && <div className="trip-empty">Loading trip metadata...</div>}
-        {tripEditorStatus && <div className="trip-empty">{tripEditorStatus}</div>}
-
-        {!tripEditorLoading && (
-          <>
-            <label>
-              Add Tag
-              <div className="trip-editor-tag-row">
-                <select disabled={tripEditorDisabled} value={tagToAdd} onChange={(event) => setTagToAdd(event.target.value)}>
-                  <option value="">Select tag</option>
-                  {availableTripTags.map((tag) => (
-                    <option key={tag.id} value={tag.id}>{tag.name}</option>
-                  ))}
-                </select>
-                <button type="button" className="small secondary" onClick={addSelectedTripTag} disabled={tripEditorDisabled || !tagToAdd}>Add</button>
-              </div>
-            </label>
-
-            {tripEditorTags.length > 0 && (
-              <div className="trip-editor-tags">
-                {tripEditorTags.map((tag) => (
-                  <button key={tag.id} type="button" className="trip-tag-chip" onClick={() => removeSelectedTripTag(tag.id)} disabled={tripEditorDisabled}>
-                    {tag.name} ×
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <label>
-              Trip Notes
-              <textarea
-                disabled={tripEditorDisabled}
-                rows={3}
-                value={noteDraft}
-                onChange={(event) => setNoteDraft(event.target.value)}
-                placeholder="Add contextual notes for this trip"
-              />
-            </label>
-            <button type="button" className="small" onClick={saveSelectedTripNote} disabled={tripEditorDisabled}>Save Notes</button>
-          </>
-        )}
-      </div>
-    )}
+    {tripEditor}
   </>
 }
 

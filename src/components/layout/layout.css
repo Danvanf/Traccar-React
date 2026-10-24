@@ -84,7 +84,7 @@
     z-index: 3;
     flex: 0 0 auto;
     min-height: calc(56px + env(safe-area-inset-top, 0px));
-    padding: calc(8px + env(safe-area-inset-top, 0px)) 12px 8px;
+    padding: calc(8px + env(safe-area-inset-top, 0px)) 12px 3px;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -157,10 +157,10 @@
     min-width: 44px;
     min-height: 44px;
     padding: 8px 11px;
-    border: 1px solid var(--card-border);
+    border: 2px solid var(--card-border);
     border-radius: 9px;
-    background: var(--panel-bg);
-    color: var(--panel-text);
+    background: transparent;
+    color: #000;
     box-shadow: 0 3px 12px rgba(0, 0, 0, .25);
     font: inherit;
     font-weight: 700;
@@ -168,6 +168,65 @@
 
   .scope-map-overlay button[aria-label='Zoom in'],
   .scope-map-overlay button[aria-label='Zoom out'] { width: 44px; padding: 4px; font-size: 22px; }
+  .scope-map-edit-trip {
+    position: absolute;
+    z-index: 1101;
+    left: 12px;
+    bottom: 12px;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    padding: 8px;
+    border: 2px solid var(--card-border);
+    border-radius: 9px;
+    background: transparent;
+    color: #000;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, .25);
+  }
+  .scope-map-notifications {
+    position: absolute;
+    z-index: 1101;
+    top: 12px;
+    left: 12px;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    padding: 8px;
+    border: 2px solid var(--card-border);
+    border-radius: 9px;
+    background: transparent;
+    color: #000;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, .25);
+  }
+  .scope-map-notifications svg { width: 22px; height: 22px; }
+  .scope-map-edit-trip svg { width: 22px; height: 22px; }
+  .scope-trip-editor-backdrop {
+    position: fixed;
+    z-index: 1500;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-start;
+    padding: 12px 12px calc(68px + env(safe-area-inset-bottom, 0px));
+    background: rgba(0, 0, 0, .45);
+    overscroll-behavior: contain;
+  }
+  .scope-trip-editor-dialog {
+    width: min(360px, 100%);
+    max-height: min(70dvh, 520px);
+    overflow-y: auto;
+    padding: 14px;
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    background: var(--panel-bg);
+    color: var(--panel-text);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, .38);
+  }
+  .scope-trip-editor-dialog > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+  .scope-trip-editor-dialog > header h2 { margin: 0; font-size: 16px; }
+  .scope-trip-editor-dialog .trip-editor-dialog-content { margin: 0; padding: 0; border: 0; }
   .scope-map-area .leaflet-top.leaflet-right { top: 58px; }
   .scope-map-area .leaflet-control-zoom,
   .scope-map-area .map-action-control { display: none; }
@@ -208,6 +267,15 @@
   .scope-sheet-heading h2 { margin: 0; font-size: 16px; overflow-wrap: anywhere; }
   .scope-sheet-heading p { margin: 2px 0 0; color: var(--muted); font-size: 11px; }
 
+  .scope-sheet[data-panel='trips'] .scope-sheet-header { flex-wrap: nowrap; gap: 4px; padding-inline: 8px; }
+  .scope-sheet[data-panel='trips'] .scope-sheet-heading { flex: 1 1 auto; min-width: 76px; }
+  .scope-sheet-trips-actions { display: flex; flex: 0 0 auto; gap: 2px; }
+  .scope-sheet-trips-actions button { width: auto; min-width: 40px; padding: 2px 3px; font-size: 11px; }
+  .scope-sheet-trips-actions .history-graph-selected { padding: 2px; }
+  .scope-sheet-trips-actions svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .scope-sheet-trips-actions .history-refresh-icon { width: 20px; height: 20px; }
+  .scope-sheet[data-panel='trips'] .scope-sheet-header > button { min-width: 40px; padding: 2px 4px; font-size: 11px; }
+
   .scope-sheet-body {
     flex: 1 1 0;
     min-height: 0;
@@ -234,9 +302,30 @@
     border: 0;
     box-shadow: none;
   }
-  .scope-sheet-body .history-navigator { min-height: 240px; }
+  .scope-sheet-body .history-navigator { min-height: 240px; padding-left: 2.5px; }
+  .scope-sheet-body .history-navigator-header.compact-history-header { display: none; }
   .scope-sheet-body .history-month-list { flex: 0 0 auto; min-height: 100px; overflow: visible; }
+  .scope-sheet-body .history-month-list summary { padding-left: 1px; }
+  .scope-sheet-body .history-year-months { padding-left: 2px; }
+  .scope-sheet-body .history-day-list { padding-left: 4px; }
+  .scope-sheet-body .history-day-trips { margin-left: 3px; padding-left: 2px; }
+  .scope-sheet-body .history-day-row { gap: 3px; height: 24px; min-height: 24px; }
+  .scope-sheet-body .history-day-row .history-day { justify-content: flex-start; gap: 5px; height: 24px; min-height: 24px; padding: 2px 1px; line-height: 16px; }
+  .scope-sheet-body .history-day-date { flex: 0 0 auto; min-width: 0; flex-direction: row; align-items: baseline; gap: 3px; }
+  .scope-sheet-body .history-day-date strong,
+  .scope-sheet-body .history-day-date small { font-size: 11px; line-height: 16px; white-space: nowrap; }
+  .scope-sheet-body .history-day-summary { flex: 1 1 auto; min-width: 0; flex-direction: row; justify-content: space-between; align-items: center; gap: 5px; font-size: 10px; line-height: 16px; }
+  .scope-sheet-body .history-day-summary > span { white-space: nowrap; }
+  .scope-sheet-body .history-day-graph { flex: 0 0 26px; width: 26px; min-width: 26px; height: 22px; min-height: 22px; padding: 0; margin: 0; }
+  .scope-sheet-body .history-day-graph svg { width: 21px; height: 20px; }
+  .scope-sheet-body .trip-item-row > .trip-graph-button { flex: 0 0 26px; align-self: center; width: 26px; min-width: 26px; height: 22px; min-height: 22px; padding: 0; margin: 0; }
+  .scope-sheet-body .trip-item-row > .trip-graph-button svg { width: 21px; height: 20px; }
+  .scope-sheet-body .trip-main { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; min-width: 0; }
+  .scope-sheet-body .trip-main > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .scope-sheet-body .trip-mobile-time-range { display: inline; flex: 0 0 auto; color: var(--muted); font-size: 11px; font-weight: 500; white-space: nowrap; }
+  .scope-sheet-body .trip-date-range { display: none; }
   .scope-sheet-body .trip-editor { position: static; max-height: none; overflow: visible; }
+  .scope-sheet-body .trip-item { padding: 2px; }
   .scope-sheet-body .panel-bottom-resize-handle,
   .scope-task-body .panel-bottom-resize-handle { display: none; }
   .scope-status-content { display: grid; gap: 10px; }
@@ -268,7 +357,7 @@
   }
 
   .scope-navigation button[aria-pressed='true'] { color: var(--panel-text); box-shadow: inset 0 3px var(--primary); }
-  .scope-layout button { min-width: 44px; min-height: 44px; }
+  .scope-layout button { min-width: 44px; min-height: 40px; }
   .scope-layout input,
   .scope-layout select,
   .scope-layout textarea { max-width: 100%; font-size: 1rem; }
@@ -497,6 +586,12 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
   }
+  .scope-sheet[data-panel='trips'] .scope-sheet-header {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+  .scope-sheet[data-panel='trips'] .scope-sheet-header > button { flex: 0 0 auto; }
   .scope-layout[data-sheet-size='peek'] .scope-sheet-header {
     grid-template-columns: minmax(0, 1fr) auto;
   }
